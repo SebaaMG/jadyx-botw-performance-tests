@@ -143,10 +143,11 @@ void RendererD3D12::DrawPerformanceOverlay(CommandStream* cmd,
         const u64 cpu_ticks = ticks(kernel) + ticks(user);
         const u64 gpu_us = VideoCore::Perf::counters[
             static_cast<size_t>(VideoCore::Perf::Counter::GpuBusyUs)].load(std::memory_order_relaxed);
-        // Reuse the HUD refresh and cached text. At most one lightweight OS query per second,
-        // including failures; hiding the HUD resets this state and performs no queries.
+        // Reuse the HUD refresh and cached text. Sample resident pages and the renderer's commit
+        // budget once per second, including failures; the hidden HUD performs no queries.
         if (first || now - hud.memory_sample_time >= std::chrono::seconds{1}) {
-            hud.memory_line = FormatOverlayResidentMemory(QueryOverlayResidentMemory());
+            hud.memory_line = FormatOverlayBudgetMemory(QueryOverlayResidentMemory(),
+                                                         device.QueryCacheMemoryPressure());
             hud.memory_sample_time = now;
         }
         std::array<std::string, 5> lines{

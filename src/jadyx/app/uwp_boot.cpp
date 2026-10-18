@@ -37,6 +37,8 @@
 #include <vector>
 
 #include <winrt/base.h>
+#include <windows.h>
+#include <psapi.h>
 
 #include "common/bug_tracker.h"
 #include "common/fs/path_util.h"
@@ -1424,6 +1426,18 @@ std::string MemoryReport() {
         // not in AppMemoryUsage (0.2.53 died at 2.8 GiB of usage).
         const auto report = MemoryManager::GetAppMemoryReport();
         const std::string stats = Common::HostMemoryCommitStats();
+        PROCESS_MEMORY_COUNTERS_EX process{};
+        process.cb = sizeof(process);
+        const bool have_process = K32GetProcessMemoryInfo(
+            GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&process),
+            sizeof(process));
+        const std::string process_stats = have_process
+            ? ", working set " + std::to_string(process.WorkingSetSize >> 20) +
+                  " MiB, process private commit " + std::to_string(process.PrivateUsage >> 20) +
+                  " MiB"
+            : ", process memory counters unavailable";
+        const u64 private_commit = report.PrivateCommitUsage();
+        const u64 total_commit = report.TotalCommitUsage();
         return "app memory " + std::to_string(MemoryManager::AppMemoryUsage() >> 20) + " MiB of " +
                std::to_string(MemoryManager::AppMemoryUsageLimit() >> 20) + " MiB limit, commit " +
                std::to_string(report.TotalCommitUsage() >> 20) + " of " +
@@ -1432,7 +1446,10 @@ std::string MemoryReport() {
                     std::to_string(g_test_memory_limit.load() >> 20) + " MiB, headroom " +
                     std::to_string((g_test_memory_limit.load() > report.TotalCommitUsage()
                         ? g_test_memory_limit.load() - report.TotalCommitUsage() : 0) >> 20) + " MiB") +
-               (stats.empty() ? "" : ", " + stats);
+               process_stats + ", WinRT private commit " + std::to_string(private_commit >> 20) +
+               " MiB, shared commit " +
+               std::to_string((total_commit > private_commit ? total_commit - private_commit : 0) >> 20) +
+               " MiB" + (stats.empty() ? "" : ", " + stats);
     } catch (...) {
         return "app memory: MemoryManager unavailable";
     }
@@ -1440,7 +1457,9 @@ std::string MemoryReport() {
 
 // The app's commit split by owner: the emulated DRAM, the JIT's code, the renderer's accounts
 // (Common::MemoryLedger) and the rest, which no account covers: driver objects such as compiled
-// PSOs, the smaller GPU resources, the heaps and the executable.
+// PSOs, the smaller GPU resources, the heaps and the executable. On discrete GPUs, the ledger
+// excludes GPU-local accounts from the subtotal, but a driver can still charge their backing to
+// process commit. That backing then appears in "rest"; this is not a CPU heap or leak census.
 std::string MemoryOwners() {
     u64 commit{};
     try {
@@ -1455,7 +1474,8 @@ std::string MemoryOwners() {
            ", JIT code " + std::to_string(jit >> 20) + " MiB, " + Common::DescribeMemoryLedger() +
            "; rest " + std::to_string((commit > known ? commit - known : 0) >> 20) +
            " MiB of " + std::to_string(commit >> 20) +
-           " MiB commit (driver objects, small GPU resources, heaps, executable)";
+           " MiB commit (includes unclassified GPU backing on discrete GPUs, driver objects, "
+           "heaps, executable; not a CPU-only heap total)";
 }
 
 // What the guest kernel has handed out against what the emulated DRAM commits. Pages the game
