@@ -83,6 +83,17 @@ struct BcEncode {
     bool bc1;
 };
 
+/// SeriesX modification: one mip of a linear BC1 array, decoded with CPU-equivalent integers.
+struct Bc1Decode {
+    D3D12_CPU_DESCRIPTOR_HANDLE source;      ///< bounded raw SRV of the compressed mip
+    D3D12_CPU_DESCRIPTOR_HANDLE destination; ///< RGBA8 UNORM UAV; sRGB bytes stay encoded
+    u32 width;
+    u32 height;
+    u32 layers;
+    u32 input_words;
+    u32 first_word; ///< RAW SRV bases require 16-byte alignment; mip starts may be 8-byte aligned
+};
+
 /// Draws Eden's host blit and clear shaders into guest images: the D3D12 counterpart of Vulkan's
 /// BlitImageHelper. Serves scaled texture blits (Fermi2D), DrawTexture and the clears D3D12 cannot
 /// express with ClearRenderTargetView/ClearDepthStencilView (partial color or stencil masks).
@@ -166,6 +177,8 @@ public:
     /// Records the decode of one level; the caller puts the image in UNORDERED_ACCESS.
     void DecodeAstc(const AstcDecode& decode);
     void EncodeBc(const BcEncode& encode);
+    [[nodiscard]] bool CanDecodeBc1() const noexcept { return bc1_available; }
+    void DecodeBc1(const Bc1Decode& decode);
 
 private:
     enum class Kind : u8 {
@@ -198,6 +211,7 @@ private:
     /// Builds the ASTC decoder's root signature and pipeline; throws on failure.
     void CreateAstcPipeline(const ShaderCompiler& compiler);
     void CreateBc3Pipeline(const ShaderCompiler& compiler);
+    void CreateBc1Pipeline(const ShaderCompiler& compiler);
 
     const Device& device;
     Scheduler& scheduler;
@@ -223,6 +237,10 @@ private:
     ComPtr<ID3D12RootSignature> bc3_root_signature;
     ComPtr<ID3D12PipelineState> bc3_pipeline;
     bool bc3_available{};
+
+    ComPtr<ID3D12RootSignature> bc1_root_signature;
+    ComPtr<ID3D12PipelineState> bc1_pipeline;
+    bool bc1_available{};
 };
 
 } // namespace D3D12

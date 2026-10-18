@@ -10,6 +10,7 @@
 #include "common/div_ceil.h"
 #include "video_core/host_shaders/d3d12_astc_decoder_comp_spv.h"
 #include "video_core/host_shaders/d3d12_bc3_encoder_comp_spv.h"
+#include "video_core/host_shaders/d3d12_bc1_decoder_comp_spv.h"
 #include "video_core/host_shaders/d3d12_depth_stencil_merge_comp_spv.h"
 #include "video_core/host_shaders/d3d12_depth_stencil_split_comp_spv.h"
 #include "video_core/renderer_d3d12/d3d12_blit_image.h"
@@ -192,6 +193,62 @@ void BlitImageHelper::DecodeAstc(const AstcDecode& decode) {
     const std::array<u32, 3> groups{Common::DivCeil(decode.blocks_x, ASTC_GROUP_SIZE),
                                     Common::DivCeil(decode.blocks_y, ASTC_GROUP_SIZE),
                                     decode.layers};
+    SetComputeRuntimeData(cmd, 3, groups);
+    cmd->Dispatch(groups[0], groups[1], groups[2]);
+}
+
+// SeriesX modification: BC1 CPU-equivalent integer decoding from a bounded compressed mip.
+void BlitImageHelper::CreateBc1Pipeline(const ShaderCompiler& compiler) {
+    const D3D12_DESCRIPTOR_RANGE srv_range{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, 0};
+    const D3D12_DESCRIPTOR_RANGE uav_range{D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 1, 0, 0};
+    std::array<D3D12_ROOT_PARAMETER, 4> params{};
+    params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    params[0].Constants = {.ShaderRegister = 0, .RegisterSpace = PUSH_CONSTANT_SPACE,
+                           .Num32BitValues = 5};
+    params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[1].DescriptorTable = {1, &srv_range};
+    params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[2].DescriptorTable = {1, &uav_range};
+    params[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    params[3].Constants = {
+        .ShaderRegister = 0, .RegisterSpace = RUNTIME_DATA_SPACE,
+        .Num32BitValues = static_cast<UINT>(sizeof(dxil_spirv_compute_runtime_data) / sizeof(u32))};
+    for (auto& param : params) param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    const D3D12_ROOT_SIGNATURE_DESC desc{static_cast<UINT>(params.size()), params.data(), 0,
+                                         nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE};
+    bc1_root_signature =
+        D3D12::CreateRootSignature(device.Get(), desc, "SeriesX integer BC1 decoder");
+    const std::array<ShaderCompiler::PipelineStage, 1> stages{{
+        {D3D12_BC1_DECODER_COMP_SPV, DXIL_SPIRV_SHADER_COMPUTE},
+    }};
+    const auto compiled = compiler.CompilePipeline(stages, {});
+    const auto& dxil = compiled[0].dxil;
+    const D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline{
+        .pRootSignature = bc1_root_signature.Get(), .CS = {dxil.data(), dxil.size()}};
+    ThrowIfFailed(device.Get()->CreateComputePipelineState(&pipeline, IID_PPV_ARGS(&bc1_pipeline)),
+                  "CreateComputePipelineState (SeriesX BC1 decoder)");
+}
+
+void BlitImageHelper::DecodeBc1(const Bc1Decode& decode) {
+    if (!bc1_available || decode.width == 0 || decode.height == 0 || decode.layers == 0) {
+        return;
+    }
+    // Reserve descriptors before binding the PSO/root state: exhaustion may submit/reset.
+    const std::array descriptors{decode.source, decode.destination};
+    const auto table = descriptor_ring.Upload(descriptors);
+    auto* const cmd = scheduler.CommandList();
+    ID3D12DescriptorHeap* const heaps[] = {descriptor_ring.Heap(), sampler_heap.Heap()};
+    cmd->SetDescriptorHeaps(2, heaps);
+    cmd->SetComputeRootSignature(bc1_root_signature.Get());
+    scheduler.SetPipelineState(bc1_pipeline.Get());
+    const std::array<u32, 5> constants{
+        decode.width, decode.height, decode.layers, decode.input_words, decode.first_word};
+    cmd->SetComputeRoot32BitConstants(0, 5, constants.data(), 0);
+    cmd->SetComputeRootDescriptorTable(1, table);
+    cmd->SetComputeRootDescriptorTable(2, {table.ptr + descriptor_ring.Stride()});
+    const std::array<u32, 3> groups{
+        Common::DivCeil(Common::DivCeil(decode.width, 4U), 8U),
+        Common::DivCeil(Common::DivCeil(decode.height, 4U), 8U), decode.layers};
     SetComputeRuntimeData(cmd, 3, groups);
     cmd->Dispatch(groups[0], groups[1], groups[2]);
 }

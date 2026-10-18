@@ -1344,6 +1344,27 @@ void TextureCache<P>::RefreshContents(Image& image, ImageId image_id) {
         return;
     }
     VideoCore::Perf::LapTimer timer;
+    // SeriesX modification: supported D3D12 BC1 arrays can decode directly in GPU compute while
+    // retaining the Xbox array workaround. Merely splitting CPU uploads would accumulate the
+    // same expanded staging bytes in an unsubmitted command list.
+    if constexpr (requires { image.CanUploadConvertedBcArray(); }) {
+        if (image.converted_size_bytes >= (32U << 20) &&
+            True(image.flags & ImageFlagBits::Converted) &&
+            False(image.flags & ImageFlagBits::AcceleratedUpload) &&
+            image.CanUploadConvertedBcArray()) {
+            Tegra::Memory::GpuGuestMemory<u8, Tegra::Memory::GuestMemoryFlags::UnsafeRead>
+                swizzled(*gpu_memory, image.gpu_addr, image.guest_size_bytes,
+                         &swizzle_data_buffer);
+            unswizzle_data_buffer.resize_destructive(image.unswizzled_size_bytes);
+            const auto copies = FixSmallVectorADL(UnswizzleImage(
+                *gpu_memory, image.gpu_addr, image.info, swizzled, unswizzle_data_buffer));
+            timer.Lap(VideoCore::Perf::Counter::TextureCacheUnswizzleNs);
+            image.UploadConvertedBcArray(unswizzle_data_buffer, copies);
+            timer.Lap(VideoCore::Perf::Counter::TextureCacheBackendUploadNs);
+            runtime.InsertUploadMemoryBarrier();
+            return;
+        }
+    }
     auto staging = [&] {
         const VideoCore::FrameTrace::ScopedSpan span{
             VideoCore::FrameTrace::Event::TextureUploadStaging, image.gpu_addr};

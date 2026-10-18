@@ -438,8 +438,17 @@ Image::Image(TextureCacheRuntime& runtime_, const VideoCommon::ImageInfo& info_,
     }
     // Multisampled resources cannot have UAVs.
     // The ASTC decoder writes through an R8G8B8A8_UNORM UAV, sRGB images included.
+    // SeriesX modification: the integer BC1 decoder also writes encoded sRGB bytes through
+    // an UNORM UAV of this typeless RGBA8 resource. The SRGB view itself is not a UAV format.
+    const bool bc1_array_decoder =
+        format.converted && info_.type == ImageType::e2D && info_.resources.layers > 1 &&
+        info_.size.depth == 1 && info_.num_samples == 1 &&
+        info_.size.width % 4 == 0 && info_.size.height % 4 == 0 &&
+        converted_size_bytes >= (32U << 20) &&
+        (info_.format == PixelFormat::BC1_RGBA_UNORM || info_.format == PixelFormat::BC1_RGBA_SRGB) &&
+        runtime->blit_helper && runtime->blit_helper->CanDecodeBc1();
     const bool decoder_writes_image =
-        gpu_decoded && format.copy_format == PixelFormat::A8B8G8R8_UNORM;
+        (gpu_decoded && format.copy_format == PixelFormat::A8B8G8R8_UNORM) || bc1_array_decoder;
     if (is_color && !is_msaa &&
         (decoder_writes_image || runtime->SupportsView(format.view, D3D12_FORMAT_SUPPORT1_NONE,
                                               D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE))) {
@@ -463,7 +472,7 @@ Image::Image(TextureCacheRuntime& runtime_, const VideoCommon::ImageInfo& info_,
         .SampleDesc = {.Count = info_.num_samples, .Quality = 0},
         .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN, .Flags = resource_flags,
     };
-    {
+    try {
         VideoCore::Perf::ScopedTimer timer{VideoCore::Perf::Counter::ResourceCreateUs,
                                            VideoCore::Perf::Counter::ResourcesCreated};
         auto allocated = runtime->texture_allocator.Create(desc, D3D12_RESOURCE_STATE_COMMON);
@@ -475,6 +484,15 @@ Image::Image(TextureCacheRuntime& runtime_, const VideoCommon::ImageInfo& info_,
         if (!resource) {
             throw std::runtime_error("D3D12: texture allocator returned no resource");
         }
+    } catch (const std::exception& error) {
+        // SeriesX modification: resource OOM is distinct from upload staging OOM.
+        LOG_ERROR(Render, "Texture resource creation failed: {}x{}x{} type={} format={} "
+                          "levels={} layers={} converted={} native_blocks={} dxgi={} flags={:x}: {}",
+                  info_.size.width, info_.size.height, info_.size.depth,
+                  static_cast<u32>(info_.type), static_cast<u32>(info_.format),
+                  info_.resources.levels, info_.resources.layers, format.converted, native_blocks,
+                  static_cast<u32>(desc.Format), static_cast<u32>(desc.Flags), error.what());
+        throw;
     }
     CheckRemovedAfter(runtime->device.Get(), [&] {
         return fmt::format("creating image {} ({} dim {} {}x{}x{} levels {} samples {} flags 0x{:x})",

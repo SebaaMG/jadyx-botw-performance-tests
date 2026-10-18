@@ -114,6 +114,8 @@ public:
     u64 GetDeviceMemoryUsage() const;
     std::optional<VideoCommon::TextureGcPolicy> GetTextureGcPolicy(bool second_pass);
     [[nodiscard]] u64 DepthFeedbackCopies() const noexcept { return depth_feedback_copies; }
+    /// SeriesX modification: number of completed integer BC1 GPU upload batches.
+    [[nodiscard]] u64 ConvertedBcUploadSerial() const noexcept { return converted_bc_upload_serial; }
     bool CanReportMemoryUsage() const { return true; }
     std::optional<size_t> GetSamplerHeapBudget() const { return SamplerHeap::CAPACITY; }
 
@@ -241,6 +243,7 @@ private:
     /// creating such a sampler there removes the device (DXGI_ERROR_INVALID_CALL).
     bool supports_min_max_filter{};
     u64 depth_feedback_copies{};
+    u64 converted_bc_upload_serial{};
     /// FORMAT_SUPPORT answers by format, each logged once (see SupportsView).
     mutable std::mutex format_support_mutex;
     mutable std::unordered_map<DXGI_FORMAT, D3D12_FEATURE_DATA_FORMAT_SUPPORT> format_support;
@@ -264,6 +267,11 @@ public:
     /// Native blocks are used only for transfers, never sampled (Xbox BC array workaround).
     void PreserveGuestBlocks(std::span<const u8> data,
                              std::span<const VideoCommon::BufferImageCopy> copies);
+    /// SeriesX modification: retain the Xbox decoded-array representation without staging the
+    /// whole expanded image. Integer compute decoding writes the existing RGBA array directly.
+    [[nodiscard]] bool CanUploadConvertedBcArray() const noexcept;
+    void UploadConvertedBcArray(std::span<const u8> data,
+                                std::span<const VideoCommon::BufferImageCopy> copies);
     [[nodiscard]] Image* GuestBlocks() const noexcept {
         return guest_blocks && !guest_blocks_upload_pending && !reinterpreted_ahead &&
                        guest_blocks_version == write_version
@@ -381,6 +389,9 @@ private:
     void InitializePlacedResource();
     void CopyThroughBuffer(ID3D12Resource* src, ID3D12Resource* dst);
     Image* EnsureGuestBlocks();
+    [[nodiscard]] StagingBufferRef PreserveGuestBlocksImpl(
+        std::span<const u8> data, std::span<const VideoCommon::BufferImageCopy> copies,
+        bool deferred = false);
     bool HasGuestBlocks(const VideoCommon::ImageCopy& copy) const;
     void IncludeGuestBlocks(const VideoCommon::ImageCopy& copy);
     void TransitionReinterpreted(D3D12_RESOURCE_STATES next);
