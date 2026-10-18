@@ -149,7 +149,7 @@ struct UserConfig {
     /// - Block linking optimizations
     /// - RSB optimizations
     /// This is intended to be used for debugging.
-    OptimizationFlag optimizations = all_safe_optimizations;
+    OptimizationFlag optimizations = default_optimizations;
 
     /// Minimum size is about 8MiB. Maximum size is about 128MiB (arm64 host) or 2GiB (x64 host).
     /// Maximum size is limited by the maximum length of a x86_64 / arm64 jump.

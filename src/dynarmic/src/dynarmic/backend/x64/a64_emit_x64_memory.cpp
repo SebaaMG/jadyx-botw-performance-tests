@@ -282,7 +282,9 @@ void A64EmitX64::GenFastmemFallbacks() {
 }
 
 #define Axx A64
+#define SERIESX_A64_PAGE_REUSE 1
 #include "dynarmic/backend/x64/emit_x64_memory.cpp.inc"
+#undef SERIESX_A64_PAGE_REUSE
 #undef Axx
 
 void A64EmitX64::EmitA64ReadMemory8(A64EmitContext& ctx, IR::Inst* inst) {
@@ -429,5 +431,34 @@ void A64EmitX64::EmitCheckMemoryAbort(A64EmitContext&, IR::Inst* inst, Xbyak::La
     code.ForceReturnFromRunCode();
     code.L(skip);
 }
+
+
+// ProsperoEden: the direct-table value for a group of accesses (headless/dynarmic/page-reuse.cmake):
+// 0 when its span crosses a page boundary or leaves the address space, or when the page must
+// take the callback path.
+void A64EmitX64::EmitA64EdenPageLookup(A64EmitContext& ctx, IR::Inst* inst) {
+    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    const u32 span = static_cast<u32>(args[1].GetImmediateU64());
+    const Xbyak::Reg64 host = ctx.reg_alloc.UseScratchGpr(code, args[0]);
+    const Xbyak::Reg64 offset = ctx.reg_alloc.ScratchGpr(code);
+    const size_t valid_page_index_bits = conf.page_table_address_space_bits - page_table_const_bits;
+    SharedLabel none = ctx.GenSharedLabel(), end = ctx.GenSharedLabel();
+    code.mov(offset.cvt32(), host.cvt32());
+    code.and_(offset.cvt32(), static_cast<u32>(page_table_const_size - 1));
+    code.cmp(offset.cvt32(), static_cast<u32>(page_table_const_size - span));
+    code.ja(*none, code.T_NEAR);
+    code.shr(host, int(page_table_const_bits));
+    code.test(host, u32(-(1 << valid_page_index_bits)));
+    code.jnz(*none, code.T_NEAR);
+    code.mov(host, code.qword[r14 + host * 8]);
+    code.L(*end);
+    ctx.deferred_emits.emplace_back([=, this] {
+        code.L(*none);
+        code.xor_(host.cvt32(), host.cvt32());
+        code.jmp(*end, code.T_NEAR);
+    });
+    ctx.reg_alloc.DefineValue(code, inst, host);
+}
+
 
 }  // namespace Dynarmic::Backend::X64

@@ -29,6 +29,10 @@ class KPRocess;
 
 namespace Core {
 
+/// SeriesX candidate switches, set before creating a guest process.
+void SetJitPageReuse(bool enabled);
+void SetJitEfficientFpCompare(bool enabled);
+
 class ArmDynarmic64;
 class DynarmicExclusiveMonitor;
 class System;

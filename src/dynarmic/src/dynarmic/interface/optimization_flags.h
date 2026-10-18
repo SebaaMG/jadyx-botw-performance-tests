@@ -39,6 +39,10 @@ enum class OptimizationFlag : std::uint32_t {
     CodeSpeed = 0x00000040,
     /// Disable verification passes
     DisableVerification = 0x00000080,
+    /// SeriesX opt-in: one checked page lookup for nearby A64 memory accesses.
+    ReusePageLookups = 0x00000100,
+    /// SeriesX opt-in: equivalent FP comparison flags without a variable rotate through carry.
+    EfficientFpCompare = 0x00000200,
 
     /// This is an UNSAFE optimization that reduces accuracy of fused multiply-add operations.
     /// This unfuses fused instructions to improve performance on host CPUs without FMA support.
@@ -60,6 +64,8 @@ enum class OptimizationFlag : std::uint32_t {
 
 constexpr OptimizationFlag no_optimizations = static_cast<OptimizationFlag>(0);
 constexpr OptimizationFlag all_safe_optimizations = static_cast<OptimizationFlag>(0x0000FFFF);
+// Keep defaults unchanged without excluding these flags from HasOptimization's safety mask.
+constexpr OptimizationFlag default_optimizations = static_cast<OptimizationFlag>(0x0000FCFF);
 
 constexpr OptimizationFlag operator~(OptimizationFlag f) {
     return static_cast<OptimizationFlag>(~static_cast<std::uint32_t>(f));

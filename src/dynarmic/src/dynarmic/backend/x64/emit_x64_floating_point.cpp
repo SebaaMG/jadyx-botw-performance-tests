@@ -1411,7 +1411,14 @@ static Xbyak::Reg64 SetFpscrNzcvFromFlags(BlockOfCode& code, EmitContext& ctx) {
 
     code.mov(nzcv, 0x0101'4100'8000'0100);
     code.sete(cl);
-    code.rcl(cl, 5);  // cl = ZF:CF:0000
+    // Adapted from ProsperoEden fast_paths.cmake (BlackBearReloaded, GPL-3.0-or-later).
+    // sete preserves the comparison's CF; adc then shl produces exactly the same selector.
+    if (ctx.HasOptimization(OptimizationFlag::EfficientFpCompare)) {
+        code.adc(cl, cl);
+        code.shl(cl, 4);
+    } else {
+        code.rcl(cl, 5);  // cl = ZF:CF:0000
+    }
     code.shr(nzcv, cl);
 
     return nzcv;

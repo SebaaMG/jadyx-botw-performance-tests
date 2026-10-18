@@ -162,7 +162,7 @@ struct UserConfig {
     /// - Block linking optimizations
     /// - RSB optimizations
     /// This is intended to be used for debugging.
-    OptimizationFlag optimizations = all_safe_optimizations;
+    OptimizationFlag optimizations = default_optimizations;
 
     /// Declares how many valid address bits are there in virtual addresses.
     /// Determines the size of page_table. Valid values are between 12 and 64 inclusive.

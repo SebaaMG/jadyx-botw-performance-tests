@@ -17,6 +17,15 @@
 
 namespace Core {
 
+namespace {
+std::atomic_bool jit_page_reuse{};
+std::atomic_bool jit_efficient_fp_compare{};
+}
+void SetJitPageReuse(bool enabled) { jit_page_reuse.store(enabled, std::memory_order_relaxed); }
+void SetJitEfficientFpCompare(bool enabled) {
+    jit_efficient_fp_compare.store(enabled, std::memory_order_relaxed);
+}
+
 using namespace Common::Literals;
 
 DynarmicCallbacks64::DynarmicCallbacks64(ArmDynarmic64& parent, Kernel::KProcess* process)
@@ -207,6 +216,12 @@ void DynarmicCallbacks64::ReturnException(u64 pc, Dynarmic::HaltReason hr) {
 void ArmDynarmic64::MakeJit(Common::PageTable* page_table, std::size_t address_space_bits) {
     Dynarmic::JitProfile::SetEnabled(CpuProfile::Enabled());
     Dynarmic::A64::UserConfig config;
+    if (jit_page_reuse.load(std::memory_order_relaxed)) {
+        config.optimizations |= Dynarmic::OptimizationFlag::ReusePageLookups;
+    }
+    if (jit_efficient_fp_compare.load(std::memory_order_relaxed)) {
+        config.optimizations |= Dynarmic::OptimizationFlag::EfficientFpCompare;
+    }
 
     // Callbacks
     config.callbacks = std::addressof(*m_cb);

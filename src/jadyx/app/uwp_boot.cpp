@@ -55,6 +55,8 @@
 #include "common/windows/timer_resolution.h"
 #include "core/arm/cpu_profile.h"
 #include "core/arm/dynarmic/arm_dynarmic.h"
+#include "core/arm/dynarmic/arm_dynarmic_64.h"
+#include "dynarmic/ir/opt_passes.h"
 #include "dynarmic/interface/code_memory.h"
 #include "core/arm/jit_prewarm.h"
 #include "core/core.h"
@@ -334,6 +336,8 @@ struct BootConfig {
     bool upload_copy{}; ///< Experimental short uniform copies; default off.
     bool draw_sampler_reuse{}; ///< Experimental gather-local TSC resolution; default off.
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
+    bool jit_page_reuse{};
+    bool jit_fp_compare{};
     /// Host timing waits sleep on a high-resolution timer and wait only its lateness on the CPU
     /// ("timer_sleep=0" waits the last timer tick on the CPU, as before).
     bool timer_sleep{true};
@@ -522,6 +526,10 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     if (config.image_table_reuse && config.async_record) {
         WriteDiag("Image table reuse disabled for async recording: no end-to-end gain qualified");
     }
+    Core::SetJitPageReuse(config.jit_page_reuse);
+    Core::SetJitEfficientFpCompare(config.jit_fp_compare);
+    WriteDiag(std::string{"JIT page reuse: "} + (config.jit_page_reuse ? "on" : "off") +
+              ", efficient FP compare: " + (config.jit_fp_compare ? "on" : "off"));
     if (config.debug_layer) {
         Settings::values.renderer_debug = true;
         D3D12::SetGpuBasedValidation(config.gpu_validation);
@@ -1489,13 +1497,16 @@ std::string MemoryOwners() {
     }
     const std::optional<u64> dram = Common::EmulatedDramCommittedBytes();
     const u64 jit = Dynarmic::CommittedCodeBytes();
+    const auto page_reuse = Dynarmic::Optimization::GetPageReuseCounters();
     const u64 known = dram.value_or(0) + jit + Common::MemoryLedgerCommittedBytes();
     return "emulated DRAM " + (dram ? std::to_string(*dram >> 20) + " MiB" : std::string("n/a")) +
            ", JIT code " + std::to_string(jit >> 20) + " MiB, " + Common::DescribeMemoryLedger() +
            "; rest " + std::to_string((commit > known ? commit - known : 0) >> 20) +
            " MiB of " + std::to_string(commit >> 20) +
            " MiB commit (includes unclassified GPU backing on discrete GPUs, driver objects, "
-           "heaps, executable; not a CPU-only heap total)";
+           "heaps, executable; not a CPU-only heap total); compiled page reuse groups " +
+           std::to_string(page_reuse.groups) + ", grouped accesses " +
+           std::to_string(page_reuse.accesses) + " (cumulative process counts, not FPS)";
 }
 
 // What the guest kernel has handed out against what the emulated DRAM commits. Pages the game
@@ -2396,6 +2407,14 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                         } else if (line == "upload_copy=1") {
                             config.upload_copy = true;
                             WriteDiag("boot.cfg: short uniform write-combined copy enabled");
+                        } else if (line == "jit_page_reuse=1") {
+                            config.jit_page_reuse = true;
+                        } else if (line == "jit_page_reuse=0") {
+                            config.jit_page_reuse = false;
+                        } else if (line == "jit_fp_compare=1") {
+                            config.jit_fp_compare = true;
+                        } else if (line == "jit_fp_compare=0") {
+                            config.jit_fp_compare = false;
                         } else if (line == "image_table_reuse=1") {
                             config.image_table_reuse = true;
                         } else if (line == "image_table_reuse=0") {
