@@ -84,6 +84,7 @@ public:
     [[nodiscard]] u32 Stride() const {
         return stride;
     }
+    [[nodiscard]] u64 CurrentTick() const;
 
 private:
     bool TryAllocate(u32 count, u32& offset);
@@ -119,10 +120,19 @@ public:
     GuestDescriptorQueue& operator=(const GuestDescriptorQueue&) = delete;
 
     /// Starts a table of count descriptors (none when count is zero).
-    void Acquire(u32 count);
+    void Acquire(u32 count, u32 image_count = 0);
 
     /// GPU handle of the table; checks (and warns once) that it was filled exactly.
     [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE Table();
+    /// Stable image-only table, reused only in the same submission and offline-descriptor epoch.
+    void AddImageCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor);
+    [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE ImageTable();
+    struct ImageTableStats {
+        u64 hits{};
+        u64 misses{};
+        u64 copied_descriptors{};
+    };
+    [[nodiscard]] ImageTableStats GetImageTableStats() const { return image_stats; }
 
     /// A CBV; address 0 writes a null one. size is rounded up to 256 bytes.
     void AddConstantBuffer(D3D12_GPU_VIRTUAL_ADDRESS address, u32 size);
@@ -152,6 +162,28 @@ private:
     D3D12_CPU_DESCRIPTOR_HANDLE copy_destination{};
     bool logged_mismatch{};
     bool logged_unaligned{};
+    struct ImageKeyHash {
+        using is_transparent = void;
+        size_t operator()(std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> handles) const noexcept;
+    };
+    struct ImageKeyEqual {
+        using is_transparent = void;
+        bool operator()(std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> lhs,
+                        std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> rhs) const noexcept;
+    };
+    // No added GPU heap or cross-submission residency: the original ring still owns every slot.
+    std::unordered_map<std::vector<D3D12_CPU_DESCRIPTOR_HANDLE>, D3D12_GPU_DESCRIPTOR_HANDLE,
+                       ImageKeyHash, ImageKeyEqual> image_tables;
+    boost::container::small_vector<D3D12_CPU_DESCRIPTOR_HANDLE, 64> image_copies;
+    DescriptorRange image_range{};
+    u32 image_count{};
+    u64 acquire_tick{};
+    u64 image_tick{};
+    u64 image_epoch{};
+    std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> last_image_keys;
+    D3D12_GPU_DESCRIPTOR_HANDLE last_image_table{};
+    ImageTableStats image_stats;
+    bool logged_image_reuse{};
 };
 
 /// The one shader-visible sampler heap. D3D12 caps it at 2048 entries on every tier, too few for

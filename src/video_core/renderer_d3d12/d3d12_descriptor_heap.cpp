@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <algorithm>
+#include <atomic>
 #include <limits>
 #include <stdexcept>
 
@@ -18,6 +19,10 @@
 namespace D3D12 {
 
 namespace {
+
+// Allocating/freeing any offline view invalidates cached handles, including recycled slots.
+// Descriptor creation follows Allocate before another guest table can consume the slot.
+std::atomic<u64> offline_view_epoch{1};
 
 ComPtr<ID3D12DescriptorHeap> CreateHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type,
                                         u32 count, bool shader_visible) {
@@ -72,6 +77,9 @@ D3D12_CPU_DESCRIPTOR_HANDLE CpuDescriptorAllocator::Allocate() {
     }
     const D3D12_CPU_DESCRIPTOR_HANDLE handle = free_list.back();
     free_list.pop_back();
+    if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
+        offline_view_epoch.fetch_add(1, std::memory_order_relaxed);
+    }
     return handle;
 }
 
@@ -80,6 +88,9 @@ void CpuDescriptorAllocator::Free(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
         return;
     }
     std::scoped_lock lock{mutex};
+    if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
+        offline_view_epoch.fetch_add(1, std::memory_order_relaxed);
+    }
     if (scheduler) {
         // A call recorded before the free may still have to read the descriptor.
         const u64 point = scheduler->RecordPoint();
@@ -218,15 +229,100 @@ void DescriptorRing::Retire(bool read_fence) {
 
 // --- GuestDescriptorQueue ---------------------------------------------------------------------
 
+u64 DescriptorRing::CurrentTick() const {
+    return scheduler.CurrentTick();
+}
+
 GuestDescriptorQueue::GuestDescriptorQueue(ID3D12Device* device_, DescriptorRing& ring_)
     : device{device_}, ring{ring_}, stride{ring_.Stride()} {}
 
-void GuestDescriptorQueue::Acquire(u32 count_) {
+void GuestDescriptorQueue::Acquire(u32 count_, u32 image_count_) {
     FlushCopies();
-    count = count_;
+    if (image_count_ > count_) throw std::invalid_argument("D3D12: split descriptor count");
+    count = count_ - image_count_;
+    image_count = image_count_;
+    image_copies.clear();
     written = 0;
     // One spare slot past the table absorbs writes beyond what the root signature declares.
-    range = count != 0 ? ring.Allocate(count + 1) : DescriptorRange{};
+    range = count_ != 0 ? ring.Allocate(count_ + 1) : DescriptorRange{};
+    acquire_tick = ring.CurrentTick();
+    image_range = {{range.cpu.ptr + static_cast<SIZE_T>(count + 1) * stride},
+                   {range.gpu.ptr + static_cast<UINT64>(count + 1) * stride}};
+}
+
+size_t GuestDescriptorQueue::ImageKeyHash::operator()(
+    std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> handles) const noexcept {
+    return static_cast<size_t>(Common::CityHash64(reinterpret_cast<const char*>(handles.data()),
+                                                 handles.size_bytes()));
+}
+
+bool GuestDescriptorQueue::ImageKeyEqual::operator()(
+    std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> lhs,
+    std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> rhs) const noexcept {
+    return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(),
+        [](auto a, auto b) { return a.ptr == b.ptr; });
+}
+
+void GuestDescriptorQueue::AddImageCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor) {
+    if (!image_count) {
+        AddCopy(descriptor);
+        return;
+    }
+    image_copies.push_back(descriptor);
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE GuestDescriptorQueue::ImageTable() {
+    if (!image_count) return {};
+    if (image_copies.size() != image_count) {
+        throw std::runtime_error("D3D12: image descriptor table count mismatch");
+    }
+    const u64 tick = ring.CurrentTick();
+    const u64 epoch = offline_view_epoch.load(std::memory_order_relaxed);
+    if (image_tick != tick || image_epoch != epoch) {
+        last_image_keys = {};
+        image_tables.clear();
+        image_tick = tick;
+        image_epoch = epoch;
+    }
+    const std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> key{image_copies.data(), image_copies.size()};
+    // A helper upload may have submitted during Configure. Do not cache/reuse an earlier range.
+    const bool cacheable = acquire_tick == tick && key.size() <= 256;
+    const auto reuse = [&](D3D12_GPU_DESCRIPTOR_HANDLE table) {
+        ++image_stats.hits;
+        if (!logged_image_reuse) {
+            LOG_INFO(Render, "SeriesX: graphics image descriptor reuse active ({} descriptors)",
+                     key.size());
+            logged_image_reuse = true;
+        }
+        return table;
+    };
+    if (cacheable) {
+        if (ImageKeyEqual{}(last_image_keys, key)) {
+            return reuse(last_image_table);
+        }
+        if (const auto found = image_tables.find(key); found != image_tables.end()) {
+            last_image_keys = found->first;
+            last_image_table = found->second;
+            return reuse(last_image_table);
+        }
+    }
+    const UINT n = image_count;
+    device->CopyDescriptors(1, &image_range.cpu, &n, n, key.data(), nullptr,
+                            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    CheckRemovedAfterDescriptor(device, [] { return std::string{"copying split image table"}; });
+    ++image_stats.misses;
+    image_stats.copied_descriptors += n;
+    if (cacheable) {
+        if (image_tables.size() >= 512) {
+            last_image_keys = {};
+            image_tables.clear();
+        }
+        auto [entry, inserted] = image_tables.emplace(
+            std::vector<D3D12_CPU_DESCRIPTOR_HANDLE>{key.begin(), key.end()}, image_range.gpu);
+        last_image_keys = entry->first;
+        last_image_table = entry->second;
+    }
+    return image_range.gpu;
 }
 
 D3D12_GPU_DESCRIPTOR_HANDLE GuestDescriptorQueue::Table() {

@@ -273,6 +273,7 @@ private:
             std::array<u32, PUSH_CONSTANT_WORDS> push_constants{};
             std::array<u32, 16> runtime_words{};
             u64 resource_table{};
+            u64 image_table{};
             u64 sampler_table{};
             D3D12_GPU_VIRTUAL_ADDRESS integer_samplers{};
         } root_args;

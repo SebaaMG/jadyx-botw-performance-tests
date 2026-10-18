@@ -258,6 +258,11 @@ void RasterizerD3D12::SetGraphicsRootArguments(CommandStream* cmd,
         cmd->SetGraphicsRootDescriptorTable(layout.ResourceTableIndex(), bindings.resource_table);
         cached.resource_table = bindings.resource_table.ptr;
     }
+    if (layout.ImageTableIndex() != PipelineLayout::NO_TABLE &&
+        (!cached.valid || cached.image_table != bindings.image_table.ptr)) {
+        cmd->SetGraphicsRootDescriptorTable(layout.ImageTableIndex(), bindings.image_table);
+        cached.image_table = bindings.image_table.ptr;
+    }
     if (layout.SamplerTableIndex() != PipelineLayout::NO_TABLE &&
         (!cached.valid || cached.sampler_table != bindings.sampler_table.ptr)) {
         cmd->SetGraphicsRootDescriptorTable(layout.SamplerTableIndex(), bindings.sampler_table);

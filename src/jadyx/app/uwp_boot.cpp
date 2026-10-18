@@ -144,6 +144,7 @@ void SetPipelineEviction(bool enabled);      // d3d12_pipeline_cache.h
 void SetDescriptorRemovalChecks(bool enabled); // d3d12_device.h
 void SetUniformUploadCopy(bool enabled);
 void SetDrawSamplerReuse(bool enabled);
+void SetImageTableReuse(bool enabled);
 void SetAsyncRecording(bool enabled);          // d3d12_scheduler.h
 using AppMemoryQuery = bool (*)(u64& used, u64& limit); // d3d12_device.h
 void SetAppMemoryQuery(AppMemoryQuery query);            // d3d12_device.h
@@ -332,6 +333,7 @@ struct BootConfig {
     bool async_record{};
     bool upload_copy{}; ///< Experimental short uniform copies; default off.
     bool draw_sampler_reuse{}; ///< Experimental gather-local TSC resolution; default off.
+    bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     /// Host timing waits sleep on a high-resolution timer and wait only its lateness on the CPU
     /// ("timer_sleep=0" waits the last timer tick on the CPU, as before).
     bool timer_sleep{true};
@@ -514,6 +516,12 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     D3D12::SetAsyncRecording(config.async_record);
     D3D12::SetUniformUploadCopy(config.upload_copy);
     D3D12::SetDrawSamplerReuse(config.draw_sampler_reuse);
+    const bool reuse_image_tables = config.image_table_reuse && !config.async_record;
+    D3D12::SetImageTableReuse(reuse_image_tables);
+    WriteDiag(std::string{"Image table reuse: "} + (reuse_image_tables ? "on" : "off"));
+    if (config.image_table_reuse && config.async_record) {
+        WriteDiag("Image table reuse disabled for async recording: no end-to-end gain qualified");
+    }
     if (config.debug_layer) {
         Settings::values.renderer_debug = true;
         D3D12::SetGpuBasedValidation(config.gpu_validation);
@@ -2388,6 +2396,10 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                         } else if (line == "upload_copy=1") {
                             config.upload_copy = true;
                             WriteDiag("boot.cfg: short uniform write-combined copy enabled");
+                        } else if (line == "image_table_reuse=1") {
+                            config.image_table_reuse = true;
+                        } else if (line == "image_table_reuse=0") {
+                            config.image_table_reuse = false;
                         } else if (line == "draw_sampler_reuse=1") {
                             config.draw_sampler_reuse = true;
                             WriteDiag("boot.cfg: draw-local sampler resolution reuse enabled");

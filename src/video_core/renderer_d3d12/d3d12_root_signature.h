@@ -15,6 +15,9 @@
 
 namespace D3D12 {
 
+/// SeriesX: split stable image descriptors from per-draw buffers. Set before renderer creation.
+void SetImageTableReuse(bool enabled);
+
 /// Root constants for Vulkan push constants (space 30). spirv_to_dxil sizes the CBV to the highest
 /// offset read, 16-byte aligned: RescalingLayout needs 8 dwords, RenderAreaLayout 4.
 constexpr u32 PUSH_CONSTANT_WORDS = 8;
@@ -69,11 +72,17 @@ public:
     u32 SamplerTableIndex() const noexcept {
         return sampler_table_index;
     }
+    u32 ImageTableIndex() const noexcept {
+        return image_table_index;
+    }
     u32 IntegerSamplerIndex() const noexcept {
         return integer_sampler_index;
     }
     u32 NumResourceDescriptors() const noexcept {
-        return num_resources;
+        return num_resources + num_images;
+    }
+    u32 NumImageDescriptors() const noexcept {
+        return num_images;
     }
     u32 NumSamplerDescriptors() const noexcept {
         return num_samplers;
@@ -101,9 +110,11 @@ private:
     u32 runtime_data_words{};
     u32 resource_table_index{NO_TABLE};
     u32 sampler_table_index{NO_TABLE};
+    u32 image_table_index{NO_TABLE};
     u32 integer_sampler_index{NO_TABLE};
     u32 num_resources{};
     u32 num_samplers{};
+    u32 num_images{};
 };
 
 /// Binding of a stage's first texture, given the stage's first binding. Texture array elements

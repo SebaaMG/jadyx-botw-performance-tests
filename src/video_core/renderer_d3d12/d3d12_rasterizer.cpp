@@ -399,6 +399,9 @@ void RasterizerD3D12::DispatchCompute() {
     if (layout.ResourceTableIndex() != PipelineLayout::NO_TABLE) {
         cmd->SetComputeRootDescriptorTable(layout.ResourceTableIndex(), bindings.resource_table);
     }
+    if (layout.ImageTableIndex() != PipelineLayout::NO_TABLE) {
+        cmd->SetComputeRootDescriptorTable(layout.ImageTableIndex(), bindings.image_table);
+    }
     if (layout.SamplerTableIndex() != PipelineLayout::NO_TABLE) {
         cmd->SetComputeRootDescriptorTable(layout.SamplerTableIndex(), bindings.sampler_table);
     }

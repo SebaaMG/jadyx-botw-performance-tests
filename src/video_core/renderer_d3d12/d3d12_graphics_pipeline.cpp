@@ -490,7 +490,7 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
     out.sampler_table = sampler_table.Table(context.sampler_heap);
     lap.Lap(VideoCore::Perf::Counter::DrawSamplersNs);
     GuestDescriptorQueue& queue = context.descriptor_queue;
-    queue.Acquire(layout.NumResourceDescriptors());
+    queue.Acquire(layout.NumResourceDescriptors(), layout.NumImageDescriptors());
     ImageTransitionList image_transitions;
     bool uses_render_area = false;
     const bool has_integer_samplers = layout.IntegerSamplerIndex() != PipelineLayout::NO_TABLE;
@@ -521,10 +521,10 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
                     depth_feedback_ready = image_view.SourceImage()->PrepareDepthFeedback() != nullptr;
                 }
                 if (aliases_depth && depth_feedback_ready) {
-                    queue.AddCopy(image_view.DepthFeedbackHandle(desc.type));
+                    queue.AddImageCopy(image_view.DepthFeedbackHandle(desc.type));
                 } else {
                     image_view.PrepareRead(desc.type);
-                    queue.AddCopy(image_view.Handle(desc.type));
+                    queue.AddImageCopy(image_view.Handle(desc.type));
                 }
                 const SamplerId sampler_id = *(samplers_it++);
                 if (has_integer_samplers && desc.is_integer) {
@@ -597,6 +597,8 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
     out.resource_table = queue.Table();
     out.integer_samplers = integer_samplers.Upload(buffer_cache);
     lap.Lap(VideoCore::Perf::Counter::DrawSamplersNs);
+    out.image_table = queue.ImageTable();
+    lap.Lap(VideoCore::Perf::Counter::DrawDescriptorsNs);
 
     // Push constants: no resolution scaling yet (all rescaling bits clear, down factor 1), then
     // the render area, which shares the first words exactly as in the Vulkan backend.

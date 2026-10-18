@@ -104,6 +104,7 @@ struct PipelineBindContext {
 /// Root arguments of one draw, filled by GraphicsPipeline::Configure.
 struct PipelineBindings {
     D3D12_GPU_DESCRIPTOR_HANDLE resource_table{};
+    D3D12_GPU_DESCRIPTOR_HANDLE image_table{};
     D3D12_GPU_DESCRIPTOR_HANDLE sampler_table{};
     std::array<u32, PUSH_CONSTANT_WORDS> push_constants{};
     /// Integer sampler states (PipelineLayout::IntegerSamplerIndex), 0 when the layout has none.

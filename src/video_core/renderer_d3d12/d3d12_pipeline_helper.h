@@ -159,8 +159,8 @@ void PushStorageImages(const Info& info, TextureCache& texture_cache,
         if (desc.is_written) {
             texture_cache.MarkModification(image_view.image_id);
         }
-        queue.AddCopy(image_view.StorageView(desc.type, desc.format));
-        queue.AddCopy(image_view.Handle(desc.type));
+        queue.AddImageCopy(image_view.StorageView(desc.type, desc.format));
+        queue.AddImageCopy(image_view.Handle(desc.type));
         transitions.emplace_back(view_id, true);
     }
 }
