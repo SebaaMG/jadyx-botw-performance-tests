@@ -13,6 +13,7 @@
 #include "dxil_spirv_nir.h"
 #include "eden_spirv_to_dxil.h"
 #include "eden_integer_sampling.h"
+#include "eden_persistent_bindings.h"
 #include "nir_builder.h"
 #include "nir_to_dxil.h"
 #include "spirv/nir_spirv.h"
@@ -95,7 +96,7 @@ translate_pipeline(const struct eden_spirv_to_dxil_stage *stages, unsigned count
                    enum dxil_validator_version validator_version_max,
                    const struct dxil_spirv_debug_options *debug_options,
                    const struct dxil_spirv_logger *logger, struct dxil_spirv_object *out,
-                   bool lower_integer_sampling, uint32_t flags)
+                   bool lower_integer_sampling, uint32_t flags, bool persistent)
 {
    if (count == 0 || count > EDEN_SPIRV_TO_DXIL_MAX_STAGES)
       return false;
@@ -149,6 +150,8 @@ translate_pipeline(const struct eden_spirv_to_dxil_stage *stages, unsigned count
        * nir_to_dxil's own optimization loop scalarizes and lowers what this emits. */
       if (lower_integer_sampling)
          eden_lower_integer_sampling(nir[i]);
+      if (persistent && !eden_lower_persistent_bindings(nir[i]))
+         success = false;
    }
 
    if (success) {
@@ -219,7 +222,7 @@ eden_spirv_to_dxil_pipeline(const struct eden_spirv_to_dxil_stage *stages, unsig
                             struct dxil_spirv_object *out)
 {
    return translate_pipeline(stages, count, validator_version_max, debug_options, logger, out,
-                             false, 0);
+                             false, 0, false);
 }
 
 /* Integer textures sampled through the b0 space 29 table (eden_integer_sampler_state). */
@@ -231,7 +234,7 @@ eden_spirv_to_dxil_pipeline_v2(const struct eden_spirv_to_dxil_stage *stages, un
                                struct dxil_spirv_object *out)
 {
    return translate_pipeline(stages, count, validator_version_max, debug_options, logger, out,
-                             true, 0);
+                             true, 0, false);
 }
 
 bool
@@ -242,5 +245,16 @@ eden_spirv_to_dxil_pipeline_v3(const struct eden_spirv_to_dxil_stage *stages, un
                                struct dxil_spirv_object *out)
 {
    return translate_pipeline(stages, count, validator_version_max, debug_options, logger, out,
-                             true, flags);
+                             true, flags, false);
+}
+
+bool
+eden_spirv_to_dxil_pipeline_v4(const struct eden_spirv_to_dxil_stage *stages, unsigned count,
+                               enum dxil_validator_version validator_version_max,
+                               const struct dxil_spirv_debug_options *debug_options,
+                               const struct dxil_spirv_logger *logger, uint32_t flags,
+                               struct dxil_spirv_object *out)
+{
+   return translate_pipeline(stages, count, validator_version_max, debug_options, logger, out,
+                             true, flags, true);
 }

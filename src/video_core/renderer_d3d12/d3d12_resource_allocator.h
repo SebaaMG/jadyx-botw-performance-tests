@@ -22,7 +22,7 @@ public:
         bool placed{};
     };
 
-    TextureResourceAllocator(const Device& device, Scheduler& scheduler);
+    TextureResourceAllocator(const Device& device, Scheduler& scheduler, bool buffers = false);
     ~TextureResourceAllocator();
 
     TextureResourceAllocator(const TextureResourceAllocator&) = delete;
@@ -32,6 +32,7 @@ public:
                                   D3D12_RESOURCE_STATES initial_state,
                                   const D3D12_CLEAR_VALUE* clear_value = nullptr);
     void DeferRelease(Resource&& resource);
+    static void DeferRelease(Scheduler& scheduler, Resource&& resource);
     /// Called by the recording thread. Only fully free, fence-retired heaps are eligible.
     /// Keep one warm empty heap per class normally; release all empty heaps under pressure.
     void TrimEmptyHeaps(bool under_pressure);
@@ -47,6 +48,7 @@ private:
     const Device& device;
     Scheduler& scheduler;
     std::shared_ptr<State> state;
+    bool buffers{};
 };
 
 } // namespace D3D12

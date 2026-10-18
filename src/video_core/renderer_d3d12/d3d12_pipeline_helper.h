@@ -182,6 +182,9 @@ public:
                                                                           handles.size()));
     }
 
+    SamplerHeap::PersistentIndices PersistentIndices(SamplerHeap& heap) const {
+        return heap.GetPersistentIndices({keys.data(), keys.size()}, {handles.data(), handles.size()});
+    }
 private:
     boost::container::small_vector<D3D12_CPU_DESCRIPTOR_HANDLE, 32> handles;
     boost::container::small_vector<u64, 32> keys;

@@ -147,6 +147,7 @@ void SetDescriptorRemovalChecks(bool enabled); // d3d12_device.h
 void SetUniformUploadCopy(bool enabled);
 void SetDrawSamplerReuse(bool enabled);
 void SetImageTableReuse(bool enabled);
+void SetPersistentResources(bool enabled);
 void SetAsyncRecording(bool enabled);          // d3d12_scheduler.h
 using AppMemoryQuery = bool (*)(u64& used, u64& limit); // d3d12_device.h
 void SetAppMemoryQuery(AppMemoryQuery query);            // d3d12_device.h
@@ -335,6 +336,7 @@ struct BootConfig {
     bool async_record{};
     bool upload_copy{}; ///< Experimental short uniform copies; default off.
     bool draw_sampler_reuse{}; ///< Experimental gather-local TSC resolution; default off.
+    bool persistent_resources{};
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool jit_page_reuse{};
     bool jit_fp_compare{};
@@ -522,6 +524,8 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     D3D12::SetDrawSamplerReuse(config.draw_sampler_reuse);
     const bool reuse_image_tables = config.image_table_reuse && !config.async_record;
     D3D12::SetImageTableReuse(reuse_image_tables);
+    D3D12::SetPersistentResources(config.persistent_resources);
+    LOG_INFO(Frontend, "SeriesX: persistent resources requested {} (tier 3/v4 required)", config.persistent_resources);
     WriteDiag(std::string{"Image table reuse: "} + (reuse_image_tables ? "on" : "off"));
     if (config.image_table_reuse && config.async_record) {
         WriteDiag("Image table reuse disabled for async recording: no end-to-end gain qualified");
@@ -2415,6 +2419,10 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             config.jit_fp_compare = true;
                         } else if (line == "jit_fp_compare=0") {
                             config.jit_fp_compare = false;
+                        } else if (line == "persistent_resources=1") {
+                            config.persistent_resources = true;
+                        } else if (line == "persistent_resources=0") {
+                            config.persistent_resources = false;
                         } else if (line == "image_table_reuse=1") {
                             config.image_table_reuse = true;
                         } else if (line == "image_table_reuse=0") {

@@ -16,6 +16,9 @@
 #include "video_core/renderer_d3d12/d3d12_staging_buffer_pool.h"
 #include "video_core/renderer_d3d12/d3d12_transfer_buffer_pool.h"
 #include "video_core/renderer_d3d12/d3d12_uniform_stream.h"
+#include "video_core/renderer_d3d12/d3d12_uniform_content_cache.h"
+#include "video_core/renderer_d3d12/d3d12_descriptor_heap.h"
+#include "video_core/renderer_d3d12/d3d12_resource_allocator.h"
 
 namespace D3D12 {
 
@@ -66,6 +69,7 @@ private:
     Scheduler* scheduler{};
     u64 id{};
     u64 generation{};
+    std::shared_ptr<TextureResourceAllocator::Allocation> allocation;
     ComPtr<ID3D12Resource> buffer;
     D3D12_GPU_VIRTUAL_ADDRESS address{};
     VideoCommon::UsageTracker tracker;
@@ -152,6 +156,9 @@ public:
     bool UseWriteCombinedUniformCopy(u32 size) const noexcept {
         return uniform_upload_copy && !trace_buffers && size <= 512;
     }
+    bool BindPersistentUniformBuffer(DAddr address, u32 size);
+    D3D12_GPU_VIRTUAL_ADDRESS UploadPersistentIndexMap(std::span<const PersistentBindingRow> rows);
+    ~BufferCacheRuntime();
     void BindUniformBuffer(Buffer& buffer, u32 offset, u32 size);
     void BindStorageBuffer(Buffer& buffer, u32 offset, u32 size, bool is_written);
     void BindTextureBuffer(Buffer& buffer, u32 offset, u32 size,
@@ -183,7 +190,8 @@ public:
 private:
     /// Uploads indices to staging memory and binds them as a 32-bit or 16-bit index buffer.
     void BindRewrittenIndices(IndexRewriteCache::Entry& entry);
-    ComPtr<ID3D12Resource> CreateDefaultBuffer(u64 size);
+    ComPtr<ID3D12Resource> CreateDefaultBuffer(u64 size, std::shared_ptr<TextureResourceAllocator::Allocation>& allocation);
+    UniformUpload UploadPersistentBytes(std::span<const u8> bytes);
     void Copy(Buffer* dst, ID3D12Resource* dst_raw, Buffer* src, ID3D12Resource* src_raw,
               std::span<const VideoCommon::BufferCopy> copies);
 
@@ -200,6 +208,18 @@ private:
     std::optional<D3D12_INDEX_BUFFER_VIEW> applied_index; ///< what the command list holds
     std::array<D3D12_VERTEX_BUFFER_VIEW, VideoCommon::NUM_VERTEX_BUFFERS> pending_vertex{};
     UniformStream uniform_stream;
+    std::unique_ptr<UniformContentCache> uniform_content;
+    // Immutable, dedicated staging pages held until all draws of this frame are recorded.
+    // A helper may Finish mid-Configure: none of these pages may be recycled by that helper.
+    std::vector<StagingBufferRef> persistent_uploads;
+    UniformUpload persistent_block{};
+    size_t persistent_block_used{};
+    u64 persistent_block_tick{};
+    void RetirePersistentUploads();
+    std::array<u8, UniformContentCache::MAX_SIZE> uniform_scratch{};
+    TextureResourceAllocator buffer_allocator;
+    ComPtr<ID3D12Resource> zero_buffer;
+    u64 stats_frame{};
     bool uniform_upload_copy{};
     u32 pending_vertex_mask{};
     std::optional<u32> rewritten_count;

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <array>
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <stdexcept>
@@ -15,6 +16,7 @@
 #include "common/cityhash.h"
 #include "common/logging.h"
 #include "video_core/renderer_d3d12/d3d12_resource_utils.h"
+#include "video_core/renderer_d3d12/d3d12_descriptor_heap.h"
 #include "video_core/renderer_d3d12/d3d12_root_signature.h"
 #include "video_core/renderer_d3d12/d3d12_shader_compiler.h"
 
@@ -113,6 +115,65 @@ RootSignatureCache::RootSignatureCache(const Device& device_) : device{device_} 
 
 RootSignatureCache::~RootSignatureCache() = default;
 
+ComPtr<ID3D12RootSignature> CreatePersistentRootSignature(const Device& device,
+                                                        u32 runtime_words) {
+    std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
+    for (u32 space = 0; space < EDEN_PERSISTENT_RESOURCE_SPACES; ++space) {
+        for (u32 bank = 0; bank < 3; ++bank) {
+            const auto type = bank == 0 ? D3D12_DESCRIPTOR_RANGE_TYPE_CBV :
+                              bank == 1 ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV :
+                                          D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+            ranges.push_back({.RangeType = type,
+                .NumDescriptors = EDEN_PERSISTENT_RESOURCE_CAPACITY,
+                .BaseShaderRegister = 0, .RegisterSpace = space,
+                .OffsetInDescriptorsFromTableStart = bank * EDEN_PERSISTENT_RESOURCE_CAPACITY});
+        }
+    }
+    const std::array<D3D12_DESCRIPTOR_RANGE, 2> samplers{{
+        {.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER,
+         .NumDescriptors = EDEN_PERSISTENT_SAMPLER_CAPACITY, .BaseShaderRegister = 0,
+         .RegisterSpace = EDEN_PERSISTENT_SAMPLER_SPACE, .OffsetInDescriptorsFromTableStart = 0},
+        {.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER,
+         .NumDescriptors = EDEN_PERSISTENT_SAMPLER_CAPACITY, .BaseShaderRegister = 0,
+         .RegisterSpace = EDEN_PERSISTENT_SHADOW_SPACE, .OffsetInDescriptorsFromTableStart = 0},
+    }};
+    const std::array<D3D12_ROOT_PARAMETER, 6> parameters{{
+        {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
+         .Constants = {.ShaderRegister = 0, .RegisterSpace = PUSH_CONSTANT_SPACE,
+                       .Num32BitValues = PUSH_CONSTANT_WORDS},
+         .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+        {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
+         .Constants = {.ShaderRegister = 0, .RegisterSpace = RUNTIME_DATA_SPACE,
+                       .Num32BitValues = runtime_words},
+         .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+        {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+         .DescriptorTable = {static_cast<UINT>(ranges.size()), ranges.data()},
+         .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+        {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+         .DescriptorTable = {static_cast<UINT>(samplers.size()), samplers.data()},
+         .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+        {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV,
+         .Descriptor = {.ShaderRegister = 0, .RegisterSpace = EDEN_PERSISTENT_INDEX_SPACE},
+         .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+        {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV,
+         .Descriptor = {.ShaderRegister = 0, .RegisterSpace = EDEN_INTEGER_SAMPLER_SPACE},
+         .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+    }};
+    const D3D12_ROOT_SIGNATURE_DESC desc{.NumParameters = static_cast<UINT>(parameters.size()),
+        .pParameters = parameters.data(),
+        .Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
+    ComPtr<ID3DBlob> blob, errors;
+    const HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &errors);
+    if (FAILED(hr) && errors)
+        LOG_ERROR(Render, "D3D12 persistent root signature: {}",
+                  static_cast<const char*>(errors->GetBufferPointer()));
+    ThrowIfFailed(hr, "Serialize persistent root signature");
+    ComPtr<ID3D12RootSignature> signature;
+    ThrowIfFailed(device.Get()->CreateRootSignature(0, blob->GetBufferPointer(),
+                  blob->GetBufferSize(), IID_PPV_ARGS(&signature)), "Create persistent root signature");
+    return signature;
+}
+
 void RootSignatureCache::CreateCommandSignatures(PipelineLayout& layout, bool is_compute) {
     static_assert(offsetof(dxil_spirv_vertex_runtime_data, draw_id) ==
                   (INDIRECT_DRAW_CONSTANT_WORDS - 1) * sizeof(u32));
@@ -151,11 +212,28 @@ void RootSignatureCache::CreateCommandSignatures(PipelineLayout& layout, bool is
     }
 }
 
+bool RootSignatureCache::CanUsePersistent(std::span<const Shader::Info* const> infos) {
+    u32 bindings{};
+    for (const auto* info : infos) {
+        if (!info) continue;
+        const auto single = [](const auto& list) {
+            return std::ranges::all_of(list, [](const auto& desc) { return desc.count == 1; });
+        };
+        if (!single(info->constant_buffer_descriptors) || !single(info->storage_buffers_descriptors) ||
+            !single(info->texture_descriptors) || !single(info->image_descriptors) ||
+            !single(info->texture_buffer_descriptors) || !single(info->image_buffer_descriptors)) return false;
+        bindings += NumStageBindings(*info);
+    }
+    return bindings > 0 && bindings <= EDEN_PERSISTENT_MAX_BINDINGS;
+}
+
 const PipelineLayout& RootSignatureCache::Get(std::span<const Shader::Info* const> infos,
-                                              bool is_compute) {
+                                              bool is_compute, bool persistent) {
+    persistent = persistent && !is_compute && PersistentResourcesSupported(device.Get()) &&
+                 CanUsePersistent(infos);
     TableRanges ranges;
     // The qualified candidate targets graphics. Keep compute's descriptor path unchanged.
-    ranges.split_images = !is_compute && image_table_reuse.load(std::memory_order_relaxed);
+    ranges.split_images = !persistent && !is_compute && image_table_reuse.load(std::memory_order_relaxed);
     u32 binding = 0;
     bool integer_textures = false;
     for (const Shader::Info* info : infos) {
@@ -170,7 +248,8 @@ const PipelineLayout& RootSignatureCache::Get(std::span<const Shader::Info* cons
         throw std::runtime_error(fmt::format(
             "D3D12: {} bindings exceed the integer sampler table", binding));
     }
-    std::vector<u32> key{(is_compute ? 1u : 0u) | (integer_textures ? 2u : 0u)};
+    std::vector<u32> key{(is_compute ? 1u : 0u) | (integer_textures ? 2u : 0u) |
+                         (persistent ? 4u : 0u)};
     AppendKey(key, ranges.resources);
     AppendKey(key, ranges.samplers);
     AppendKey(key, ranges.images);
@@ -193,6 +272,27 @@ const PipelineLayout& RootSignatureCache::Get(std::span<const Shader::Info* cons
     layout->num_resources = ranges.num_resources;
     layout->num_images = ranges.num_images;
     layout->num_samplers = ranges.num_samplers;
+    layout->num_bindings = binding;
+    if (persistent) {
+        layout->persistent_resources = true;
+        for (const auto& range : ranges.resources) {
+            for (u32 i = 0; i < range.NumDescriptors; ++i)
+                layout->persistent_slots.push_back({range.BaseShaderRegister + i, range.RangeType});
+        }
+        for (const auto& range : ranges.samplers) {
+            for (u32 i = 0; i < range.NumDescriptors; ++i)
+                layout->persistent_sampler_bindings.push_back(range.BaseShaderRegister + i);
+        }
+        if (!persistent_signature)
+            persistent_signature = CreatePersistentRootSignature(device, layout->runtime_data_words);
+        layout->root_signature = persistent_signature;
+        layout->resource_table_index = 2;
+        layout->sampler_table_index = 3;
+        layout->integer_sampler_index = integer_textures ? 5 : PipelineLayout::NO_TABLE;
+        CreateCommandSignatures(*layout, false);
+        bucket.emplace_back(std::move(key), std::move(layout));
+        return *bucket.back().second;
+    }
 
     std::vector<D3D12_ROOT_PARAMETER> params;
     params.push_back({

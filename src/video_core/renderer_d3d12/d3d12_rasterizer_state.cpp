@@ -274,6 +274,11 @@ void RasterizerD3D12::SetGraphicsRootArguments(CommandStream* cmd,
                                                bindings.integer_samplers);
         cached.integer_samplers = bindings.integer_samplers;
     }
+    if (layout.IsPersistent() && (!cached.valid || cached.index_map != bindings.index_map)) {
+        cmd->SetGraphicsRootConstantBufferView(layout.IndexMapIndex(), bindings.index_map);
+        cached.index_map = bindings.index_map;
+    }
+    if (layout.IsPersistent()) descriptor_queue.TouchPersistentUsage();
     cached.valid = true;
 }
 

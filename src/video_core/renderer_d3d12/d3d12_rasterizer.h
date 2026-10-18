@@ -276,6 +276,7 @@ private:
             u64 image_table{};
             u64 sampler_table{};
             D3D12_GPU_VIRTUAL_ADDRESS integer_samplers{};
+            D3D12_GPU_VIRTUAL_ADDRESS index_map{};
         } root_args;
     } command_state;
     bool channel_bound{};

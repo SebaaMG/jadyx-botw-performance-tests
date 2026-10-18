@@ -143,6 +143,7 @@ bool StagingBufferPool::GuardMemory(const CacheMemorySnapshot& snapshot) {
     if (const u64 wanted = ring_guard.WantedRing(stream_buffer ? stream_buffer_size : 0,
                                                  snapshot.app_used, snapshot.app_limit)) {
         try {
+            ++stream_identity;
             stream_buffer = CreateMappedBuffer(device.Get(), wanted, D3D12_HEAP_TYPE_UPLOAD,
                                                stream_pointer);
             stream_buffer_size = wanted;
@@ -218,6 +219,7 @@ StagingBufferRef StagingBufferPool::GetStreamBuffer(size_t size) {
         .usage = MemoryUsage::Upload,
         .log2_level{},
         .index{},
+        .identity = (2ull << 62) | stream_identity,
         .capacity = size,
     };
 }

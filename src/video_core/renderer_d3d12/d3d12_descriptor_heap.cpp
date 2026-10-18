@@ -5,6 +5,7 @@
 #include <atomic>
 #include <limits>
 #include <stdexcept>
+#include <tuple>
 
 #include <fmt/format.h>
 
@@ -14,6 +15,7 @@
 #include "video_core/perf_counters.h"
 #include "video_core/renderer_d3d12/d3d12_log.h"
 #include "video_core/renderer_d3d12/d3d12_descriptor_heap.h"
+#include "video_core/renderer_d3d12/d3d12_root_signature.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
 
 namespace D3D12 {
@@ -23,6 +25,7 @@ namespace {
 // Allocating/freeing any offline view invalidates cached handles, including recycled slots.
 // Descriptor creation follows Allocate before another guest table can consume the slot.
 std::atomic<u64> offline_view_epoch{1};
+std::atomic<bool> persistent_resources_requested{false};
 
 ComPtr<ID3D12DescriptorHeap> CreateHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type,
                                         u32 count, bool shader_visible) {
@@ -56,6 +59,52 @@ ComPtr<ID3D12DescriptorHeap> CreateHeap(ID3D12Device* device, D3D12_DESCRIPTOR_H
 }
 
 } // Anonymous namespace
+
+void SetPersistentResources(bool enabled) {
+    persistent_resources_requested.store(enabled, std::memory_order_relaxed);
+}
+
+bool PersistentResourcesSupported(ID3D12Device* device) {
+    if (!persistent_resources_requested.load(std::memory_order_relaxed)) return false;
+    D3D12_FEATURE_DATA_D3D12_OPTIONS options{};
+    return SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options,
+                                                sizeof(options))) &&
+           options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3;
+}
+
+struct DescriptorRing::PersistentCache {
+    static constexpr u32 NONE = ~0u;
+    struct Hash {
+        size_t operator()(const PersistentDescriptorKey& k) const noexcept {
+            return Common::CityHash64(reinterpret_cast<const char*>(k.words.data()), sizeof(k));
+        }
+    };
+    struct Entry { PersistentDescriptorKey key; u64 tick{}; u32 prev{NONE}, next{NONE}; };
+    std::vector<Entry> entries{EDEN_PERSISTENT_RESOURCE_CAPACITY};
+    std::vector<u32> free;
+    std::unordered_map<PersistentDescriptorKey, u32, Hash> slots;
+    u32 oldest{NONE}, newest{NONE};
+    PersistentDescriptorStats stats;
+
+    PersistentCache() {
+        slots.reserve(EDEN_PERSISTENT_RESOURCE_CAPACITY);
+        free.reserve(EDEN_PERSISTENT_RESOURCE_CAPACITY);
+        for (u32 i = EDEN_PERSISTENT_RESOURCE_CAPACITY; i-- > 0;) free.push_back(i);
+    }
+    void Unlink(u32 i) {
+        auto& e = entries[i];
+        if (e.prev != NONE) entries[e.prev].next = e.next; else oldest = e.next;
+        if (e.next != NONE) entries[e.next].prev = e.prev; else newest = e.prev;
+    }
+    void Touch(u32 i, u64 tick) {
+        auto& e = entries[i];
+        e.tick = tick;
+        e.prev = newest;
+        e.next = NONE;
+        if (newest != NONE) entries[newest].next = i; else oldest = i;
+        newest = i;
+    }
+};
 
 // --- CpuDescriptorAllocator -------------------------------------------------------------------
 
@@ -125,11 +174,75 @@ void CpuDescriptorAllocator::AddPage() {
 
 DescriptorRing::DescriptorRing(ID3D12Device* device_, Scheduler& scheduler_, u32 capacity_)
     : device{device_}, scheduler{scheduler_},
-      heap{CreateHeap(device_, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, capacity_, true)},
+      heap{CreateHeap(device_, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                     capacity_ + (PersistentResourcesSupported(device_) ?
+                                  3 * EDEN_PERSISTENT_RESOURCE_CAPACITY : 0), true)},
       cpu_base{heap->GetCPUDescriptorHandleForHeapStart()},
       gpu_base{heap->GetGPUDescriptorHandleForHeapStart()}, capacity{capacity_},
       stride{device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)} {
+    if (PersistentResourcesSupported(device_)) persistent = std::make_unique<PersistentCache>();
     LOG_INFO(Render, "D3D12: shader-visible descriptor ring ready ({} slots)", capacity);
+}
+
+DescriptorRing::~DescriptorRing() = default;
+
+void DescriptorRing::ReservePersistent(u32 count) {
+    if (!persistent || count > EDEN_PERSISTENT_RESOURCE_CAPACITY)
+        throw std::runtime_error("D3D12: invalid persistent descriptor reservation");
+    auto& cache = *persistent;
+    // Reserve the worst-case number of misses before any of this draw's uploads/commands.
+    // LRU order also orders last-use ticks; a slot is overwritten only after its GPU fence.
+    while (cache.free.size() < count) {
+        const u32 i = cache.oldest;
+        if (i == PersistentCache::NONE) throw std::logic_error("persistent descriptor LRU empty");
+        const u64 tick = cache.entries[i].tick;
+        if (!scheduler.IsKnownFree(tick) && !scheduler.IsFree(tick)) {
+            ++cache.stats.waits;
+            scheduler.Wait(tick);
+        }
+        cache.Unlink(i);
+        cache.slots.erase(cache.entries[i].key);
+        cache.free.push_back(i);
+        ++cache.stats.evictions;
+    }
+}
+
+std::pair<u32, bool> DescriptorRing::PersistentSlot(const PersistentDescriptorKey& key) {
+    auto& cache = *persistent;
+    if (const auto found = cache.slots.find(key); found != cache.slots.end()) {
+        const u32 i = found->second;
+        cache.Unlink(i);
+        cache.Touch(i, scheduler.CurrentTick());
+        ++cache.stats.hits;
+        return {i, false};
+    }
+    if (cache.free.empty()) throw std::logic_error("persistent descriptors not reserved");
+    const u32 i = cache.free.back();
+    cache.free.pop_back();
+    cache.entries[i].key = key;
+    cache.Touch(i, scheduler.CurrentTick());
+    cache.slots.emplace(key, i);
+    ++cache.stats.misses;
+    return {i, true};
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DescriptorRing::PersistentCpu(u32 bank, u32 slot) const {
+    return {cpu_base.ptr + (static_cast<SIZE_T>(capacity) +
+            bank * EDEN_PERSISTENT_RESOURCE_CAPACITY + slot) * stride};
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE DescriptorRing::PersistentGpu() const {
+    return {gpu_base.ptr + static_cast<u64>(capacity) * stride};
+}
+
+PersistentDescriptorStats DescriptorRing::GetPersistentStats() const {
+    return persistent ? persistent->stats : PersistentDescriptorStats{};
+}
+
+void DescriptorRing::TouchPersistent(u32 slot) {
+    auto& cache = *persistent;
+    cache.Unlink(slot);
+    cache.Touch(slot, scheduler.CurrentTick());
 }
 
 DescriptorRange DescriptorRing::Allocate(u32 count) {
@@ -236,8 +349,19 @@ u64 DescriptorRing::CurrentTick() const {
 GuestDescriptorQueue::GuestDescriptorQueue(ID3D12Device* device_, DescriptorRing& ring_)
     : device{device_}, ring{ring_}, stride{ring_.Stride()} {}
 
-void GuestDescriptorQueue::Acquire(u32 count_, u32 image_count_) {
+void GuestDescriptorQueue::Acquire(u32 count_, u32 image_count_, const PipelineLayout* layout) {
     FlushCopies();
+    persistent_layout = layout;
+    persistent_images.clear();
+    binding_rows.clear();
+    if (layout) {
+        ring.ReservePersistent(count_);
+        count = count_;
+        written = image_count = 0;
+        binding_rows.resize(layout->NumBindings());
+        range = {{}, ring.PersistentGpu()};
+        return;
+    }
     if (image_count_ > count_) throw std::invalid_argument("D3D12: split descriptor count");
     count = count_ - image_count_;
     image_count = image_count_;
@@ -248,6 +372,12 @@ void GuestDescriptorQueue::Acquire(u32 count_, u32 image_count_) {
     acquire_tick = ring.CurrentTick();
     image_range = {{range.cpu.ptr + static_cast<SIZE_T>(count + 1) * stride},
                    {range.gpu.ptr + static_cast<UINT64>(count + 1) * stride}};
+}
+
+void GuestDescriptorQueue::SetPersistentSamplers(std::span<const u32> slots) {
+    const auto bindings = persistent_layout->PersistentSamplerBindings();
+    if (bindings.size() != slots.size()) throw std::logic_error("persistent sampler count");
+    for (size_t i = 0; i < slots.size(); ++i) binding_rows[bindings[i]].sampler = slots[i];
 }
 
 size_t GuestDescriptorQueue::ImageKeyHash::operator()(
@@ -326,6 +456,12 @@ D3D12_GPU_DESCRIPTOR_HANDLE GuestDescriptorQueue::ImageTable() {
 }
 
 D3D12_GPU_DESCRIPTOR_HANDLE GuestDescriptorQueue::Table() {
+    if (IsPersistent()) {
+        if (written != count) throw std::logic_error("persistent descriptor count mismatch");
+        FinishPersistentImages();
+        TouchPersistentUsage();
+        return range.gpu;
+    }
     FlushCopies();
     if (written != count && !logged_mismatch) {
         LOG_ERROR(Render, "D3D12: descriptor table filled with {} of {} descriptors", written,
@@ -333,6 +469,11 @@ D3D12_GPU_DESCRIPTOR_HANDLE GuestDescriptorQueue::Table() {
         logged_mismatch = true;
     }
     return range.gpu;
+}
+
+void GuestDescriptorQueue::TouchPersistentUsage() {
+    if (IsPersistent())
+        for (const auto& row : binding_rows) ring.TouchPersistent(row.resource);
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE GuestDescriptorQueue::Next() {
@@ -344,17 +485,29 @@ D3D12_CPU_DESCRIPTOR_HANDLE GuestDescriptorQueue::Next() {
     return {range.cpu.ptr + static_cast<SIZE_T>(written++) * stride};
 }
 
-void GuestDescriptorQueue::AddConstantBuffer(D3D12_GPU_VIRTUAL_ADDRESS address, u32 size) {
+void GuestDescriptorQueue::AddConstantBuffer(D3D12_GPU_VIRTUAL_ADDRESS address, u32 size,
+                                            u64 identity) {
     if (count == 0) {
         return;
     }
-    VideoCore::Perf::ScopedNsTimer timer{VideoCore::Perf::Counter::CbvCreateNs};
-    VideoCore::Perf::AddDetailed(VideoCore::Perf::Counter::CbvCreates, 1);
     const D3D12_CONSTANT_BUFFER_VIEW_DESC desc{
         .BufferLocation = address,
         .SizeInBytes = address != 0 ? (size + 255u) & ~255u : 0u,
     };
-    device->CreateConstantBufferView(&desc, Next());
+    const auto create = [&](D3D12_CPU_DESCRIPTOR_HANDLE destination) {
+        VideoCore::Perf::ScopedNsTimer timer{VideoCore::Perf::Counter::CbvCreateNs};
+        VideoCore::Perf::AddDetailed(VideoCore::Perf::Counter::CbvCreates, 1);
+        device->CreateConstantBufferView(&desc, destination);
+    };
+    if (IsPersistent()) {
+        const PersistentDescriptorKey key{{1, address, desc.SizeInBytes,
+            identity ? identity : (address ? ++unknown_identity : 0)}};
+        const auto [slot, created] = ring.PersistentSlot(key);
+        if (created) create(ring.PersistentCpu(0, slot));
+        binding_rows[persistent_layout->PersistentSlots()[written++].binding].resource = slot;
+        return;
+    }
+    create(Next());
     if (GpuDiagnosticsEnabled()) {
         TraceGpuDetail(fmt::format("CBV table={:x} slot={} address={:x} size={}",
             range.gpu.ptr, written - 1, address, desc.SizeInBytes));
@@ -364,7 +517,8 @@ void GuestDescriptorQueue::AddConstantBuffer(D3D12_GPU_VIRTUAL_ADDRESS address, 
     });
 }
 
-void GuestDescriptorQueue::AddStorageBuffer(ID3D12Resource* resource, u64 offset, u32 size) {
+void GuestDescriptorQueue::AddStorageBuffer(ID3D12Resource* resource, u64 offset, u32 size,
+                                           u64 identity) {
     if (GpuDiagnosticsEnabled()) {
         TraceGpuDetail(fmt::format("storage buffer table={:x} slot={} resource={} offset={} size={}",
             range.gpu.ptr, written, static_cast<void*>(resource), offset, size));
@@ -391,7 +545,16 @@ void GuestDescriptorQueue::AddStorageBuffer(ID3D12Resource* resource, u64 offset
                    .CounterOffsetInBytes = 0,
                    .Flags = D3D12_BUFFER_UAV_FLAG_RAW},
     };
-    device->CreateUnorderedAccessView(resource, nullptr, &uav, Next());
+    const bool persistent_mode = IsPersistent();
+    u32 slot{};
+    bool created = true;
+    if (persistent_mode) {
+        const PersistentDescriptorKey key{{2, reinterpret_cast<u64>(resource), offset, size,
+            identity ? identity : (resource ? ++unknown_identity : 0)}};
+        std::tie(slot, created) = ring.PersistentSlot(key);
+    }
+    if (created) device->CreateUnorderedAccessView(resource, nullptr, &uav,
+                         persistent_mode ? ring.PersistentCpu(2, slot) : Next());
     D3D12_SHADER_RESOURCE_VIEW_DESC srv{
         .Format = DXGI_FORMAT_R32_TYPELESS,
         .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
@@ -401,7 +564,12 @@ void GuestDescriptorQueue::AddStorageBuffer(ID3D12Resource* resource, u64 offset
                    .StructureByteStride = 0,
                    .Flags = D3D12_BUFFER_SRV_FLAG_RAW},
     };
-    device->CreateShaderResourceView(resource, &srv, Next());
+    if (created) device->CreateShaderResourceView(resource, &srv,
+                         persistent_mode ? ring.PersistentCpu(1, slot) : Next());
+    if (persistent_mode) {
+        binding_rows[persistent_layout->PersistentSlots()[written].binding].resource = slot;
+        written += 2;
+    }
     CheckRemovedAfterDescriptor(device, [&] {
         return fmt::format("storage buffer views (offset {} size {} null {})", offset, size,
                            resource == nullptr);
@@ -409,7 +577,8 @@ void GuestDescriptorQueue::AddStorageBuffer(ID3D12Resource* resource, u64 offset
 }
 
 void GuestDescriptorQueue::AddTexelBuffer(ID3D12Resource* resource, u64 offset, u32 size,
-                                          DXGI_FORMAT format, u32 element_size, bool with_uav) {
+                                          DXGI_FORMAT format, u32 element_size, bool with_uav,
+                                          u64 identity) {
     if (GpuDiagnosticsEnabled()) {
         TraceGpuDetail(fmt::format("texel buffer table={:x} slot={} resource={} offset={} size={} format={} uav={}",
             range.gpu.ptr, written, static_cast<void*>(resource), offset, size,
@@ -432,13 +601,23 @@ void GuestDescriptorQueue::AddTexelBuffer(ID3D12Resource* resource, u64 offset, 
     }
     const u64 first = resource ? offset / element_size : 0;
     const u32 elements = resource ? size / element_size : 0;
+    const bool persistent_mode = IsPersistent();
+    u32 slot{};
+    bool created = true;
+    if (persistent_mode) {
+        const PersistentDescriptorKey key{{3, reinterpret_cast<u64>(resource), offset, size,
+            identity ? identity : (resource ? ++unknown_identity : 0),
+            static_cast<u64>(format), element_size, with_uav}};
+        std::tie(slot, created) = ring.PersistentSlot(key);
+    }
     if (with_uav) {
         D3D12_UNORDERED_ACCESS_VIEW_DESC uav{
             .Format = format,
             .ViewDimension = D3D12_UAV_DIMENSION_BUFFER,
             .Buffer = {.FirstElement = first, .NumElements = elements},
         };
-        device->CreateUnorderedAccessView(resource, nullptr, &uav, Next());
+        if (created) device->CreateUnorderedAccessView(resource, nullptr, &uav,
+                            persistent_mode ? ring.PersistentCpu(2, slot) : Next());
     }
     D3D12_SHADER_RESOURCE_VIEW_DESC srv{
         .Format = format,
@@ -446,7 +625,12 @@ void GuestDescriptorQueue::AddTexelBuffer(ID3D12Resource* resource, u64 offset, 
         .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         .Buffer = {.FirstElement = first, .NumElements = elements},
     };
-    device->CreateShaderResourceView(resource, &srv, Next());
+    if (created) device->CreateShaderResourceView(resource, &srv,
+                         persistent_mode ? ring.PersistentCpu(1, slot) : Next());
+    if (persistent_mode) {
+        binding_rows[persistent_layout->PersistentSlots()[written].binding].resource = slot;
+        written += with_uav ? 2 : 1;
+    }
     CheckRemovedAfterDescriptor(device, [&] {
         return fmt::format("texel buffer views (format {} offset {} elements {} uav {} null {})",
                            static_cast<u32>(format), offset, elements, with_uav,
@@ -455,6 +639,17 @@ void GuestDescriptorQueue::AddTexelBuffer(ID3D12Resource* resource, u64 offset, 
 }
 
 void GuestDescriptorQueue::AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor) {
+    if (IsPersistent()) {
+        const auto plan = persistent_layout->PersistentSlots()[written++];
+        auto image = std::ranges::find(persistent_images, plan.binding, &PersistentImage::binding);
+        if (image == persistent_images.end()) {
+            persistent_images.push_back({plan.binding});
+            image = persistent_images.end() - 1;
+        }
+        if (plan.type == D3D12_DESCRIPTOR_RANGE_TYPE_UAV) image->uav = descriptor;
+        else image->srv = descriptor;
+        return;
+    }
     if (GpuDiagnosticsEnabled()) {
         TraceGpuDetail(fmt::format("descriptor copy table={:x} slot={} source={:x}",
             range.gpu.ptr, written, descriptor.ptr));
@@ -481,7 +676,29 @@ void GuestDescriptorQueue::AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor) {
     pending_copies.push_back(descriptor);
 }
 
+void GuestDescriptorQueue::FinishPersistentImages() {
+    const u64 epoch = offline_view_epoch.load(std::memory_order_relaxed);
+    for (const auto& image : persistent_images) {
+        const PersistentDescriptorKey key{{4, image.srv.ptr, image.uav.ptr, epoch}};
+        const auto [slot, created] = ring.PersistentSlot(key);
+        if (created) {
+            for (const auto [bank, source] : {std::pair{1u, image.srv},
+                                               std::pair{2u, image.uav}}) {
+                if (!source.ptr) continue;
+                device->CopyDescriptorsSimple(1, ring.PersistentCpu(bank, slot), source,
+                                              D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            }
+        }
+        binding_rows[image.binding].resource = slot;
+    }
+    persistent_images.clear();
+}
+
 void GuestDescriptorQueue::FlushCopies() {
+    if (IsPersistent()) {
+        FinishPersistentImages();
+        return;
+    }
     if (pending_copies.empty()) {
         return;
     }
@@ -513,6 +730,7 @@ SamplerHeap::SamplerHeap(ID3D12Device* device_, Scheduler& scheduler_)
       cpu_base{heap->GetCPUDescriptorHandleForHeapStart()},
       gpu_base{heap->GetGPUDescriptorHandleForHeapStart()},
       stride{device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)} {
+    persistent_partition = PersistentResourcesSupported(device_);
     LOG_INFO(Render, "D3D12: shader-visible sampler heap ready ({} slots)", CAPACITY);
 }
 
@@ -524,6 +742,16 @@ D3D12_GPU_DESCRIPTOR_HANDLE SamplerHeap::GetTable(
     const u32 count = static_cast<u32>(samplers.size());
     if (count == 0 || count > CAPACITY || keys.size() != samplers.size()) {
         throw std::runtime_error(fmt::format("D3D12: bad sampler table request ({})", count));
+    }
+    // Guest persistent indices occupy the upper half. Blit/present helpers only use the lower
+    // half, so their Finish/reset can never invalidate a guest draw still being prepared.
+    // An unusually large legacy table may temporarily take the whole heap between guest draws.
+    if (persistent_partition && count > CAPACITY / 2) {
+        scheduler.Finish();
+        last_keys = {};
+        tables.clear(); persistent_samplers.clear();
+        used = persistent_used = 0;
+        persistent_partition = false;
     }
     if (std::ranges::equal(keys, last_keys)) {
         return {gpu_base.ptr + static_cast<u64>(last_first) * stride};
@@ -539,7 +767,8 @@ D3D12_GPU_DESCRIPTOR_HANDLE SamplerHeap::GetTable(
         last_first = it->second;
         return {gpu_base.ptr + static_cast<u64>(it->second) * stride};
     }
-    if (used + count > CAPACITY) {
+    const u32 legacy_capacity = persistent_partition ? CAPACITY / 2 : CAPACITY;
+    if (used + count > legacy_capacity) {
         // Tables already recorded may still be read by the GPU: only reuse the heap once idle.
         LOG_INFO(Render, "D3D12: sampler heap full ({} tables), resetting", tables.size());
         scheduler.Finish();
@@ -565,6 +794,39 @@ D3D12_GPU_DESCRIPTOR_HANDLE SamplerHeap::GetTable(
         logged_cache = true;
     }
     return {gpu_base.ptr + static_cast<u64>(first) * stride};
+}
+
+SamplerHeap::PersistentIndices SamplerHeap::GetPersistentIndices(
+    std::span<const u64> keys, std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> descriptors) {
+    if (keys.size() != descriptors.size() || keys.size() > CAPACITY / 2)
+        throw std::invalid_argument("persistent sampler reservation");
+    if (!persistent_partition) {
+        scheduler.Finish();
+        last_keys = {};
+        tables.clear(); persistent_samplers.clear();
+        used = persistent_used = 0;
+        persistent_partition = true;
+    }
+    // Conservatively reserve for every key, including duplicates. Reset before any draw upload.
+    u32 missing{};
+    for (u64 key : keys) missing += !persistent_samplers.contains(key);
+    if (persistent_used + missing > CAPACITY / 2) {
+        scheduler.Finish();
+        persistent_samplers.clear();
+        persistent_used = 0;
+    }
+    PersistentIndices indices;
+    indices.reserve(keys.size());
+    for (size_t i = 0; i < keys.size(); ++i) {
+        auto [entry, inserted] = persistent_samplers.try_emplace(keys[i], CAPACITY / 2 + persistent_used);
+        if (inserted) {
+            const D3D12_CPU_DESCRIPTOR_HANDLE dst{cpu_base.ptr +
+                static_cast<SIZE_T>(CAPACITY / 2 + persistent_used++) * stride};
+            device->CopyDescriptorsSimple(1, dst, descriptors[i], D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+        }
+        indices.push_back(entry->second);
+    }
+    return indices;
 }
 
 } // namespace D3D12

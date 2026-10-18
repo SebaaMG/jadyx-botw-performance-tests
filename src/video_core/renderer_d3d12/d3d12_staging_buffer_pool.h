@@ -30,6 +30,7 @@ struct StagingBufferRef {
     MemoryUsage usage;
     u32 log2_level;
     u64 index;
+    u64 identity{};
     u64 capacity; ///< Bytes the buffer was created with (dedicated buffers); what it commits.
 };
 
@@ -93,6 +94,7 @@ private:
                 .usage = usage,
                 .log2_level = log2_level,
                 .index = index,
+                .identity = (3ull << 62) | (index + 1),
                 .capacity = mapped_span.size(),
             };
         }
@@ -134,6 +136,7 @@ private:
     ComPtr<ID3D12Resource> stream_buffer;
     Common::MemoryCharge stream_charge;
     std::span<u8> stream_pointer;
+    u64 stream_identity{1};
     u64 stream_buffer_size;
     u64 region_size;
 

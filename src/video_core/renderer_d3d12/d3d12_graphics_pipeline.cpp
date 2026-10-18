@@ -227,9 +227,10 @@ GraphicsPipeline::GraphicsPipeline(const Device& device_,
                                    CompileDxil compile_dxil,
                                    const std::array<const Shader::Info*, NUM_STAGES>& infos,
                                    const PipelineLayout& layout_, bool build_pso,
-                                   GraphicsPsoCache* pso_cache_, u32 lower_noperspective_mask_)
+                                   GraphicsPsoCache* pso_cache_, u32 lower_noperspective_mask_,
+                                   const PipelineLayout* persistent_layout)
     : device{device_}, texture_runtime{texture_runtime_}, key{key_}, key_hash{key_.Hash()},
-      layout{layout_}, lower_noperspective_mask{lower_noperspective_mask_}, pso_cache{pso_cache_} {
+      layout{persistent_layout ? persistent_layout : &layout_}, legacy_layout{&layout_}, lower_noperspective_mask{lower_noperspective_mask_}, pso_cache{pso_cache_} {
     u8 valid_targets{};
     for (size_t index = 0; index < key.state.color_formats.size(); ++index) {
         if (static_cast<Tegra::RenderTargetFormat>(key.state.color_formats[index]) !=
@@ -273,7 +274,14 @@ GraphicsPipeline::GraphicsPipeline(const Device& device_,
         bool compiled = false;
         try {
             FT::ScopedSpan dxil_span{FT::Event::PipelineDxilLong, trace_pipeline};
-            dxil = compile_dxil(trace_pipeline, false);
+            try {
+                dxil = compile_dxil(trace_pipeline, false, layout->IsPersistent());
+            } catch (const std::exception& error) {
+                if (!layout->IsPersistent()) throw;
+                LOG_WARNING(Render, "SeriesX: persistent shader unsupported; using legacy layout: {}", error.what());
+                layout = legacy_layout;
+                dxil = compile_dxil(trace_pipeline, false, false);
+            }
             compiled = true;
         } catch (const std::exception& exception) {
             // Handle() stays null: draws with this pipeline are skipped.
@@ -284,8 +292,9 @@ GraphicsPipeline::GraphicsPipeline(const Device& device_,
             LOG_ERROR(Render, "D3D12: building the pipeline for VS {:016x} PS {:016x} failed: {}",
                       key.unique_hashes[1], key.unique_hashes[5], exception.what());
         }
+        if (compiled && !build_pso && layout->IsPersistent()) dormant_compiler = compile_dxil;
         if (compiled && build_pso) {
-            Build(true);
+            BuildWithLegacyFallback(compile_dxil, trace_pipeline, true);
         }
         if (flatten_retry) {
             // The console's shader compiler faults on some vertex shaders with large branches
@@ -294,7 +303,7 @@ GraphicsPipeline::GraphicsPipeline(const Device& device_,
             // this session, but trying to draw it makes it one of the pipelines built at boot.
             flatten_retry = false;
             try {
-                dxil = compile_dxil(trace_pipeline, true);
+                dxil = compile_dxil(trace_pipeline, true, layout->IsPersistent());
                 flattened_vertex = true;
             } catch (const std::exception& exception) {
                 BUG_TRACK_KEY(PipelineRejected, key.Hash(),
@@ -346,9 +355,30 @@ void GraphicsPipeline::Wake(Common::ThreadWorker& worker) {
         return;
     }
     worker.QueueWork([this] {
-        Build();
+        if (dormant_compiler) BuildWithLegacyFallback(dormant_compiler, 0, false);
+        else Build();
+        dormant_compiler = {};
         Publish(State::Ready);
     });
+}
+
+void GraphicsPipeline::BuildWithLegacyFallback(const CompileDxil& compile, u64 trace_id,
+                                               bool may_flatten) {
+    Build(may_flatten);
+    if (pipeline_state || !layout->IsPersistent() || !FAILED(last_build_result) ||
+        last_build_result == E_OUTOFMEMORY || FAILED(device.Get()->GetDeviceRemovedReason())) return;
+    LOG_WARNING(Render, "SeriesX: persistent PSO rejected (0x{:08x}); rebuilding legacy variant",
+                static_cast<u32>(last_build_result));
+    layout = legacy_layout;
+    flatten_retry = flattened_vertex = false;
+    shared_pso.reset();
+    try {
+        dxil = compile(trace_id, false, false);
+        Build(may_flatten);
+    } catch (const std::exception& error) {
+        pipeline_state.Reset();
+        LOG_ERROR(Render, "SeriesX: legacy pipeline fallback failed: {}", error.what());
+    }
 }
 
 bool GraphicsPipeline::Evict(Scheduler& scheduler) {
@@ -487,13 +517,21 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
     // streamed UBOs, whose lifetime must cover the submission that actually executes this draw.
     SamplerTableBuilder sampler_table;
     for (const SamplerId id : samplers) sampler_table.Add(texture_cache.GetSampler(id));
-    out.sampler_table = sampler_table.Table(context.sampler_heap);
+    SamplerHeap::PersistentIndices sampler_indices;
+    if (layout->IsPersistent()) {
+        sampler_indices = sampler_table.PersistentIndices(context.sampler_heap);
+        out.sampler_table = context.sampler_heap.GpuBase();
+    } else {
+        out.sampler_table = sampler_table.Table(context.sampler_heap);
+    }
     lap.Lap(VideoCore::Perf::Counter::DrawSamplersNs);
     GuestDescriptorQueue& queue = context.descriptor_queue;
-    queue.Acquire(layout.NumResourceDescriptors(), layout.NumImageDescriptors());
+    queue.Acquire(layout->NumResourceDescriptors(), layout->NumImageDescriptors(),
+                  layout->IsPersistent() ? layout : nullptr);
+    if (layout->IsPersistent()) queue.SetPersistentSamplers(sampler_indices);
     ImageTransitionList image_transitions;
     bool uses_render_area = false;
-    const bool has_integer_samplers = layout.IntegerSamplerIndex() != PipelineLayout::NO_TABLE;
+    const bool has_integer_samplers = layout->IntegerSamplerIndex() != PipelineLayout::NO_TABLE;
     IntegerSamplerTable integer_samplers;
     u32 stage_binding = 0;
     const SamplerId* samplers_it = samplers.data();
@@ -595,6 +633,8 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
     lap.Lap(VideoCore::Perf::Counter::DrawTargetsNs);
 
     out.resource_table = queue.Table();
+    if (layout->IsPersistent())
+        out.index_map = buffer_cache.runtime.UploadPersistentIndexMap(queue.PersistentRows());
     out.integer_samplers = integer_samplers.Upload(buffer_cache);
     lap.Lap(VideoCore::Perf::Counter::DrawSamplersNs);
     out.image_table = queue.ImageTable();
@@ -619,7 +659,7 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC GraphicsPipeline::Describe(
     const FixedPipelineState::DynamicState& dynamic = state.dynamic_state;
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc{};
-    desc.pRootSignature = layout.Handle();
+    desc.pRootSignature = layout->Handle();
     desc.VS = Bytecode(stages[0]);
     desc.HS = Bytecode(stages[1]);
     desc.DS = Bytecode(stages[2]);
@@ -765,13 +805,13 @@ ComPtr<ID3D12PipelineState> GraphicsPipeline::CreateMaterialProbePipeline(
         if (key.unique_hashes[1] != 0x55e0d63ec3a46b1fULL ||
             key.unique_hashes[5] != 0xba9295f0d82e7ae1ULL || !geometry_shader.empty() ||
             StageInfo(4).interpolation != 0x2000 ||
-            layout.NumResourceDescriptors() != 13 || layout.NumSamplerDescriptors() != 6 ||
+            layout->NumResourceDescriptors() != 13 || layout->NumSamplerDescriptors() != 6 ||
             (lower_noperspective_mask != 0 && lower_noperspective_mask != 0x40)) {
             throw std::runtime_error("material reflection probe: unsupported linked interface");
         }
     } else if (StageInfo(4).interpolation != 0xa || !StageInfo(0).stores.Generic(0) ||
-               !StageInfo(0).stores.Generic(1) || layout.NumResourceDescriptors() != 7 ||
-               layout.NumSamplerDescriptors() != 2) {
+               !StageInfo(0).stores.Generic(1) || layout->NumResourceDescriptors() != 7 ||
+               layout->NumSamplerDescriptors() != 2) {
         throw std::runtime_error("material GPU probe: unsupported shader interface");
     }
     for (const auto& info : stage_infos) {
@@ -1008,6 +1048,7 @@ void GraphicsPipeline::Build(bool flatten_on_fault) try {
     } catch (HRESULT failure) {
         hr = failure;
     }
+    last_build_result = hr;
     CheckRemovedAfter(device.Get(), [&] {
         return fmt::format("graphics PSO for VS {:016x} PS {:016x} (HRESULT 0x{:08X})",
                            key.unique_hashes[1], key.unique_hashes[5], static_cast<u32>(hr));
@@ -1059,7 +1100,7 @@ void GraphicsPipeline::Build(bool flatten_on_fault) try {
              "DSV {}, {} + {} descriptors, features VS {:x} PS {:x})",
              key.unique_hashes[1], key.unique_hashes[5], elements.size(), num_attachments,
              static_cast<u32>(desc.RTVFormats[0]), static_cast<u32>(desc.DSVFormat),
-             layout.NumResourceDescriptors(), layout.NumSamplerDescriptors(),
+             layout->NumResourceDescriptors(), layout->NumSamplerDescriptors(),
              ShaderFeatureFlags(stages[0]), ShaderFeatureFlags(stages[4]));
 } catch (const std::exception& exception) {
     pipeline_state.Reset();

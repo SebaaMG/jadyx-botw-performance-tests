@@ -10,6 +10,7 @@
 #include "video_core/renderer_d3d12/d3d12_heap_packing.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
 
+#include <stdexcept>
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -24,15 +25,17 @@ using namespace Common::Literals;
 namespace {
 constexpr u64 DEFAULT_BLOCK_SIZE = 64_MiB;
 
-enum class HeapClass : u8 { Texture, RenderTarget };
+enum class HeapClass : u8 { Texture, RenderTarget, Buffer };
 
 HeapClass ClassOf(const D3D12_RESOURCE_DESC& desc) {
+    if (desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER) return HeapClass::Buffer;
     constexpr D3D12_RESOURCE_FLAGS RT_DS = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET |
                                            D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
     return (desc.Flags & RT_DS) != 0 ? HeapClass::RenderTarget : HeapClass::Texture;
 }
 
 D3D12_HEAP_FLAGS FlagsOf(HeapClass heap_class) {
+    if (heap_class == HeapClass::Buffer) return D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
     return heap_class == HeapClass::RenderTarget ? D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES
                                                  : D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
 }
@@ -100,14 +103,17 @@ struct TextureResourceAllocator::Allocation {
     }
 };
 
-TextureResourceAllocator::TextureResourceAllocator(const Device& device_, Scheduler& scheduler_)
-    : device{device_}, scheduler{scheduler_}, state{std::make_shared<State>()} {}
+TextureResourceAllocator::TextureResourceAllocator(const Device& device_, Scheduler& scheduler_,
+                                                   bool buffers_)
+    : device{device_}, scheduler{scheduler_}, state{std::make_shared<State>()}, buffers{buffers_} {}
 
 TextureResourceAllocator::~TextureResourceAllocator() = default;
 
 TextureResourceAllocator::Resource TextureResourceAllocator::Create(
     const D3D12_RESOURCE_DESC& desc, D3D12_RESOURCE_STATES initial_state,
     const D3D12_CLEAR_VALUE* clear_value) {
+    if (buffers != (desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER))
+        throw std::invalid_argument("D3D12: resource allocator kind mismatch");
     const D3D12_RESOURCE_ALLOCATION_INFO info = device.Get()->GetResourceAllocationInfo(0, 1, &desc);
     if (info.SizeInBytes == UINT64_MAX || info.Alignment == 0) {
         return {};
@@ -137,7 +143,7 @@ TextureResourceAllocator::Resource TextureResourceAllocator::Create(
 
         if (selected == SIZE_MAX) {
             const u64 wanted = HeapPacking::BlockSize(info.SizeInBytes, info.Alignment,
-                                                      DEFAULT_BLOCK_SIZE);
+                                                      buffers ? 4_MiB : DEFAULT_BLOCK_SIZE);
             if (!wanted) return {};
             const D3D12_HEAP_DESC heap_desc{
                 .SizeInBytes = wanted,
@@ -149,7 +155,10 @@ TextureResourceAllocator::Resource TextureResourceAllocator::Create(
             const HRESULT heap_hr = device.Get()->CreateHeap(&heap_desc, IID_PPV_ARGS(&block.heap));
             if (SUCCEEDED(heap_hr)) {
                 block.free_ranges.emplace(0, wanted);
-                block.charge = Common::MemoryCharge(Common::MemoryAccount::TextureHeaps, wanted);
+                // BufferCache keeps its existing logical-payload ledger. Physical buffer heap
+                // bytes/fragmentation are reported separately by this allocator's Stats.
+                if (!buffers)
+                    block.charge = Common::MemoryCharge(Common::MemoryAccount::TextureHeaps, wanted);
                 state->heap_bytes += wanted;
                 // Tombstones preserve outstanding Allocation indices. Reuse only slots with
                 // no heap: Trim proves there are no live or pending allocations in that slot.
@@ -163,9 +172,9 @@ TextureResourceAllocator::Resource TextureResourceAllocator::Create(
                     *vacant = std::move(block);
                 }
                 selected_offset = 0;
-                LOG_INFO(Render, "D3D12: texture heap pool added {} MiB {} block ({} MiB total)",
+                LOG_INFO(Render, "D3D12: resource heap pool added {} MiB {} block ({} MiB total)",
                          wanted / 1_MiB,
-                         heap_class == HeapClass::RenderTarget ? "RT/DS" : "texture",
+                         buffers ? "buffer" : heap_class == HeapClass::RenderTarget ? "RT/DS" : "texture",
                          state->heap_bytes / 1_MiB);
             } else {
                 LOG_WARNING(Render, "D3D12: CreateHeap for texture pool failed 0x{:08x}; using committed resources",
@@ -245,6 +254,10 @@ TextureResourceAllocator::Resource TextureResourceAllocator::Create(
 }
 
 void TextureResourceAllocator::DeferRelease(Resource&& resource) {
+    DeferRelease(scheduler, std::move(resource));
+}
+
+void TextureResourceAllocator::DeferRelease(Scheduler& scheduler, Resource&& resource) {
     if (!resource.resource) {
         return;
     }
@@ -262,7 +275,7 @@ void TextureResourceAllocator::DeferRelease(Resource&& resource) {
 
 void TextureResourceAllocator::TrimEmptyHeaps(bool under_pressure) {
     std::scoped_lock lock{state->mutex};
-    std::array<bool, 2> warm{};
+    std::array<bool, 3> warm{};
     for (auto& block : state->blocks) {
         if (!block.heap || block.free_ranges.size() != 1) continue;
         const auto& [offset, size] = *block.free_ranges.begin();
@@ -284,8 +297,8 @@ void TextureResourceAllocator::TrimEmptyHeaps(bool under_pressure) {
 
 std::string TextureResourceAllocator::Report() const {
     std::scoped_lock lock{state->mutex};
-    return fmt::format("texture heaps {} MiB, live {} MiB, peak {} MiB, placed {}, fallback {}, trimmed {} ({} MiB)",
-                       state->heap_bytes / 1_MiB, state->live_bytes / 1_MiB,
+    return fmt::format("{} heaps {} MiB, live {} MiB, peak {} MiB, placed {}, fallback {}, trimmed {} ({} MiB)",
+                       buffers ? "buffer" : "texture", state->heap_bytes / 1_MiB, state->live_bytes / 1_MiB,
                        state->peak_bytes / 1_MiB, state->placed_resources,
                        state->committed_fallbacks, state->trimmed_heaps, state->trimmed_bytes / 1_MiB);
 }

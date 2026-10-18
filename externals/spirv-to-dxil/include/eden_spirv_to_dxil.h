@@ -23,6 +23,18 @@ extern "C" {
 
 #define EDEN_SPIRV_TO_DXIL_MAX_STAGES 5
 
+/* v4 persistent binding ABI, ordinary SM 6.0 descriptor arrays (not SM 6.6).
+ * Three resource banks share a logical slot: CBV, SRV, UAV. A row is four u32:
+ * resource slot, sampler slot, reserved, reserved. Original guest bindings index rows.
+ * Descriptor-array guest bindings currently select the legacy variant. */
+#define EDEN_PERSISTENT_RESOURCE_CAPACITY 8192
+#define EDEN_PERSISTENT_SAMPLER_CAPACITY 2048
+#define EDEN_PERSISTENT_MAX_BINDINGS 1024
+#define EDEN_PERSISTENT_RESOURCE_SPACES 26
+#define EDEN_PERSISTENT_SAMPLER_SPACE 26
+#define EDEN_PERSISTENT_SHADOW_SPACE 27
+#define EDEN_PERSISTENT_INDEX_SPACE 28
+
 /* v2 integer texture sampling: b0 space 29, indexed by the original texture binding.
  * Keep fields in 16-byte rows for DXIL constant-buffer loads. No C bitfields in this ABI. */
 #define EDEN_INTEGER_SAMPLER_SPACE 29
@@ -71,6 +83,15 @@ eden_spirv_to_dxil_pipeline_v2(const struct eden_spirv_to_dxil_stage *stages, un
 
 bool
 eden_spirv_to_dxil_pipeline_v3(const struct eden_spirv_to_dxil_stage *stages, unsigned count,
+                               enum dxil_validator_version validator_version_max,
+                               const struct dxil_spirv_debug_options *debug_options,
+                               const struct dxil_spirv_logger *logger, uint32_t flags,
+                               struct dxil_spirv_object *out);
+
+/* Separate symbol so the old DLL cannot silently ignore a new resource ABI.
+ * v4 includes v3 semantics and uses the persistent binding layout above. */
+bool
+eden_spirv_to_dxil_pipeline_v4(const struct eden_spirv_to_dxil_stage *stages, unsigned count,
                                enum dxil_validator_version validator_version_max,
                                const struct dxil_spirv_debug_options *debug_options,
                                const struct dxil_spirv_logger *logger, uint32_t flags,

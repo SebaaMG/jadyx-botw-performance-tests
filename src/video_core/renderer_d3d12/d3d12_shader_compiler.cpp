@@ -85,6 +85,7 @@ ShaderCompiler::ShaderCompiler() {
         lowers_integer_sampling = true;
         // Optional: only pipelines the console's driver faults on need it.
         (void)spirv_to_dxil_library.GetSymbol("eden_spirv_to_dxil_pipeline_v3", &translate_pipeline_v3);
+        (void)spirv_to_dxil_library.GetSymbol("eden_spirv_to_dxil_pipeline_v4", &translate_pipeline_v4);
     } else if (!spirv_to_dxil_library.GetSymbol("eden_spirv_to_dxil_pipeline",
                                                 &translate_pipeline)) {
         LOG_WARNING(Render, "D3D12: spirv_to_dxil.dll cannot link stages (rebuild it with "
@@ -196,7 +197,17 @@ std::vector<ShaderCompiler::CompiledStage> ShaderCompiler::CompilePipeline(
     std::array<dxil_spirv_object, EDEN_SPIRV_TO_DXIL_MAX_STAGES> objects{};
     VideoCore::FrameTrace::ScopedSpan translate_span{
         VideoCore::FrameTrace::Event::PipelineTranslateLong, trace_pipeline, trace_pipeline != 0};
-    if (options.flatten_vertex) {
+    if (options.persistent_resources) {
+        if (!translate_pipeline_v4) {
+            throw std::runtime_error("D3D12: persistent resources require the Mesa v4 entry point");
+        }
+        const u32 flags = options.flatten_vertex ? EDEN_SPIRV_TO_DXIL_FLATTEN_VERTEX : 0;
+        if (!translate_pipeline_v4(inputs.data(), static_cast<unsigned>(stages.size()),
+                                   VALIDATOR_VERSION, &debug_options, &logger, flags,
+                                   objects.data())) {
+            throw std::runtime_error("D3D12: persistent shader translation rejected; use legacy layout");
+        }
+    } else if (options.flatten_vertex) {
         if (!translate_pipeline_v3) {
             throw std::runtime_error("D3D12: spirv_to_dxil.dll lacks eden_spirv_to_dxil_pipeline_v3");
         }

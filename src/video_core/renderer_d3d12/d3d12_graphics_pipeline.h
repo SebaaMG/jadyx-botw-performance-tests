@@ -109,6 +109,7 @@ struct PipelineBindings {
     std::array<u32, PUSH_CONSTANT_WORDS> push_constants{};
     /// Integer sampler states (PipelineLayout::IntegerSamplerIndex), 0 when the layout has none.
     D3D12_GPU_VIRTUAL_ADDRESS integer_samplers{};
+    D3D12_GPU_VIRTUAL_ADDRESS index_map{};
     /// When set (draw trace), Configure appends the views of the sampled textures here.
     std::vector<VideoCommon::ImageViewId>* trace_views{};
     /// With trace_views: each texture's sampler (Sampler::Describe), in the same order.
@@ -153,7 +154,7 @@ public:
     using DxilStages = std::array<std::vector<u8>, NUM_STAGES>;
     using SharedDxilStages = std::shared_ptr<const DxilStages>;
     /// (trace id, flatten the vertex stage's branches) -> linked DXIL.
-    using CompileDxil = std::function<SharedDxilStages(u64, bool)>;
+    using CompileDxil = std::function<SharedDxilStages(u64, bool, bool)>;
 
     /// compile_dxil (SPIR-V to DXIL, the costly part of a new pipeline) runs with the PSO build,
     /// on the worker when one is given; it throws std::exception when the pipeline cannot be made.
@@ -162,7 +163,8 @@ public:
                      const GraphicsPipelineCacheKey& key, CompileDxil compile_dxil,
                      const std::array<const Shader::Info*, NUM_STAGES>& infos,
                      const PipelineLayout& layout, bool build_pso = true,
-                     GraphicsPsoCache* pso_cache = nullptr, u32 lower_noperspective_mask = 0);
+                     GraphicsPsoCache* pso_cache = nullptr, u32 lower_noperspective_mask = 0,
+                     const PipelineLayout* persistent_layout = nullptr);
     ~GraphicsPipeline();
 
     GraphicsPipeline(const GraphicsPipeline&) = delete;
@@ -222,7 +224,7 @@ public:
     }
 
     [[nodiscard]] const PipelineLayout& Layout() const noexcept {
-        return layout;
+        return *layout;
     }
 
     [[nodiscard]] const StageBindings& StageInfo(size_t stage) const noexcept {
@@ -291,15 +293,19 @@ private:
     D3D12_GRAPHICS_PIPELINE_STATE_DESC Describe(std::vector<D3D12_INPUT_ELEMENT_DESC>& elements) const;
 
     void Publish(State next);
+    void BuildWithLegacyFallback(const CompileDxil& compile, u64 trace_id, bool may_flatten);
 
     const Device& device;
     const TextureCacheRuntime& texture_runtime;
     const GraphicsPipelineCacheKey key;
     const u64 key_hash;
-    const PipelineLayout& layout;
+    const PipelineLayout* layout;
+    const PipelineLayout* legacy_layout;
     const u32 lower_noperspective_mask;
     FragmentHelpers fragment_helpers{};
     SharedDxilStages dxil; ///< Immutable linked bytecode shared across fixed-state PSOs.
+    CompileDxil dormant_compiler; ///< Retained only until a new persistent PSO is qualified.
+    HRESULT last_build_result{S_OK};
     std::array<bool, NUM_STAGES> has_stage{};
     std::array<std::shared_ptr<const StageBindings>, NUM_STAGES> stage_infos;
     std::array<u32, NUM_STAGES> enabled_uniform_buffer_masks{};
