@@ -24,6 +24,7 @@
 #include "video_core/perf_counters.h"
 #include "video_core/frame_trace.h"
 #include "video_core/texture_cache/blit_coverage.h"
+#include "video_core/texture_cache/gc_budget.h"
 #include "video_core/texture_cache/gc_policy.h"
 #include "video_core/texture_cache/image_view_base.h"
 #include "video_core/texture_cache/samples_helper.h"
@@ -128,6 +129,7 @@ void TextureCache<P>::RunGarbageCollector() {
     bool aggressive_mode = false;
     u64 ticks_to_destroy = 0;
     size_t num_iterations = 0;
+    TextureGcBudget budget;
     size_t downloads_left = SIZE_MAX;
     u64 time_budget_us = 0;
     bool backend_policy = false;
@@ -150,14 +152,15 @@ void TextureCache<P>::RunGarbageCollector() {
                 downloads_left = policy->max_downloads;
             }
         }
+        budget.BeginPass(num_iterations, backend_policy);
     };
-    const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode,
+    const auto Cleanup = [this, &budget, &high_priority_mode, &aggressive_mode,
                           &downloads_left, &time_budget_us, &backend_policy, &gc_start](ImageId image_id) {
-        if (num_iterations == 0 || (time_budget_us != 0 &&
-            std::chrono::steady_clock::now() - gc_start >= std::chrono::microseconds{time_budget_us})) {
+        if ((time_budget_us != 0 &&
+             std::chrono::steady_clock::now() - gc_start >= std::chrono::microseconds{time_budget_us}) ||
+            !budget.Visit()) {
             return true;
         }
-        --num_iterations;
         auto& image = slot_images[image_id];
         if (True(image.flags & ImageFlagBits::IsDecoding)) {
             return false;
@@ -206,11 +209,12 @@ void TextureCache<P>::RunGarbageCollector() {
         }
         UnregisterImage(image_id);
         DeleteImage(image_id, image.scale_tick > frame_tick + 5);
+        budget.Evicted();
         if (!backend_policy && aggressive_mode && total_used_memory < critical_memory) {
-            num_iterations >>= 2;
+            budget.Reduce(2);
             aggressive_mode = false;
         } else if (!backend_policy && high_priority_mode && total_used_memory < expected_memory) {
-            num_iterations >>= 1;
+            budget.Reduce(1);
             high_priority_mode = false;
         }
         return false;
@@ -1343,7 +1347,20 @@ void TextureCache<P>::RefreshContents(Image& image, ImageId image_id) {
     auto staging = [&] {
         const VideoCore::FrameTrace::ScopedSpan span{
             VideoCore::FrameTrace::Event::TextureUploadStaging, image.gpu_addr};
-        return runtime.UploadStagingBuffer(MapSizeBytes(image));
+        const auto bytes = MapSizeBytes(image);
+        try {
+            return runtime.UploadStagingBuffer(bytes);
+        } catch (const std::exception& error) {
+            LOG_ERROR(Render,
+                      "Texture upload staging failed: {}x{}x{} type={} format={} levels={} layers={} "
+                      "guest={} unswizzled={} converted={} request={} flags={:x}: {}",
+                      image.info.size.width, image.info.size.height, image.info.size.depth,
+                      static_cast<u32>(image.info.type), static_cast<u32>(image.info.format),
+                      image.info.resources.levels, image.info.resources.layers,
+                      image.guest_size_bytes, image.unswizzled_size_bytes,
+                      image.converted_size_bytes, bytes, static_cast<u32>(image.flags), error.what());
+            throw;
+        }
     }();
     timer.Lap(VideoCore::Perf::Counter::TextureCacheStagingNs);
     UploadImageContents(image, staging);

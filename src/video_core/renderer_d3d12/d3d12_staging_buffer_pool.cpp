@@ -294,11 +294,32 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
     } catch (const StagingOutOfMemory& e) {
         // The commit limit refused it. Crossing the limit is what the platform punishes, so give
         // back what submitted work no longer needs and try exactly once more.
+        // Failure-only diagnostics: do not query allocation size or memory on each upload.
+        const auto report_failure = [&](const char* attempt) {
+            const auto desc = BufferDesc(bytes);
+            const auto allocation = device.Get()->GetResourceAllocationInfo(0, 1, &desc);
+            const auto snapshot = device.QueryCacheMemoryPressure();
+            LOG_WARNING(Render,
+                        "D3D12 staging allocation {} failed: usage={} deferred={} request={} "
+                        "reserved={} allocation={} alignment={} app_used={} app_limit={} "
+                        "app_free={} gpu_used={} gpu_budget={} tick={} completed={}",
+                        attempt, usage == MemoryUsage::Download ? "readback" : "upload", deferred,
+                        size, bytes, allocation.SizeInBytes, allocation.Alignment,
+                        snapshot.app_used, snapshot.app_limit, snapshot.AppFree(),
+                        snapshot.gpu_used, snapshot.gpu_budget, scheduler.CurrentTick(),
+                        scheduler.KnownGpuTick());
+        };
+        report_failure("initial");
         LOG_WARNING(Render, "D3D12: {}; reclaiming and retrying", e.what());
         if (const auto ref = RelieveMemoryPressure(size, usage, deferred, true)) {
             return *ref;
         }
-        buffer = CreateMappedBuffer(device.Get(), bytes, heap_type, mapped);
+        try {
+            buffer = CreateMappedBuffer(device.Get(), bytes, heap_type, mapped);
+        } catch (const StagingOutOfMemory&) {
+            report_failure("retry");
+            throw;
+        }
     }
     headroom.Created(bytes);
     VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingDedicated, 1);
