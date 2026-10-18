@@ -559,10 +559,10 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
                     depth_feedback_ready = image_view.SourceImage()->PrepareDepthFeedback() != nullptr;
                 }
                 if (aliases_depth && depth_feedback_ready) {
-                    queue.AddImageCopy(image_view.DepthFeedbackHandle(desc.type));
+                    queue.AddImageCopy(image_view.DepthFeedbackHandle(desc.type), image_view.DescriptorIdentity());
                 } else {
                     image_view.PrepareRead(desc.type);
-                    queue.AddImageCopy(image_view.Handle(desc.type));
+                    queue.AddImageCopy(image_view.Handle(desc.type), image_view.DescriptorIdentity());
                 }
                 const SamplerId sampler_id = *(samplers_it++);
                 if (has_integer_samplers && desc.is_integer) {

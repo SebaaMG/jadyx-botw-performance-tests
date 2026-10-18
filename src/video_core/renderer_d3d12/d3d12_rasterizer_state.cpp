@@ -231,7 +231,7 @@ void RasterizerD3D12::SetGraphicsRootArguments(CommandStream* cmd,
     // Consecutive draws of one pipeline mostly repeat their root arguments: only changes are set.
     auto& cached = command_state.root_args;
     if (!cached.valid || cached.push_constants != bindings.push_constants) {
-        cmd->SetGraphicsRoot32BitConstants(PipelineLayout::PUSH_CONSTANTS_INDEX,
+        cmd->SetGraphicsRoot32BitConstants(layout.PushConstantsIndex(),
                                            PUSH_CONSTANT_WORDS, bindings.push_constants.data(), 0);
         cached.push_constants = bindings.push_constants;
     }

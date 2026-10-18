@@ -79,17 +79,38 @@ struct DescriptorRing::PersistentCache {
             return Common::CityHash64(reinterpret_cast<const char*>(k.words.data()), sizeof(k));
         }
     };
-    struct Entry { PersistentDescriptorKey key; u64 tick{}; u32 prev{NONE}, next{NONE}; };
+    struct Entry {
+        PersistentDescriptorKey key;
+        u64 tick{};
+        u32 prev{NONE}, next{NONE}, hash_next{NONE}, bucket{};
+    };
     std::vector<Entry> entries{EDEN_PERSISTENT_RESOURCE_CAPACITY};
     std::vector<u32> free;
-    std::unordered_map<PersistentDescriptorKey, u32, Hash> slots;
+    std::array<u32, EDEN_PERSISTENT_RESOURCE_CAPACITY> buckets;
     u32 oldest{NONE}, newest{NONE};
     PersistentDescriptorStats stats;
 
     PersistentCache() {
-        slots.reserve(EDEN_PERSISTENT_RESOURCE_CAPACITY);
+        buckets.fill(NONE);
         free.reserve(EDEN_PERSISTENT_RESOURCE_CAPACITY);
         for (u32 i = EDEN_PERSISTENT_RESOURCE_CAPACITY; i-- > 0;) free.push_back(i);
+    }
+    u32 Find(const PersistentDescriptorKey& key) const {
+        const u32 bucket = static_cast<u32>(Hash{}(key) % buckets.size());
+        for (u32 i = buckets[bucket]; i != NONE; i = entries[i].hash_next)
+            if (entries[i].key == key) return i;
+        return NONE;
+    }
+    void Insert(u32 i) {
+        auto& e = entries[i];
+        e.bucket = static_cast<u32>(Hash{}(e.key) % buckets.size());
+        e.hash_next = buckets[e.bucket];
+        buckets[e.bucket] = i;
+    }
+    void Erase(u32 i) {
+        u32* link = &buckets[entries[i].bucket];
+        while (*link != i) link = &entries[*link].hash_next;
+        *link = entries[i].hash_next;
     }
     void Unlink(u32 i) {
         auto& e = entries[i];
@@ -201,7 +222,7 @@ void DescriptorRing::ReservePersistent(u32 count) {
             scheduler.Wait(tick);
         }
         cache.Unlink(i);
-        cache.slots.erase(cache.entries[i].key);
+        cache.Erase(i);
         cache.free.push_back(i);
         ++cache.stats.evictions;
     }
@@ -209,10 +230,13 @@ void DescriptorRing::ReservePersistent(u32 count) {
 
 std::pair<u32, bool> DescriptorRing::PersistentSlot(const PersistentDescriptorKey& key) {
     auto& cache = *persistent;
-    if (const auto found = cache.slots.find(key); found != cache.slots.end()) {
-        const u32 i = found->second;
-        cache.Unlink(i);
-        cache.Touch(i, scheduler.CurrentTick());
+    if (const u32 i = cache.Find(key); i != PersistentCache::NONE) {
+        // All uses within one submission share its fence; ordering each hit again adds no
+        // lifetime information. Reorder once per tick, including late retouch after helpers.
+        if (cache.entries[i].tick != scheduler.CurrentTick()) {
+            cache.Unlink(i);
+            cache.Touch(i, scheduler.CurrentTick());
+        }
         ++cache.stats.hits;
         return {i, false};
     }
@@ -221,7 +245,7 @@ std::pair<u32, bool> DescriptorRing::PersistentSlot(const PersistentDescriptorKe
     cache.free.pop_back();
     cache.entries[i].key = key;
     cache.Touch(i, scheduler.CurrentTick());
-    cache.slots.emplace(key, i);
+    cache.Insert(i);
     ++cache.stats.misses;
     return {i, true};
 }
@@ -241,6 +265,7 @@ PersistentDescriptorStats DescriptorRing::GetPersistentStats() const {
 
 void DescriptorRing::TouchPersistent(u32 slot) {
     auto& cache = *persistent;
+    if (cache.entries[slot].tick == scheduler.CurrentTick()) return;
     cache.Unlink(slot);
     cache.Touch(slot, scheduler.CurrentTick());
 }
@@ -393,9 +418,9 @@ bool GuestDescriptorQueue::ImageKeyEqual::operator()(
         [](auto a, auto b) { return a.ptr == b.ptr; });
 }
 
-void GuestDescriptorQueue::AddImageCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor) {
+void GuestDescriptorQueue::AddImageCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor, u64 identity) {
     if (!image_count) {
-        AddCopy(descriptor);
+        AddCopy(descriptor, identity);
         return;
     }
     image_copies.push_back(descriptor);
@@ -638,7 +663,7 @@ void GuestDescriptorQueue::AddTexelBuffer(ID3D12Resource* resource, u64 offset, 
     });
 }
 
-void GuestDescriptorQueue::AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor) {
+void GuestDescriptorQueue::AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor, u64 identity) {
     if (IsPersistent()) {
         const auto plan = persistent_layout->PersistentSlots()[written++];
         auto image = std::ranges::find(persistent_images, plan.binding, &PersistentImage::binding);
@@ -646,8 +671,13 @@ void GuestDescriptorQueue::AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor) {
             persistent_images.push_back({plan.binding});
             image = persistent_images.end() - 1;
         }
-        if (plan.type == D3D12_DESCRIPTOR_RANGE_TYPE_UAV) image->uav = descriptor;
-        else image->srv = descriptor;
+        if (plan.type == D3D12_DESCRIPTOR_RANGE_TYPE_UAV) {
+            image->uav = descriptor;
+            image->uav_identity = identity;
+        } else {
+            image->srv = descriptor;
+            image->srv_identity = identity;
+        }
         return;
     }
     if (GpuDiagnosticsEnabled()) {
@@ -679,7 +709,11 @@ void GuestDescriptorQueue::AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor) {
 void GuestDescriptorQueue::FinishPersistentImages() {
     const u64 epoch = offline_view_epoch.load(std::memory_order_relaxed);
     for (const auto& image : persistent_images) {
-        const PersistentDescriptorKey key{{4, image.srv.ptr, image.uav.ptr, epoch}};
+        // Known owners change only when the view is destroyed/replaced. Unknown callers retain
+        // the conservative global epoch; a CPU handle alone is never treated as an identity.
+        const PersistentDescriptorKey key{{4, image.srv.ptr, image.uav.ptr,
+            image.srv_identity ? image.srv_identity : epoch,
+            image.uav_identity ? image.uav_identity : (image.uav.ptr ? epoch : 0)}};
         const auto [slot, created] = ring.PersistentSlot(key);
         if (created) {
             for (const auto [bank, source] : {std::pair{1u, image.srv},
@@ -747,6 +781,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE SamplerHeap::GetTable(
     // half, so their Finish/reset can never invalidate a guest draw still being prepared.
     // An unusually large legacy table may temporarily take the whole heap between guest draws.
     if (persistent_partition && count > CAPACITY / 2) {
+        LOG_INFO(Render, "SeriesX sampler reset: legacy oversized table count={}", count);
         scheduler.Finish();
         last_keys = {};
         tables.clear(); persistent_samplers.clear();
@@ -801,6 +836,7 @@ SamplerHeap::PersistentIndices SamplerHeap::GetPersistentIndices(
     if (keys.size() != descriptors.size() || keys.size() > CAPACITY / 2)
         throw std::invalid_argument("persistent sampler reservation");
     if (!persistent_partition) {
+        LOG_INFO(Render, "SeriesX sampler reset: restore persistent partition");
         scheduler.Finish();
         last_keys = {};
         tables.clear(); persistent_samplers.clear();
@@ -811,6 +847,8 @@ SamplerHeap::PersistentIndices SamplerHeap::GetPersistentIndices(
     u32 missing{};
     for (u64 key : keys) missing += !persistent_samplers.contains(key);
     if (persistent_used + missing > CAPACITY / 2) {
+        LOG_INFO(Render, "SeriesX sampler reset: persistent capacity used={} requested={}",
+                 persistent_used, missing);
         scheduler.Finish();
         persistent_samplers.clear();
         persistent_used = 0;

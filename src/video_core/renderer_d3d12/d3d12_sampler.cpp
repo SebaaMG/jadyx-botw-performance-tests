@@ -6,15 +6,45 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <cstring>
+#include <mutex>
+#include <unordered_map>
 #include <utility>
 
 #include <fmt/format.h>
 
 #include "common/logging.h"
+#include "common/cityhash.h"
 
 namespace D3D12 {
 
 using namespace TextureDetail;
+
+namespace {
+// GPU samplers contain no texture/resource reference. Equal complete hardware descriptions can
+// therefore share a persistent key even when guest TSCs or sampler object lifetimes differ.
+// Integer sampling still obtains its per-view software state from the original Sampler object.
+u64 HardwareSamplerKey(const D3D12_SAMPLER_DESC& desc, u64 fresh_key) {
+    static_assert(sizeof(D3D12_SAMPLER_DESC) == 13 * sizeof(u32));
+    using Words = std::array<u32, 13>;
+    struct Hash {
+        size_t operator()(const Words& words) const noexcept {
+            return Common::CityHash64(reinterpret_cast<const char*>(words.data()), sizeof(words));
+        }
+    };
+    static std::mutex mutex;
+    static std::unordered_map<Words, u64, Hash> descriptions;
+    Words words;
+    std::memcpy(words.data(), &desc, sizeof(desc));
+    std::scoped_lock lock{mutex};
+    if (const auto found = descriptions.find(words); found != descriptions.end()) return found->second;
+    // Bounded process cache. Clearing only loses deduplication: all returned keys remain unique
+    // to this hardware description, as fresh_key is monotonically assigned and never recycled.
+    if (descriptions.size() >= 8192) descriptions.clear();
+    descriptions.emplace(words, fresh_key);
+    return fresh_key;
+}
+} // namespace
 
 Sampler::Sampler(TextureCacheRuntime& runtime_, const Tegra::Texture::TSCEntry& config)
     : runtime{&runtime_}, key{next_sampler_key.fetch_add(1, std::memory_order_relaxed)},
@@ -67,6 +97,7 @@ Sampler::Sampler(TextureCacheRuntime& runtime_, const Tegra::Texture::TSCEntry& 
         .MaxAnisotropy = static_cast<u32>(anisotropy),
         .ComparisonFunc = Compare(config.depth_compare_func), .BorderColor = {border[0], border[1], border[2], border[3]},
         .MinLOD = min_lod, .MaxLOD = max_lod};
+    if (PersistentResourcesSupported(runtime->device.Get())) key = HardwareSamplerKey(desc, key);
     runtime->device.Get()->CreateSampler(&desc, handle);
     CheckRemovedAfter(runtime->device.Get(), [&] {
         return fmt::format("sampler (filter 0x{:x} address {}/{}/{} aniso {} compare {} lod {}..{} "

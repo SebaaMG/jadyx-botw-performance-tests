@@ -162,7 +162,7 @@ public:
     /// GPU handle of the table; checks (and warns once) that it was filled exactly.
     [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE Table();
     /// Stable image-only table, reused only in the same submission and offline-descriptor epoch.
-    void AddImageCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor);
+    void AddImageCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor, u64 identity = 0);
     [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE ImageTable();
     struct ImageTableStats {
         u64 hits{};
@@ -181,7 +181,7 @@ public:
                         u32 element_size, bool with_uav, u64 identity = 0);
     /// Copies of offline descriptors (texture SRVs, image UAVs). Consecutive copies are recorded
     /// with one CopyDescriptors call when the table is finished.
-    void AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor);
+    void AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor, u64 identity = 0);
     /// Writes the pending copies to the slots reserved for them (Table() also does).
     void FlushCopies();
 
@@ -224,7 +224,11 @@ private:
     bool logged_image_reuse{};
     const PipelineLayout* persistent_layout{};
     boost::container::small_vector<PersistentBindingRow, 64> binding_rows;
-    struct PersistentImage { u32 binding; D3D12_CPU_DESCRIPTOR_HANDLE srv{}, uav{}; };
+    struct PersistentImage {
+        u32 binding;
+        D3D12_CPU_DESCRIPTOR_HANDLE srv{}, uav{};
+        u64 srv_identity{}, uav_identity{};
+    };
     boost::container::small_vector<PersistentImage, 32> persistent_images;
     u64 unknown_identity{};
 };

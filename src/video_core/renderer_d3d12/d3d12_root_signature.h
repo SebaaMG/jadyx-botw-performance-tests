@@ -19,8 +19,9 @@ namespace D3D12 {
 void SetImageTableReuse(bool enabled);
 
 /// v4 ABI: stable CBV/SRV/UAV banks and two sampler arrays, SM 6.0-6.4.
-/// Requires binding tier 3. Root parameters 0/1 retain the original push/runtime data;
-/// 2/3 are global tables, 4 the binding-index CBV, 5 the integer-sampler CBV.
+/// Requires binding tier 3. Parameter 0 is the frequently changing binding-index CBV;
+/// 1 retains runtime data (also used by ExecuteIndirect), 2/3 are global tables,
+/// 4 holds push constants and 5 the integer-sampler CBV.
 ComPtr<ID3D12RootSignature> CreatePersistentRootSignature(const Device& device,
                                                         u32 runtime_words);
 
@@ -67,7 +68,8 @@ class PipelineLayout {
 public:
     struct PersistentSlot { u32 binding; D3D12_DESCRIPTOR_RANGE_TYPE type; };
     bool IsPersistent() const { return persistent_resources; }
-    u32 IndexMapIndex() const { return persistent_resources ? 4u : NO_TABLE; }
+    u32 IndexMapIndex() const { return persistent_resources ? 0u : NO_TABLE; }
+    u32 PushConstantsIndex() const { return persistent_resources ? 4u : PUSH_CONSTANTS_INDEX; }
     u32 NumBindings() const { return num_bindings; }
     std::span<const PersistentSlot> PersistentSlots() const { return persistent_slots; }
     std::span<const u32> PersistentSamplerBindings() const { return persistent_sampler_bindings; }

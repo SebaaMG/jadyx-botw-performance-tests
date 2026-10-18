@@ -21,6 +21,11 @@ namespace D3D12 {
 
 using namespace TextureDetail;
 
+u64 ImageView::NextDescriptorIdentity() {
+    static std::atomic<u64> next{1};
+    return next.fetch_add(1, std::memory_order_relaxed);
+}
+
 ImageView::ImageView(TextureCacheRuntime& runtime_, const VideoCommon::ImageViewInfo& info,
                      ImageId image_id_, Image& source)
     : VideoCommon::ImageViewBase{info, source.info, image_id_, source.gpu_addr}, runtime{&runtime_},
@@ -545,11 +550,13 @@ void ImageView::Release() {
     if (dsv_read_only.ptr) runtime->dsv_descriptors.Free(dsv_read_only);
     runtime = nullptr;
 }
-ImageView::ImageView(ImageView&& other) noexcept : VideoCommon::ImageViewBase{std::move(other)}, runtime{std::exchange(other.runtime, nullptr)},
+ImageView::ImageView(ImageView&& other) noexcept : VideoCommon::ImageViewBase{std::move(other)},
+    descriptor_identity{std::exchange(other.descriptor_identity, 0)}, runtime{std::exchange(other.runtime, nullptr)},
     slot_images{other.slot_images}, image{other.image}, srv_resource{other.srv_resource}, srv_params{other.srv_params}, natural_type{other.natural_type},
     srvs{std::exchange(other.srvs, {})}, depth_feedback_srvs{std::move(other.depth_feedback_srvs)}, uav{other.uav}, rtv{other.rtv}, rtv_on_copy{other.rtv_on_copy}, dsv{other.dsv}, dsv_read_only{other.dsv_read_only}, buffer_size{other.buffer_size} {}
 ImageView& ImageView::operator=(ImageView&& other) noexcept {
     if (this != &other) { Release(); static_cast<VideoCommon::ImageViewBase&>(*this) = std::move(other);
+        descriptor_identity = std::exchange(other.descriptor_identity, 0);
         runtime = std::exchange(other.runtime, nullptr); slot_images = other.slot_images; image = other.image; srv_resource = other.srv_resource;
         srv_params = other.srv_params; natural_type = other.natural_type; srvs = std::exchange(other.srvs, {});
         depth_feedback_srvs = std::move(other.depth_feedback_srvs);

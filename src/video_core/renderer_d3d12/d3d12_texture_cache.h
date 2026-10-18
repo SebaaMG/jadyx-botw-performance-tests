@@ -465,6 +465,10 @@ public:
     /// SRV declared as the shader's texture type: D3D12 requires the view dimension to match
     /// the HLSL declaration, so each type gets its own SRV, created on first use.
     [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE Handle(Shader::TextureType texture_type) const noexcept;
+    /// SeriesX: immutable descriptor owner, preserved on move and never reused for another view.
+    /// Individual descriptors are created once; their handle plus this identity survives unrelated
+    /// offline allocations without accepting a recycled handle from a destroyed view.
+    [[nodiscard]] u64 DescriptorIdentity() const noexcept { return descriptor_identity; }
     /// Metadata of the prepared binding, without materializing descriptors or reading GPU data.
     [[nodiscard]] std::string DescribeSrv(Shader::TextureType texture_type,
                                         bool depth_feedback = false) const;
@@ -518,6 +522,8 @@ private:
     [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CreateSrv(
         Shader::TextureType texture_type, ID3D12Resource* override_resource = nullptr) const;
     void Release();
+    static u64 NextDescriptorIdentity();
+    u64 descriptor_identity{NextDescriptorIdentity()};
     TextureCacheRuntime* runtime{};
     SlotVector<Image>* slot_images{};
     ID3D12Resource* image{};
@@ -567,7 +573,8 @@ public:
     }
     [[nodiscard]] bool HasAddedAnisotropy() const noexcept { return false; }
 
-    /// Never reused by another sampler: SamplerHeap deduplicates tables by these keys.
+    /// Stable hardware identity. Persistent mode may share it for bit-identical GPU sampler
+    /// descriptions; a key is never reassigned to different contents. Guest metadata stays local.
     [[nodiscard]] u64 Key() const noexcept { return key; }
     /// The D3D12 filter it was created with (draw trace).
     [[nodiscard]] D3D12_FILTER Filter() const noexcept { return filter; }
