@@ -13,6 +13,9 @@
 #include "video_core/renderer_d3d12/d3d12_command_validation.h"
 
 namespace D3D12 {
+namespace TextureDetail {
+DXGI_FORMAT TypelessFamily(DXGI_FORMAT format);
+}
 namespace {
 
 bool BlockCompressed(DXGI_FORMAT format) {
@@ -128,6 +131,36 @@ bool LocationExtent(const D3D12_TEXTURE_COPY_LOCATION& location, Extent& extent,
     return true;
 }
 
+DXGI_FORMAT LocationFormat(const D3D12_TEXTURE_COPY_LOCATION& location,
+                           const D3D12_RESOURCE_DESC& desc) {
+    return location.Type == D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT
+               ? location.PlacedFootprint.Footprint.Format
+               : desc.Format;
+}
+
+/// Depth-stencil and multisampled subresources are only copied whole.
+bool WholeOnly(const D3D12_TEXTURE_COPY_LOCATION& location, const D3D12_RESOURCE_DESC& desc) {
+    return location.Type == D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX &&
+           ((desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) != 0 ||
+            desc.SampleDesc.Count > 1);
+}
+
+std::string Describe(const D3D12_TEXTURE_COPY_LOCATION& location,
+                     const D3D12_RESOURCE_DESC& desc) {
+    if (location.Type == D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT) {
+        const D3D12_SUBRESOURCE_FOOTPRINT& footprint = location.PlacedFootprint.Footprint;
+        return fmt::format("footprint format {} {}x{}x{} pitch {}",
+                           static_cast<u32>(footprint.Format), footprint.Width, footprint.Height,
+                           footprint.Depth, footprint.RowPitch);
+    }
+    return fmt::format("subresource {} of format {} dim {} {}x{}x{} levels {} samples {} "
+                       "flags {:#x}",
+                       location.SubresourceIndex, static_cast<u32>(desc.Format),
+                       static_cast<u32>(desc.Dimension), desc.Width, desc.Height,
+                       desc.DepthOrArraySize, desc.MipLevels, desc.SampleDesc.Count,
+                       static_cast<u32>(desc.Flags));
+}
+
 void Report(const std::string& what) {
     static std::atomic<u32> reported{};
     BUG_TRACK(CopySkipped, "invalid command dropped: {}", what);
@@ -135,6 +168,17 @@ void Report(const std::string& what) {
         const Common::BugTracker::TapMute bug_tracker_mute;
         LOG_ERROR(Render, "D3D12: dropped an invalid {}", what);
     }
+}
+
+/// At most one write state, and then no read state (DEPTH_WRITE with DEPTH_READ included).
+bool ValidStates(D3D12_RESOURCE_STATES states) {
+    constexpr u32 write_states =
+        D3D12_RESOURCE_STATE_RENDER_TARGET | D3D12_RESOURCE_STATE_UNORDERED_ACCESS |
+        D3D12_RESOURCE_STATE_DEPTH_WRITE | D3D12_RESOURCE_STATE_STREAM_OUT |
+        D3D12_RESOURCE_STATE_COPY_DEST | D3D12_RESOURCE_STATE_RESOLVE_DEST;
+    const u32 bits = static_cast<u32>(states);
+    const u32 writes = bits & write_states;
+    return writes == 0 || (writes == bits && (writes & (writes - 1)) == 0);
 }
 
 } // Anonymous namespace
@@ -152,32 +196,95 @@ bool ValidCopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION& dst, UINT x, UINT
         Report(fmt::format("CopyTextureRegion: source {}", reason));
         return false;
     }
+    const D3D12_RESOURCE_DESC dst_desc = dst.pResource->GetDesc();
+    const D3D12_RESOURCE_DESC src_desc = src.pResource->GetDesc();
+    const DXGI_FORMAT dst_format = LocationFormat(dst, dst_desc);
+    const DXGI_FORMAT src_format = LocationFormat(src, src_desc);
+    const bool dst_blocks = BlockCompressed(dst_format);
+    const bool src_blocks = BlockCompressed(src_format);
+    const auto fail = [&](const std::string& reason) {
+        Report(fmt::format("CopyTextureRegion: {} (to {} at {},{},{} from {})", reason,
+                           Describe(dst, dst_desc), x, y, z, Describe(src, src_desc)));
+        return false;
+    };
+    if (dst.Type == D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX &&
+        src.Type == D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX &&
+        dst_desc.SampleDesc.Count != src_desc.SampleDesc.Count) {
+        return fail("sample counts differ");
+    }
+    // Needs TextureCopyBetweenDimensionsSupported (options 13), which the Series runtime lacks.
+    if (dst.Type == D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX &&
+        src.Type == D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX &&
+        dst_desc.Dimension != src_desc.Dimension) {
+        return fail("copy between texture dimensions");
+    }
+    // Between textures only within a format family, or between a block-compressed format and
+    // the integer one of its block size: R11G11B10 into R32 fails the list (0.2.93.24 probe).
+    if (dst.Type == D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX &&
+        src.Type == D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX && dst_blocks == src_blocks &&
+        TextureDetail::TypelessFamily(dst_format) != TextureDetail::TypelessFamily(src_format)) {
+        return fail("copy between format families");
+    }
+    // Block-compressed copies move whole 4x4 blocks, also on the 2x2 and 1x1 levels whose
+    // single block the extent already rounds up to: a box or footprint trimmed to the level's
+    // texels fails the list just like a misaligned one.
+    if (src.Type == D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT && src_blocks &&
+        (src_extent.width % 4 != 0 || src_extent.height % 4 != 0)) {
+        return fail("block-compressed footprint not in whole blocks");
+    }
+    if (dst.Type == D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT && dst_blocks &&
+        (dst_extent.width % 4 != 0 || dst_extent.height % 4 != 0)) {
+        return fail("block-compressed footprint not in whole blocks");
+    }
+    if (dst_blocks && (x % 4 != 0 || y % 4 != 0)) {
+        return fail("block-compressed destination offset not on a block");
+    }
     u64 width = src_extent.width;
     u32 height = src_extent.height;
     u32 depth = src_extent.depth;
     if (box) {
         if (box->right > src_extent.width || box->bottom > src_extent.height ||
             box->back > src_extent.depth) {
-            Report(fmt::format("CopyTextureRegion: source box {},{},{}-{},{},{} past {}x{}x{}",
-                               box->left, box->top, box->front, box->right, box->bottom,
-                               box->back, src_extent.width, src_extent.height,
-                               src_extent.depth));
-            return false;
+            return fail(fmt::format("source box {},{},{}-{},{},{} past {}x{}x{}", box->left,
+                                    box->top, box->front, box->right, box->bottom, box->back,
+                                    src_extent.width, src_extent.height, src_extent.depth));
         }
         if (box->left >= box->right || box->top >= box->bottom || box->front >= box->back) {
             return true; // empty: the runtime does nothing
+        }
+        if (src_blocks && (box->left % 4 != 0 || box->top % 4 != 0 || box->right % 4 != 0 ||
+                           box->bottom % 4 != 0)) {
+            return fail(fmt::format("block-compressed source box {},{}-{},{} not on blocks",
+                                    box->left, box->top, box->right, box->bottom));
         }
         width = box->right - box->left;
         height = box->bottom - box->top;
         depth = box->back - box->front;
     }
+    // Between a block-compressed format and the integer one of its block size, one texel of the
+    // integer side is one block of the other.
+    if (src_blocks && !dst_blocks) {
+        width /= 4;
+        height /= 4;
+    } else if (!src_blocks && dst_blocks) {
+        width *= 4;
+        height *= 4;
+    }
     if (x + width > dst_extent.width || y + height > dst_extent.height ||
         z + depth > dst_extent.depth) {
-        Report(fmt::format("CopyTextureRegion: {}x{}x{} at {},{},{} past a destination of "
-                           "{}x{}x{}",
-                           width, height, depth, x, y, z, dst_extent.width, dst_extent.height,
-                           dst_extent.depth));
-        return false;
+        return fail(fmt::format("{}x{}x{} past a destination of {}x{}x{}", width, height, depth,
+                                dst_extent.width, dst_extent.height, dst_extent.depth));
+    }
+    const bool whole_src = !box || (box->left == 0 && box->top == 0 && box->front == 0 &&
+                                    box->right == src_extent.width &&
+                                    box->bottom == src_extent.height &&
+                                    box->back == src_extent.depth);
+    const bool whole_dst = x == 0 && y == 0 && z == 0 && width == dst_extent.width &&
+                           height == dst_extent.height && depth == dst_extent.depth;
+    if ((WholeOnly(dst, dst_desc) || WholeOnly(src, src_desc)) && !(whole_src && whole_dst)) {
+        return fail(fmt::format("partial {}x{}x{} copy of a depth-stencil or multisampled "
+                                "subresource",
+                                width, height, depth));
     }
     return true;
 }
@@ -208,6 +315,16 @@ bool ValidBarrier(const D3D12_RESOURCE_BARRIER& barrier) {
         Report("transition: null resource");
         return false;
     }
+    if (!ValidStates(transition.StateBefore) || !ValidStates(transition.StateAfter) ||
+        transition.StateBefore == transition.StateAfter) {
+        const D3D12_RESOURCE_DESC desc = transition.pResource->GetDesc();
+        Report(fmt::format("transition: states {:#x} -> {:#x} (dim {} {}x{}x{} format {})",
+                           static_cast<u32>(transition.StateBefore),
+                           static_cast<u32>(transition.StateAfter),
+                           static_cast<u32>(desc.Dimension), desc.Width, desc.Height,
+                           desc.DepthOrArraySize, static_cast<u32>(desc.Format)));
+        return false;
+    }
     if (transition.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
         return true;
     }
@@ -218,6 +335,125 @@ bool ValidBarrier(const D3D12_RESOURCE_BARRIER& barrier) {
                            transition.Subresource, count, static_cast<u32>(desc.Dimension),
                            desc.Width, desc.Height, desc.DepthOrArraySize, desc.MipLevels,
                            static_cast<u32>(desc.Format)));
+        return false;
+    }
+    return true;
+}
+
+bool ValidCopyResource(ID3D12Resource* dst, ID3D12Resource* src) {
+    if (!dst || !src || dst == src) {
+        Report("CopyResource: null or identical resources");
+        return false;
+    }
+    const D3D12_RESOURCE_DESC d = dst->GetDesc();
+    const D3D12_RESOURCE_DESC s = src->GetDesc();
+    if (d.Dimension != s.Dimension || d.Width != s.Width || d.Height != s.Height ||
+        d.DepthOrArraySize != s.DepthOrArraySize || d.MipLevels != s.MipLevels ||
+        d.SampleDesc.Count != s.SampleDesc.Count) {
+        Report(fmt::format("CopyResource: dim {} {}x{}x{} levels {} samples {} format {} from "
+                           "dim {} {}x{}x{} levels {} samples {} format {}",
+                           static_cast<u32>(d.Dimension), d.Width, d.Height, d.DepthOrArraySize,
+                           d.MipLevels, d.SampleDesc.Count, static_cast<u32>(d.Format),
+                           static_cast<u32>(s.Dimension), s.Width, s.Height, s.DepthOrArraySize,
+                           s.MipLevels, s.SampleDesc.Count, static_cast<u32>(s.Format)));
+        return false;
+    }
+    return true;
+}
+
+bool ValidClearRects(const char* call, D3D12_CPU_DESCRIPTOR_HANDLE target, UINT rect_count,
+                     const D3D12_RECT* rects) {
+    if (target.ptr == 0) {
+        Report(fmt::format("{}: null descriptor", call));
+        return false;
+    }
+    if (rect_count != 0 && !rects) {
+        Report(fmt::format("{}: {} rects without an array", call, rect_count));
+        return false;
+    }
+    for (UINT i = 0; i < rect_count; ++i) {
+        const D3D12_RECT& rect = rects[i];
+        if (rect.left < 0 || rect.top < 0 || rect.left > rect.right || rect.top > rect.bottom) {
+            Report(fmt::format("{}: rect {},{}-{},{}", call, rect.left, rect.top, rect.right,
+                               rect.bottom));
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ValidRenderTargets(UINT count, const D3D12_CPU_DESCRIPTOR_HANDLE* targets) {
+    if (count > D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT || (count != 0 && !targets)) {
+        Report(fmt::format("OMSetRenderTargets: {} targets{}", count,
+                           targets ? "" : " without an array"));
+        return false;
+    }
+    return true;
+}
+
+bool ValidPredication(ID3D12Resource* buffer, UINT64 offset) {
+    if (!buffer) {
+        return true;
+    }
+    const D3D12_RESOURCE_DESC desc = buffer->GetDesc();
+    if (desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER || offset % 8 != 0 ||
+        offset + 8 > desc.Width) {
+        Report(fmt::format("SetPredication: offset {} in a resource of dim {} and {} bytes",
+                           offset, static_cast<u32>(desc.Dimension), desc.Width));
+        return false;
+    }
+    return true;
+}
+
+bool ValidExecuteIndirect(ID3D12CommandSignature* signature, ID3D12Resource* arguments,
+                          UINT64 arguments_offset, ID3D12Resource* count, UINT64 count_offset) {
+    if (!signature || !arguments) {
+        Report("ExecuteIndirect: null signature or argument buffer");
+        return false;
+    }
+    const u64 arguments_size = arguments->GetDesc().Width;
+    if (arguments_offset % 4 != 0 || arguments_offset >= arguments_size) {
+        Report(fmt::format("ExecuteIndirect: arguments at {} of {} bytes", arguments_offset,
+                           arguments_size));
+        return false;
+    }
+    if (count) {
+        const u64 count_size = count->GetDesc().Width;
+        if (count_offset % 4 != 0 || count_offset + 4 > count_size) {
+            Report(fmt::format("ExecuteIndirect: count at {} of {} bytes", count_offset,
+                               count_size));
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ValidQuery(const char* call, ID3D12QueryHeap* heap) {
+    if (!heap) {
+        Report(fmt::format("{}: null query heap", call));
+        return false;
+    }
+    return true;
+}
+
+bool ValidResolveQueryData(ID3D12QueryHeap* heap, D3D12_QUERY_TYPE type, UINT count,
+                           ID3D12Resource* dst, UINT64 dst_offset) {
+    if (!heap || !dst) {
+        Report("ResolveQueryData: null heap or destination");
+        return false;
+    }
+    u64 result_size = 8;
+    if (type == D3D12_QUERY_TYPE_PIPELINE_STATISTICS) {
+        result_size = sizeof(D3D12_QUERY_DATA_PIPELINE_STATISTICS);
+    } else if (type >= D3D12_QUERY_TYPE_SO_STATISTICS_STREAM0 &&
+               type <= D3D12_QUERY_TYPE_SO_STATISTICS_STREAM3) {
+        result_size = sizeof(D3D12_QUERY_DATA_SO_STATISTICS);
+    }
+    const D3D12_RESOURCE_DESC desc = dst->GetDesc();
+    if (desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER || dst_offset % 8 != 0 ||
+        dst_offset + result_size * count > desc.Width) {
+        Report(fmt::format("ResolveQueryData: {} results of type {} at {} of {} bytes", count,
+                           static_cast<u32>(type), dst_offset, desc.Width));
         return false;
     }
     return true;
