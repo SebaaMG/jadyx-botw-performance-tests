@@ -273,6 +273,9 @@ struct BootConfig {
     u32 run_seconds{};
     /// PC test budget; hard process-commit enforcement belongs to local-run.ps1.
     u32 memory_limit_mib{};
+    /// PC diagnostic: keep this logical cache budget while varying the Windows Job cap.
+    /// Zero preserves the original coupling. QueryAppMemory still honors the platform limit.
+    u32 pc_memory_budget_mib{};
     /// Per-core JIT code cache ("jit_cache_mib="). Full, it is cleared with all the blocks'
     /// metadata, so it bounds the JIT's memory: a large game compiled 400+ MiB in two minutes on
     /// the default 512 MiB per core, and 1 GiB with the metadata, without ever releasing any.
@@ -469,7 +472,16 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     D3D12::SetFrameDiagnostics(!config.play);
     // The GPU spends the same 5 GiB as the emulated DRAM and the JIT: the texture and buffer
     // caches evict against what the whole app has left, not DXGI's budget.
-    g_test_memory_limit = u64{config.memory_limit_mib} << 20;
+    const u32 requested_budget = config.pc_memory_budget_mib != 0
+        ? config.pc_memory_budget_mib : config.memory_limit_mib;
+    const u32 cache_budget = config.memory_limit_mib != 0
+        ? (std::min)(requested_budget, config.memory_limit_mib) : requested_budget;
+    g_test_memory_limit = u64{cache_budget} << 20;
+    if (config.pc_memory_budget_mib != 0) {
+        WriteDiag("PC memory diagnostic: cache budget " + std::to_string(cache_budget) +
+                  " MiB, requested process cap " + std::to_string(config.memory_limit_mib) +
+                  " MiB; distinct budgets, not Xbox memory equivalence");
+    }
     Core::SetJitCodeCacheSize(config.jit_cache_mib << 20);
     D3D12::SetAppMemoryQuery(QueryAppMemory);
     D3D12::SetBcArrayDecode(!config.bc_arrays_native);
@@ -2421,6 +2433,15 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                                 config.memory_limit_mib = static_cast<u32>(parsed);
                             } else {
                                 WriteDiag("boot.cfg: invalid memory_limit_mib, ignored");
+                            }
+                        } else if (line.starts_with("pc_memory_budget_mib=")) {
+                            const auto value = line.substr(21);
+                            unsigned long parsed{};
+                            const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+                            if (result.ec == std::errc{} && result.ptr == value.data() + value.size() && parsed <= 1048576) {
+                                config.pc_memory_budget_mib = static_cast<u32>(parsed);
+                            } else {
+                                WriteDiag("boot.cfg: invalid pc_memory_budget_mib, ignored");
                             }
                         } else if (line == "pulse_store=1") {
                             config.pulse_store = true;
