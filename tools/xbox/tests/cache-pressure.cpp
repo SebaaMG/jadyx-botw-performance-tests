@@ -44,7 +44,19 @@ int main() {
     const auto recovery = c.Policy(CachePressure::Emergency, true, true);
     assert(recovery.max_downloads == 40 && recovery.time_budget_us == 0);
     assert(!c.RequiresImmediateRecovery(sample(64*MiB)));
-    assert(c.RequiresImmediateRecovery(sample(64*MiB-1)));
+    assert(!c.RequiresImmediateRecovery(sample(64*MiB-1)));
+    // The measured 56 MiB case must still evict proactively, without clearing the
+    // working pool or requesting unbounded downloads every frame.
+    for (const u64 free : {56*MiB, 1ULL}) {
+        const auto snapshot = sample(free);
+        const auto level = c.Update(snapshot);
+        const auto immediate = c.RequiresImmediateRecovery(snapshot);
+        const auto policy = c.Policy(level, true, immediate);
+        assert(level == CachePressure::Emergency && !immediate);
+        assert(policy.time_budget_us == 1000 && policy.max_downloads == 1);
+    }
+    assert(c.RequiresImmediateRecovery(sample(0)));
+    assert(c.RequiresImmediateRecovery(exhausted));
     assert(!c.RequiresImmediateRecovery({0, 0, 999*MiB, 1000*MiB}));
     assert(c.RequiresImmediateRecovery({0, 0, 1000*MiB, 1000*MiB}));
     assert(!c.RequiresImmediateRecovery({}));

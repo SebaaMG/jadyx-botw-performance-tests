@@ -42,7 +42,12 @@ public:
         return std::max(app, gpu);
     }
     [[nodiscard]] static bool RequiresImmediateRecovery(const CacheMemorySnapshot& s) {
-        return (s.app_limit != 0 && s.AppFree() < 64ULL * 1024 * 1024) ||
+        // Low headroom already requests proactive, time-bounded Emergency eviction.
+        // Emptying the hot copy pool while still below budget creates a feedback loop:
+        // retired in-flight buffers coexist with replacements and reduce headroom again.
+        // Reserve unbounded per-frame recovery for an exhausted budget. Allocation-time
+        // headroom checks and failed-allocation recovery remain independently enforced.
+        return (s.app_limit != 0 && s.app_used >= s.app_limit) ||
                (s.gpu_budget != 0 && s.gpu_used >= s.gpu_budget);
     }
     [[nodiscard]] static VideoCommon::TextureGcPolicy Policy(CachePressure level, bool second_pass,
