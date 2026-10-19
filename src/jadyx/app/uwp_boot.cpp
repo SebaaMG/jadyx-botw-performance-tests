@@ -352,6 +352,8 @@ struct BootConfig {
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool jit_page_reuse{};
     bool jit_fp_compare{};
+    bool jit_plain_ordered_reads{};
+    bool jit_inline_exclusives{};
     /// Host timing waits sleep on a high-resolution timer and wait only its lateness on the CPU
     /// ("timer_sleep=0" waits the last timer tick on the CPU, as before).
     bool timer_sleep{true};
@@ -551,6 +553,11 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     }
     Core::SetJitPageReuse(config.jit_page_reuse);
     Core::SetJitEfficientFpCompare(config.jit_fp_compare);
+    Core::SetJitPlainOrderedReads(config.jit_plain_ordered_reads);
+    Core::SetJitInlinePageTableExclusives(config.jit_inline_exclusives);
+    WriteDiag(std::string{"JIT plain ordered reads: "} +
+              (config.jit_plain_ordered_reads ? "on" : "off") +
+              ", inline page-table exclusives: " + (config.jit_inline_exclusives ? "on" : "off"));
     WriteDiag(std::string{"JIT page reuse: "} + (config.jit_page_reuse ? "on" : "off") +
               ", efficient FP compare: " + (config.jit_fp_compare ? "on" : "off"));
     if (config.debug_layer) {
@@ -2433,6 +2440,10 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                         } else if (line == "upload_copy=1") {
                             config.upload_copy = true;
                             WriteDiag("boot.cfg: short uniform write-combined copy enabled");
+                        } else if (line == "jit_plain_ordered_reads=1" || line == "jit_plain_ordered_reads=0") {
+                            config.jit_plain_ordered_reads = line.back() == '1';
+                        } else if (line == "jit_inline_exclusives=1" || line == "jit_inline_exclusives=0") {
+                            config.jit_inline_exclusives = line.back() == '1';
                         } else if (line == "jit_page_reuse=1") {
                             config.jit_page_reuse = true;
                         } else if (line == "jit_page_reuse=0") {

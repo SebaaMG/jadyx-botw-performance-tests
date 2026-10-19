@@ -132,6 +132,13 @@ struct UserCallbacks {
 };
 
 struct UserConfig {
+    /// SeriesX opt-in: x86-TSO loads for naturally aligned 8-64-bit ordered
+    /// page-table reads. Stores, 128-bit reads and callback paths stay unchanged.
+    bool plain_ordered_reads = false;
+    /// SeriesX opt-in: keep the global exclusive monitor, using checked direct
+    /// page-table addresses instead of host callbacks when fastmem is absent.
+    bool inline_page_table_exclusives = false;
+
     /// Fastmem Pointer
     /// This should point to the beginning of a 2^page_table_address_space_bits bytes
     /// address space which is in arranged just like what you wish for emulated memory to

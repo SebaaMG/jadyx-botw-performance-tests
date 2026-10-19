@@ -20,10 +20,18 @@ namespace Core {
 namespace {
 std::atomic_bool jit_page_reuse{};
 std::atomic_bool jit_efficient_fp_compare{};
+std::atomic_bool jit_plain_ordered_reads{};
+std::atomic_bool jit_inline_page_table_exclusives{};
 }
 void SetJitPageReuse(bool enabled) { jit_page_reuse.store(enabled, std::memory_order_relaxed); }
 void SetJitEfficientFpCompare(bool enabled) {
     jit_efficient_fp_compare.store(enabled, std::memory_order_relaxed);
+}
+void SetJitPlainOrderedReads(bool enabled) {
+    jit_plain_ordered_reads.store(enabled, std::memory_order_relaxed);
+}
+void SetJitInlinePageTableExclusives(bool enabled) {
+    jit_inline_page_table_exclusives.store(enabled, std::memory_order_relaxed);
 }
 
 using namespace Common::Literals;
@@ -216,6 +224,9 @@ void DynarmicCallbacks64::ReturnException(u64 pc, Dynarmic::HaltReason hr) {
 void ArmDynarmic64::MakeJit(Common::PageTable* page_table, std::size_t address_space_bits) {
     Dynarmic::JitProfile::SetEnabled(CpuProfile::Enabled());
     Dynarmic::A64::UserConfig config;
+    config.plain_ordered_reads = jit_plain_ordered_reads.load(std::memory_order_relaxed);
+    config.inline_page_table_exclusives =
+        jit_inline_page_table_exclusives.load(std::memory_order_relaxed);
     if (jit_page_reuse.load(std::memory_order_relaxed)) {
         config.optimizations |= Dynarmic::OptimizationFlag::ReusePageLookups;
     }

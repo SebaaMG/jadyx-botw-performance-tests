@@ -172,7 +172,8 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
         // Use page table
         ASSERT(conf.page_table);
         const auto src_ptr = EmitVAddrLookup(code, ctx, bitsize, *abort, vaddr);
-        EmitReadMemoryMov<bitsize>(code, value_idx, src_ptr, ordered);
+        EmitPageTableReadMemoryMov<bitsize>(code, value_idx, src_ptr, ordered,
+                                           vaddr, UsePlainOrderedReads(conf));
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
             code.L(*abort);
@@ -419,8 +420,8 @@ void AxxEmitX64::EmitExclusiveWriteMemory(AxxEmitContext& ctx, IR::Inst* inst) {
 
 template<std::size_t bitsize, auto callback>
 void AxxEmitX64::EmitExclusiveReadMemoryInline(AxxEmitContext& ctx, IR::Inst* inst) {
-    ASSERT(conf.global_monitor && conf.fastmem_pointer);
-    if (!exception_handler.SupportsFastmem()) {
+    ASSERT(conf.global_monitor && (conf.fastmem_pointer || UseInlinePageTableExclusives(conf)));
+    if (!exception_handler.SupportsFastmem() && !UseInlinePageTableExclusives(conf)) {
         EmitExclusiveReadMemory<bitsize, callback>(ctx, inst);
         return;
     }
@@ -450,15 +451,23 @@ void AxxEmitX64::EmitExclusiveReadMemoryInline(AxxEmitContext& ctx, IR::Inst* in
     code.mov(qword[tmp], vaddr);
 
     const auto fastmem_marker = ShouldFastmem(ctx, inst);
-    if (fastmem_marker) {
+    if (fastmem_marker || UseInlinePageTableExclusives(conf)) {
         SharedLabel abort = ctx.GenSharedLabel(), end = ctx.GenSharedLabel();
-        bool require_abort_handling = false;
+        bool require_abort_handling = !fastmem_marker;
 
-        const auto src_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
+        const auto src_ptr = fastmem_marker
+            ? EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling)
+            : EmitExclusiveVAddrLookup(code, ctx, bitsize, *abort, vaddr, tmp2, tmp);
 
-        const auto location = EmitReadMemoryMov<bitsize>(code, value_idx, src_ptr, ordered);
+        const void* location = nullptr;
+        if (fastmem_marker) {
+            location = EmitReadMemoryMov<bitsize>(code, value_idx, src_ptr, ordered);
+        } else {
+            EmitPageTableReadMemoryMov<bitsize>(code, value_idx, src_ptr, ordered,
+                                               vaddr, UsePlainOrderedReads(conf), true);
+        }
 
-        fastmem_patch_info.emplace(
+        if (fastmem_marker) fastmem_patch_info.emplace(
             std::bit_cast<u64>(location),
             FastmemPatchInfo{
                 std::bit_cast<u64>(code.getCurr()),
@@ -496,8 +505,8 @@ void AxxEmitX64::EmitExclusiveReadMemoryInline(AxxEmitContext& ctx, IR::Inst* in
 
 template<std::size_t bitsize, auto callback>
 void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* inst) {
-    ASSERT(conf.global_monitor && conf.fastmem_pointer);
-    if (!exception_handler.SupportsFastmem()) {
+    ASSERT(conf.global_monitor && (conf.fastmem_pointer || UseInlinePageTableExclusives(conf)));
+    if (!exception_handler.SupportsFastmem() && !UseInlinePageTableExclusives(conf)) {
         EmitExclusiveWriteMemory<bitsize, callback>(ctx, inst);
         return;
     }
@@ -558,11 +567,13 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
     }
 
     const auto fastmem_marker = ShouldFastmem(ctx, inst);
-    if (fastmem_marker) {
+    if (fastmem_marker || UseInlinePageTableExclusives(conf)) {
         SharedLabel abort = ctx.GenSharedLabel();
-        bool require_abort_handling = false;
+        bool require_abort_handling = !fastmem_marker;
 
-        const auto dest_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling, tmp);
+        const auto dest_ptr = fastmem_marker
+            ? EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling, tmp)
+            : EmitExclusiveVAddrLookup(code, ctx, bitsize, *abort, vaddr, tmp2, tmp);
 
         const auto location = code.getCurr();
 
@@ -596,7 +607,7 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
             code.L(*abort);
             code.call(wrapped_fn);
 
-            fastmem_patch_info.emplace(
+            if (fastmem_marker) fastmem_patch_info.emplace(
                 std::bit_cast<u64>(location),
                 FastmemPatchInfo{
                     std::bit_cast<u64>(code.getCurr()),

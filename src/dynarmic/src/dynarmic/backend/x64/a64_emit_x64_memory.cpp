@@ -332,7 +332,7 @@ void A64EmitX64::EmitA64ClearExclusive(A64EmitContext&, IR::Inst*) {
 }
 
 void A64EmitX64::EmitA64ExclusiveReadMemory8(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveReadMemoryInline<8, &A64::UserCallbacks::MemoryRead>(ctx, inst);
     } else {
         EmitExclusiveReadMemory<8, &A64::UserCallbacks::MemoryRead>(ctx, inst);
@@ -340,7 +340,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory8(A64EmitContext& ctx, IR::Inst* inst
 }
 
 void A64EmitX64::EmitA64ExclusiveReadMemory16(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveReadMemoryInline<16, &A64::UserCallbacks::MemoryRead>(ctx, inst);
     } else {
         EmitExclusiveReadMemory<16, &A64::UserCallbacks::MemoryRead>(ctx, inst);
@@ -348,7 +348,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory16(A64EmitContext& ctx, IR::Inst* ins
 }
 
 void A64EmitX64::EmitA64ExclusiveReadMemory32(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveReadMemoryInline<32, &A64::UserCallbacks::MemoryRead>(ctx, inst);
     } else {
         EmitExclusiveReadMemory<32, &A64::UserCallbacks::MemoryRead>(ctx, inst);
@@ -356,7 +356,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory32(A64EmitContext& ctx, IR::Inst* ins
 }
 
 void A64EmitX64::EmitA64ExclusiveReadMemory64(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveReadMemoryInline<64, &A64::UserCallbacks::MemoryRead>(ctx, inst);
     } else {
         EmitExclusiveReadMemory<64, &A64::UserCallbacks::MemoryRead>(ctx, inst);
@@ -364,7 +364,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory64(A64EmitContext& ctx, IR::Inst* ins
 }
 
 void A64EmitX64::EmitA64ExclusiveReadMemory128(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveReadMemoryInline<128, &A64::UserCallbacks::MemoryRead128>(ctx, inst);
     } else {
         EmitExclusiveReadMemory<128, &A64::UserCallbacks::MemoryRead128>(ctx, inst);
@@ -372,7 +372,7 @@ void A64EmitX64::EmitA64ExclusiveReadMemory128(A64EmitContext& ctx, IR::Inst* in
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory8(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveWriteMemoryInline<8, &A64::UserCallbacks::MemoryWriteExclusive8>(ctx, inst);
     } else {
         EmitExclusiveWriteMemory<8, &A64::UserCallbacks::MemoryWriteExclusive8>(ctx, inst);
@@ -380,7 +380,7 @@ void A64EmitX64::EmitA64ExclusiveWriteMemory8(A64EmitContext& ctx, IR::Inst* ins
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory16(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveWriteMemoryInline<16, &A64::UserCallbacks::MemoryWriteExclusive16>(ctx, inst);
     } else {
         EmitExclusiveWriteMemory<16, &A64::UserCallbacks::MemoryWriteExclusive16>(ctx, inst);
@@ -388,7 +388,7 @@ void A64EmitX64::EmitA64ExclusiveWriteMemory16(A64EmitContext& ctx, IR::Inst* in
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory32(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveWriteMemoryInline<32, &A64::UserCallbacks::MemoryWriteExclusive32>(ctx, inst);
     } else {
         EmitExclusiveWriteMemory<32, &A64::UserCallbacks::MemoryWriteExclusive32>(ctx, inst);
@@ -396,7 +396,7 @@ void A64EmitX64::EmitA64ExclusiveWriteMemory32(A64EmitContext& ctx, IR::Inst* in
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory64(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveWriteMemoryInline<64, &A64::UserCallbacks::MemoryWriteExclusive64>(ctx, inst);
     } else {
         EmitExclusiveWriteMemory<64, &A64::UserCallbacks::MemoryWriteExclusive64>(ctx, inst);
@@ -404,7 +404,7 @@ void A64EmitX64::EmitA64ExclusiveWriteMemory64(A64EmitContext& ctx, IR::Inst* in
 }
 
 void A64EmitX64::EmitA64ExclusiveWriteMemory128(A64EmitContext& ctx, IR::Inst* inst) {
-    if (conf.fastmem_exclusive_access) {
+    if (conf.fastmem_exclusive_access || UseInlinePageTableExclusives(conf)) {
         EmitExclusiveWriteMemoryInline<128, &A64::UserCallbacks::MemoryWriteExclusive128>(ctx, inst);
     } else {
         EmitExclusiveWriteMemory<128, &A64::UserCallbacks::MemoryWriteExclusive128>(ctx, inst);

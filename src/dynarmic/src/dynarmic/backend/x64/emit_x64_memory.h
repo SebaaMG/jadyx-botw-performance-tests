@@ -29,6 +29,26 @@ constexpr size_t page_table_const_bits = 12;
 constexpr size_t page_table_const_size = 1 << page_table_const_bits;
 constexpr size_t page_table_const_mask = (1 << page_table_const_bits) - 1;
 
+// SeriesX adaptation of ProsperoEden's checked page-table exclusives and
+// ordered loads (a26ba788, headless/CMakeLists.txt). A32 retains its defaults.
+template<typename Config>
+bool UseInlinePageTableExclusives(const Config& conf) {
+    if constexpr (requires { conf.inline_page_table_exclusives; }) {
+        return conf.inline_page_table_exclusives && conf.page_table != nullptr;
+    } else {
+        return false;
+    }
+}
+
+template<typename Config>
+bool UsePlainOrderedReads(const Config& conf) {
+    if constexpr (requires { conf.plain_ordered_reads; }) {
+        return conf.plain_ordered_reads;
+    } else {
+        return false;
+    }
+}
+
 template<typename EmitContext>
 void EmitDetectMisalignedVAddr(BlockOfCode& code, EmitContext& ctx, size_t bitsize, Xbyak::Label& abort, Xbyak::Reg64 vaddr, Xbyak::Reg64 tmp) {
     if (bitsize == 8 || (ctx.conf.detect_misaligned_access_via_page_table & bitsize) == 0) {
@@ -102,7 +122,7 @@ template<>
     if (ctx.conf.page_table_pointer_mask == 0) {
         code.test(page, page);
     } else if (std::in_range<s32>(ctx.conf.page_table_pointer_mask)) {
-        code.and_(page, ctx.conf.page_table_pointer_mask);
+        code.and_(page, static_cast<u32>(ctx.conf.page_table_pointer_mask));
     } else {
         code.mov(tmp, ctx.conf.page_table_pointer_mask);
         code.and_(page, tmp);
@@ -194,6 +214,81 @@ template<>
     }
     code.mov(tmp, vaddr);
     code.and_(tmp, static_cast<u32>(page_table_const_mask));
+    return page + tmp;
+}
+
+// Only already-allocated scratch registers may be used here: exclusive stores
+// have emitted conditional exits and materialized their expected value in RAX.
+// Calling the ordinary allocator from this point can introduce one-sided spills.
+template<typename EmitContext>
+Xbyak::RegExp EmitExclusiveVAddrLookup(BlockOfCode& code, EmitContext& ctx,
+        size_t bitsize, Xbyak::Label& abort, Xbyak::Reg64 vaddr,
+        Xbyak::Reg64 page, Xbyak::Reg64 tmp) {
+    if (bitsize > 8) {
+        code.test(vaddr, u32(bitsize / 8 - 1));
+        code.jnz(abort, code.T_NEAR);
+    }
+    if constexpr (requires { ctx.conf.page_table_address_space_bits; }) {
+        const auto valid_bits = ctx.conf.page_table_address_space_bits - page_table_const_bits;
+        const auto top_bits = 64 - ctx.conf.page_table_address_space_bits;
+        code.mov(page, vaddr);
+        code.shr(page, int(page_table_const_bits));
+        if (top_bits != 0) {
+            if (ctx.conf.silently_mirror_page_table) {
+                if (valid_bits == 0) {
+                    // x86 masks a shift of 64 to zero; a one-entry table
+                    // instead requires clearing the index explicitly.
+                    code.xor_(page, page);
+                } else {
+                    code.shl(page, int(64 - valid_bits));
+                    code.shr(page, int(64 - valid_bits));
+                }
+            } else if (valid_bits < 32) {
+                code.test(page, u32(-(1u << valid_bits)));
+                code.jnz(abort, code.T_NEAR);
+            } else {
+                code.mov(tmp, page);
+                code.shr(tmp, int(valid_bits));
+                code.jnz(abort, code.T_NEAR);
+            }
+        }
+    } else {
+        code.mov(page.cvt32(), vaddr.cvt32());
+        code.shr(page, int(page_table_const_bits));
+    }
+    if (ctx.conf.page_table_log2_stride > 3) {
+        code.shl(page, int(ctx.conf.page_table_log2_stride));
+        code.mov(page, qword[r14 + page]);
+    } else {
+        code.mov(page, qword[r14 + page * int(1 << ctx.conf.page_table_log2_stride)]);
+    }
+    if (ctx.conf.page_table_marked_bit) {
+        code.bt(page, *ctx.conf.page_table_marked_bit);
+        code.jc(abort, code.T_NEAR);
+    }
+    if (ctx.conf.page_table_pointer_mask == 0) {
+        code.test(page, page);
+    } else if (std::in_range<s32>(ctx.conf.page_table_pointer_mask)) {
+        code.and_(page, ctx.conf.page_table_pointer_mask);
+    } else {
+        code.mov(tmp, ctx.conf.page_table_pointer_mask);
+        code.and_(page, tmp);
+    }
+    if (ctx.conf.page_table_sign_extension) {
+        if constexpr (requires { ctx.conf.page_table_address_space_bits; }) {
+            code.shl(page, int(*ctx.conf.page_table_sign_extension));
+            code.sar(page, int(*ctx.conf.page_table_sign_extension));
+        } else {
+            code.shl(page, 63 - int(*ctx.conf.page_table_sign_extension));
+            code.sar(page, 63 - int(*ctx.conf.page_table_sign_extension));
+        }
+    }
+    code.jz(abort, code.T_NEAR);
+    if (ctx.conf.absolute_offset_page_table) {
+        return page + vaddr;
+    }
+    code.mov(tmp, vaddr);
+    code.and_(tmp, u32(page_table_const_mask));
     return page + tmp;
 }
 
@@ -312,6 +407,35 @@ const void* EmitReadMemoryMov(BlockOfCode& code, int value_idx, const Xbyak::Reg
             UNREACHABLE();
         }
         return fastmem_location;
+    }
+}
+
+template<std::size_t bitsize>
+void EmitPageTableReadMemoryMov(BlockOfCode& code, int value_idx,
+        const Xbyak::RegExp& addr, bool ordered, Xbyak::Reg64 vaddr,
+        bool plain_reads, bool naturally_aligned = false) {
+    if constexpr (bitsize == 128) {
+        EmitReadMemoryMov<bitsize>(code, value_idx, addr, ordered);
+    } else {
+        if (!ordered || !plain_reads) {
+            EmitReadMemoryMov<bitsize>(code, value_idx, addr, ordered);
+            return;
+        }
+        // x86-TSO: naturally aligned 8-64-bit loads are atomic and acquire.
+        // Ordered writes remain XCHG; no 128-bit/callback/fastmem rule changes.
+        Xbyak::Label legacy, end;
+        const bool check_alignment = bitsize != 8 && !naturally_aligned;
+        if (check_alignment) {
+            code.test(vaddr, u32(bitsize / 8 - 1));
+            code.jnz(legacy, code.T_NEAR);
+        }
+        EmitReadMemoryMov<bitsize>(code, value_idx, addr, false);
+        if (check_alignment) {
+            code.jmp(end, code.T_NEAR);
+            code.L(legacy);
+            EmitReadMemoryMov<bitsize>(code, value_idx, addr, true);
+            code.L(end);
+        }
     }
 }
 
