@@ -21,8 +21,12 @@ namespace Core {
 namespace {
 std::atomic_bool jit_page_reuse{};
 std::atomic_bool jit_efficient_fp_compare{};
+std::atomic_bool jit_zero_upper{};
+std::atomic_bool jit_stable_frame{};
 }
 void SetJitPageReuse(bool enabled) { jit_page_reuse.store(enabled, std::memory_order_relaxed); }
+void SetJitZeroUpper(bool enabled) { jit_zero_upper.store(enabled, std::memory_order_relaxed); }
+void SetJitStableFrame(bool enabled) { jit_stable_frame.store(enabled, std::memory_order_relaxed); }
 void SetJitEfficientFpCompare(bool enabled) {
     jit_efficient_fp_compare.store(enabled, std::memory_order_relaxed);
 }
@@ -218,6 +222,8 @@ void ArmDynarmic64::MakeJit(Common::PageTable* page_table, std::size_t address_s
     Dynarmic::JitProfile::SetEnabled(CpuProfile::Enabled());
     Dynarmic::A64::UserConfig config;
     config.profile_code = Common::JitSymbols::Enabled();
+    config.zero_upper_tracking = jit_zero_upper.load(std::memory_order_relaxed);
+    config.stable_jit_frame = jit_stable_frame.load(std::memory_order_relaxed);
     config.profile_process_id = m_cb->m_process->GetProcessId();
     if (jit_page_reuse.load(std::memory_order_relaxed)) {
         config.optimizations |= Dynarmic::OptimizationFlag::ReusePageLookups;

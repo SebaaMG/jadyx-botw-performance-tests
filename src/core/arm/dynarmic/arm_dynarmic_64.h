@@ -31,6 +31,8 @@ namespace Core {
 
 /// SeriesX candidate switches, set before creating a guest process.
 void SetJitPageReuse(bool enabled);
+void SetJitZeroUpper(bool enabled);
+void SetJitStableFrame(bool enabled);
 void SetJitEfficientFpCompare(bool enabled);
 
 class ArmDynarmic64;

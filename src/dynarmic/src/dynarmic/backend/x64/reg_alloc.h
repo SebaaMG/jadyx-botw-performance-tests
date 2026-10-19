@@ -57,6 +57,7 @@ public:
         ASSERT(is_being_used_count == 0);
         is_being_used_count++;
         is_scratch = true;
+        known_zero_upper = false;
     }
     inline void AddArgReference() noexcept {
         ASSERT(size_t(current_references) + 1 < (std::numeric_limits<decltype(current_references)>::max)());
@@ -92,6 +93,7 @@ private:
     uint8_t max_bit_width : 4 = 0;
     bool is_scratch : 1 = false; //1
     bool is_set_last_use : 1 = false; //1
+    bool known_zero_upper : 1 = false;
     friend class RegAlloc;
 };
 //static_assert(sizeof(HostLocInfo) == 64);
@@ -139,7 +141,7 @@ class RegAlloc final {
 public:
     using ArgumentInfo = std::array<Argument, IR::max_arg_count>;
     RegAlloc() noexcept = default;
-    RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order) noexcept;
+    RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order, bool zero_upper_tracking = false) noexcept;
 
     ArgumentInfo GetArgumentInfo(const IR::Inst* inst) noexcept;
     void RegisterPseudoOperation(const IR::Inst* inst) noexcept;
@@ -171,6 +173,9 @@ public:
 
     void DefineValue(BlockOfCode& code, IR::Inst* inst, const Xbyak::Reg& reg) noexcept;
     void DefineValue(BlockOfCode& code, IR::Inst* inst, Argument& arg) noexcept;
+    void MarkZeroUpper(const Xbyak::Reg64& reg) noexcept;
+    bool CanZeroExtendInPlace(const Argument& arg) const noexcept;
+    Xbyak::Reg64 UseZeroExtendedGpr(BlockOfCode& code, Argument& arg) noexcept;
 
     void Release(const Xbyak::Reg& reg) noexcept;
 
@@ -250,6 +255,7 @@ private:
     std::bitset<32> gpr_order;
     std::bitset<32> xmm_order;
     size_t reserved_stack_space = 0;
+    bool zero_upper_tracking = false;
 };
 
 }  // namespace Dynarmic::Backend::X64

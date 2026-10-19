@@ -126,7 +126,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
         if (conf.page_table)
             gprs.reset(size_t(HostLoc::R14));
         return gprs;
-    }(), any_xmm};
+    }(), any_xmm, conf.zero_upper_tracking};
 
     A64EmitContext ctx{conf, reg_alloc, block, shared_labels};
 
@@ -140,8 +140,15 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
                                    static_cast<u32>(code.getCurr() - entrypoint), opcode});
         }
     };
+#ifdef _WIN32
+    if (!conf.stable_jit_frame) {
+        code.mov(code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)], rbp);
+        code.lea(rbp, code.ptr[rsp]);
+    }
+#else
     code.mov(code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)], rbp);
     code.lea(rbp, code.ptr[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer) - 8]);
+#endif
     annotate(entrypoint, "prologue");
 
     DEBUG_ASSERT(block.GetCondition() == IR::Cond::AL);
@@ -206,7 +213,13 @@ finish_this_inst:
     const auto* const terminal_begin = code.getCurr();
     if (conf.enable_cycle_counting)
         EmitAddCycles(block.CycleCount());
+#ifdef _WIN32
+    if (!conf.stable_jit_frame) {
+        code.mov(rbp, code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)]);
+    }
+#else
     code.mov(rbp, code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)]);
+#endif
     EmitTerminal(block.terminal, ctx.Location().SetSingleStepping(false), ctx.IsSingleStep());
     code.int3();
     annotate(terminal_begin, "terminal");
@@ -407,6 +420,7 @@ void A64EmitX64::EmitA64GetW(A64EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg32 result = ctx.reg_alloc.ScratchGpr(code).cvt32();
 
     code.mov(result, dword[code.ABI_JIT_PTR + offsetof(A64JitState, reg) + sizeof(u64) * static_cast<size_t>(reg)]);
+    ctx.reg_alloc.MarkZeroUpper(result.cvt64());
     ctx.reg_alloc.DefineValue(code, inst, result);
 }
 
@@ -474,6 +488,8 @@ void A64EmitX64::EmitA64SetW(A64EmitContext& ctx, IR::Inst* inst) {
     const auto addr = qword[code.ABI_JIT_PTR + offsetof(A64JitState, reg) + sizeof(u64) * static_cast<size_t>(reg)];
     if (args[1].FitsInImmediateS32()) {
         code.mov(addr, args[1].GetImmediateS32());
+    } else if (ctx.reg_alloc.CanZeroExtendInPlace(args[1])) {
+        code.mov(addr, ctx.reg_alloc.UseZeroExtendedGpr(code, args[1]));
     } else {
         // TODO: zext tracking, xmm variant
         const Xbyak::Reg64 to_store = ctx.reg_alloc.UseScratchGpr(code, args[1]);

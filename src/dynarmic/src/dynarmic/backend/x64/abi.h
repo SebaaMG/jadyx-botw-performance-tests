@@ -9,6 +9,7 @@
 
 #include <array>
 #include <bitset>
+#include <vector>
 
 #include "common/common_types.h"
 #include "dynarmic/backend/x64/hostloc.h"
@@ -16,6 +17,20 @@
 namespace Dynarmic::Backend::X64 {
 
 class BlockOfCode;
+
+struct UnwindOperation {
+    enum class Kind { Push, Allocate, SaveXmm, SetFrame };
+    Kind kind;
+    u32 code_offset;
+    u32 register_index;
+    u32 stack_offset;
+};
+
+struct UnwindRegion {
+    u32 begin{};
+    u32 end{};
+    std::vector<UnwindOperation> operations;
+};
 
 constexpr std::bitset<32> ABI_ALL_GPRS = BuildRegSet({
     HostLoc::RAX,
@@ -162,7 +177,8 @@ constexpr size_t ABI_SHADOW_SPACE = 0;  // bytes
 
 //static_assert(ABI_ALL_CALLER_SAVE.count() + ABI_ALL_CALLEE_SAVE.count() == 31, "Invalid total number of registers");
 
-void ABI_PushCalleeSaveRegistersAndAdjustStack(BlockOfCode& code, size_t frame_size = 0);
+void ABI_PushCalleeSaveRegistersAndAdjustStack(BlockOfCode& code, size_t frame_size = 0,
+                                            UnwindRegion* unwind = nullptr);
 void ABI_PopCalleeSaveRegistersAndAdjustStack(BlockOfCode& code, size_t frame_size = 0);
 void ABI_PushCallerSaveRegistersAndAdjustStack(BlockOfCode& code, size_t frame_size = 0);
 void ABI_PopCallerSaveRegistersAndAdjustStack(BlockOfCode& code, size_t frame_size = 0);

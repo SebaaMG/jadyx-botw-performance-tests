@@ -40,18 +40,40 @@ static FrameInfo CalculateFrameInfo(const size_t num_gprs, const size_t num_xmms
     };
 }
 
-static void ABI_PushRegistersAndAdjustStack(BlockOfCode& code, const size_t frame_size, std::bitset<32> regs) noexcept {
+static void ABI_PushRegistersAndAdjustStack(BlockOfCode& code, const size_t frame_size,
+                                          std::bitset<32> regs, UnwindRegion* unwind = nullptr) noexcept {
     using namespace Xbyak::util;
 
     const size_t num_gprs = (ABI_ALL_GPRS & regs).count();
     const size_t num_xmms = (ABI_ALL_XMMS & regs).count();
     const FrameInfo frame_info = CalculateFrameInfo(num_gprs, num_xmms, frame_size);
+    const auto* begin = code.getCurr();
+    const auto record = [&](UnwindOperation::Kind kind, u32 register_index, size_t stack_offset) {
+        if (unwind) {
+            unwind->operations.push_back({kind, static_cast<u32>(code.getCurr() - begin),
+                                          register_index, static_cast<u32>(stack_offset)});
+        }
+    };
+    if (unwind) {
+        unwind->begin = static_cast<u32>(begin - code.getCode());
+    }
 
-    for (size_t i = 0; i < regs.size(); ++i)
-        if (regs[i] && HostLocIsGPR(HostLoc(i)))
+    for (size_t i = 0; i < regs.size(); ++i) {
+        if (regs[i] && HostLocIsGPR(HostLoc(i))) {
             code.push(HostLocToReg64(HostLoc(i)));
-    if (frame_info.stack_subtraction != 0)
+            record(UnwindOperation::Kind::Push, HostLocToReg64(HostLoc(i)).getIdx(), 0);
+        }
+    }
+    if (frame_info.stack_subtraction != 0) {
         code.sub(rsp, u32(frame_info.stack_subtraction));
+        record(UnwindOperation::Kind::Allocate, 0, frame_info.stack_subtraction);
+    }
+#ifdef _WIN32
+    if (unwind) {
+        code.mov(rbp, rsp);
+        record(UnwindOperation::Kind::SetFrame, rbp.getIdx(), 0);
+    }
+#endif
     size_t xmm_offset = frame_info.xmm_offset;
     for (size_t i = 0; i < regs.size(); ++i) {
         if (regs[i] && HostLocIsXMM(HostLoc(i))) {
@@ -60,8 +82,12 @@ static void ABI_PushRegistersAndAdjustStack(BlockOfCode& code, const size_t fram
             } else {
                 code.movaps(code.xword[rsp + xmm_offset], HostLocToXmm(HostLoc(i)));
             }
+            record(UnwindOperation::Kind::SaveXmm, HostLocToXmm(HostLoc(i)).getIdx(), xmm_offset);
             xmm_offset += XMM_SIZE;
         }
+    }
+    if (unwind) {
+        unwind->end = static_cast<u32>(code.getCurr() - code.getCode());
     }
 }
 
@@ -89,8 +115,9 @@ static void ABI_PopRegistersAndAdjustStack(BlockOfCode& code, const size_t frame
             code.pop(HostLocToReg64(HostLoc(i)));
 }
 
-void ABI_PushCalleeSaveRegistersAndAdjustStack(BlockOfCode& code, const std::size_t frame_size) {
-    ABI_PushRegistersAndAdjustStack(code, frame_size, ABI_ALL_CALLEE_SAVE);
+void ABI_PushCalleeSaveRegistersAndAdjustStack(BlockOfCode& code, const std::size_t frame_size,
+                                            UnwindRegion* unwind) {
+    ABI_PushRegistersAndAdjustStack(code, frame_size, ABI_ALL_CALLEE_SAVE, unwind);
 }
 
 void ABI_PopCalleeSaveRegistersAndAdjustStack(BlockOfCode& code, const std::size_t frame_size) {

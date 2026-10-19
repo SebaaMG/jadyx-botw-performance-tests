@@ -78,6 +78,7 @@ void HostLocInfo::ReleaseAll() noexcept {
         accumulated_uses = 0;
         total_uses = 0;
         max_bit_width = 0;
+        known_zero_upper = false;
     }
 
     is_being_used_count = 0;
@@ -185,8 +186,8 @@ bool Argument::IsInMemory(RegAlloc& reg_alloc) const noexcept {
     return HostLocIsSpill(*reg_alloc.ValueLocation(value.GetInst()));
 }
 
-RegAlloc::RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order) noexcept
-    : gpr_order(gpr_order), xmm_order(xmm_order)
+RegAlloc::RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order, bool zero_upper_tracking) noexcept
+    : gpr_order(gpr_order), xmm_order(xmm_order), zero_upper_tracking(zero_upper_tracking)
 {}
 
 RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(const IR::Inst* inst) noexcept {
@@ -255,6 +256,33 @@ void RegAlloc::Release(const Xbyak::Reg& reg) noexcept {
     ASSERT(reg.getKind() == Xbyak::Operand::XMM || reg.getKind() == Xbyak::Operand::REG);
     const auto hostloc = static_cast<HostLoc>(reg.getIdx() + static_cast<size_t>(reg.getKind() == Xbyak::Operand::XMM ? HostLoc::XMM0 : HostLoc::RAX));
     LocInfo(hostloc).ReleaseOne();
+}
+
+void RegAlloc::MarkZeroUpper(const Xbyak::Reg64& reg) noexcept {
+    LocInfo(static_cast<HostLoc>(reg.getIdx())).known_zero_upper = true;
+}
+
+bool RegAlloc::CanZeroExtendInPlace(const Argument& arg) const noexcept {
+    if (!zero_upper_tracking) {
+        return false;
+    }
+    if (arg.IsImmediate()) {
+        return arg.FitsInImmediateU32();
+    }
+    const HostLoc location = *ValueLocation(arg.value.GetInst());
+    const auto& info = LocInfo(location);
+    return info.GetMaxBitWidth() <= 32 || (HostLocIsGPR(location) && info.known_zero_upper);
+}
+
+Xbyak::Reg64 RegAlloc::UseZeroExtendedGpr(BlockOfCode& code, Argument& arg) noexcept {
+    ASSERT(CanZeroExtendInPlace(arg));
+    const Xbyak::Reg64 result = UseGpr(code, arg);
+    auto& info = LocInfo(static_cast<HostLoc>(result.getIdx()));
+    if (!info.known_zero_upper) {
+        code.mov(result.cvt32(), result.cvt32());
+        info.known_zero_upper = true;
+    }
+    return result;
 }
 
 HostLoc RegAlloc::UseImpl(BlockOfCode& code, IR::Value use_value, std::bitset<32> desired_locations) noexcept {
@@ -491,6 +519,11 @@ void RegAlloc::Move(BlockOfCode& code, HostLoc to, HostLoc from) noexcept {
     ASSERT(!LocInfo(from).IsEmpty() && "Mov eliminated");
     EmitMove(code, bit_width, to, from);
     LocInfo(to) = std::exchange(LocInfo(from), {});
+    if (HostLocIsGPR(to) && bit_width <= 32) {
+        LocInfo(to).known_zero_upper = true;
+    } else if (!HostLocIsGPR(to)) {
+        LocInfo(to).known_zero_upper = false;
+    }
 }
 
 void RegAlloc::CopyToScratch(BlockOfCode& code, size_t bit_width, HostLoc to, HostLoc from) noexcept {
@@ -568,6 +601,7 @@ HostLoc RegAlloc::LoadImmediate(BlockOfCode& code, IR::Value imm, HostLoc host_l
         } else {
             code.mov(reg, imm_value);
         }
+        LocInfo(host_loc).known_zero_upper = imm_value <= 0xffffffff;
     } else if (HostLocIsXMM(host_loc)) {
         const Xbyak::Xmm reg = HostLocToXmm(host_loc);
         const u64 imm_value = imm.GetImmediateAsU64();

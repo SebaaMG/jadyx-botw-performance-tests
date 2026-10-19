@@ -353,6 +353,8 @@ struct BootConfig {
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool jit_page_reuse{};
     bool jit_fp_compare{};
+    bool jit_zero_upper{};
+    bool jit_stable_frame{};
     /// Host timing waits sleep on a high-resolution timer and wait only its lateness on the CPU
     /// ("timer_sleep=0" waits the last timer tick on the CPU, as before).
     bool timer_sleep{true};
@@ -551,8 +553,12 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
         WriteDiag("Image table reuse disabled for async recording: no end-to-end gain qualified");
     }
     Core::SetJitPageReuse(config.jit_page_reuse);
+    Core::SetJitZeroUpper(config.jit_zero_upper);
+    Core::SetJitStableFrame(config.jit_stable_frame);
     Core::SetJitEfficientFpCompare(config.jit_fp_compare);
     Common::JitSymbols::SetEnabled(config.profile);
+    WriteDiag(std::string{"JIT zero upper: "} + (config.jit_zero_upper ? "on" : "off") +
+              ", stable frame: " + (config.jit_stable_frame ? "on" : "off"));
     WriteDiag(std::string{"JIT page reuse: "} + (config.jit_page_reuse ? "on" : "off") +
               ", efficient FP compare: " + (config.jit_fp_compare ? "on" : "off"));
     if (config.debug_layer) {
@@ -2435,6 +2441,14 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                         } else if (line == "upload_copy=1") {
                             config.upload_copy = true;
                             WriteDiag("boot.cfg: short uniform write-combined copy enabled");
+                        } else if (line == "jit_zero_upper=1") {
+                            config.jit_zero_upper = true;
+                        } else if (line == "jit_zero_upper=0") {
+                            config.jit_zero_upper = false;
+                        } else if (line == "jit_stable_frame=1") {
+                            config.jit_stable_frame = true;
+                        } else if (line == "jit_stable_frame=0") {
+                            config.jit_stable_frame = false;
                         } else if (line == "jit_page_reuse=1") {
                             config.jit_page_reuse = true;
                         } else if (line == "jit_page_reuse=0") {

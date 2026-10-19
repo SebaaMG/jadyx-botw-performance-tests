@@ -106,6 +106,9 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
             ctx.reg_alloc.DefineValue(code, inst, Xbyak::Xmm{value_idx});
         } else {
             ctx.reg_alloc.DefineValue(code, inst, Xbyak::Reg64{value_idx});
+            if constexpr (bitsize <= 32) {
+                ctx.reg_alloc.MarkZeroUpper(Xbyak::Reg64{value_idx});
+            }
         }
         return;
     }
@@ -125,6 +128,9 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
             if (ordered) code.mfence();
             Devirtualize<callback>(conf.callbacks).EmitCall(code);
             code.ZeroExtendFrom(bitsize, code.ABI_RETURN);
+            if constexpr (bitsize <= 32) {
+                ctx.reg_alloc.MarkZeroUpper(code.ABI_RETURN);
+            }
         }
         EmitCheckMemoryAbort(ctx, inst);
         return;
@@ -187,6 +193,9 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
         ctx.reg_alloc.DefineValue(code, inst, Xbyak::Xmm{value_idx});
     } else {
         ctx.reg_alloc.DefineValue(code, inst, Xbyak::Reg64{value_idx});
+        if constexpr (bitsize <= 32) {
+            ctx.reg_alloc.MarkZeroUpper(Xbyak::Reg64{value_idx});
+        }
     }
 }
 

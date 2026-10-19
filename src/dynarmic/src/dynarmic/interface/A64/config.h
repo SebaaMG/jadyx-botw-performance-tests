@@ -133,6 +133,8 @@ struct UserCallbacks {
 
 struct UserConfig {
     bool profile_code{};
+    bool zero_upper_tracking{};
+    bool stable_jit_frame{};
     std::uint64_t profile_process_id{};
 
     /// Fastmem Pointer
