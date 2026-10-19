@@ -129,7 +129,7 @@ class Symbolizer:
         cached = self.cache.get(key)
         if cached is not None:
             return cached
-        if token == "[jit]":
+        if token == "[jit]" or re.fullmatch(r"jit#\d+\+0x[0-9a-f]+@0x[0-9a-f]+", token):
             result = (JIT, False)
         else:
             module, _, offset = token.partition("+0x")

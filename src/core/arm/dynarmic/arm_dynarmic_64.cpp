@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "common/settings.h"
+#include "common/jit_symbols.h"
 #include "core/arm/cpu_profile.h"
 #include "core/arm/dynarmic/arm_dynarmic.h"
 #include "core/arm/dynarmic/arm_dynarmic_64.h"
@@ -216,6 +217,8 @@ void DynarmicCallbacks64::ReturnException(u64 pc, Dynarmic::HaltReason hr) {
 void ArmDynarmic64::MakeJit(Common::PageTable* page_table, std::size_t address_space_bits) {
     Dynarmic::JitProfile::SetEnabled(CpuProfile::Enabled());
     Dynarmic::A64::UserConfig config;
+    config.profile_code = Common::JitSymbols::Enabled();
+    config.profile_process_id = m_cb->m_process->GetProcessId();
     if (jit_page_reuse.load(std::memory_order_relaxed)) {
         config.optimizations |= Dynarmic::OptimizationFlag::ReusePageLookups;
     }

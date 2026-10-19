@@ -49,6 +49,7 @@
 #include "common/memory_ledger.h"
 #include "common/scm_rev.h"
 #include "common/settings.h"
+#include "common/jit_symbols.h"
 #include "common/thread.h"
 #include "common/windows/timed_wait_profile.h"
 #include "common/windows/sampling_profiler.h"
@@ -551,6 +552,7 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     }
     Core::SetJitPageReuse(config.jit_page_reuse);
     Core::SetJitEfficientFpCompare(config.jit_fp_compare);
+    Common::JitSymbols::SetEnabled(config.profile);
     WriteDiag(std::string{"JIT page reuse: "} + (config.jit_page_reuse ? "on" : "off") +
               ", efficient FP compare: " + (config.jit_fp_compare ? "on" : "off"));
     if (config.debug_layer) {

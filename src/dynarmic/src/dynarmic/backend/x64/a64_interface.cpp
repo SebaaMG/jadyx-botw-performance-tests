@@ -317,8 +317,8 @@ private:
             const JitProfile::Timer invalidate_timer{JitProfile::Phase::Invalidate};
             jit_state.ResetRSB();
             if (invalidate_entire_cache) {
-                block_of_code.ClearCache();
                 emitter.ClearCache();
+                block_of_code.ClearCache();
             } else {
                 emitter.InvalidateCacheRanges(invalid_cache_ranges);
             }
