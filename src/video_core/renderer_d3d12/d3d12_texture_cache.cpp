@@ -30,6 +30,11 @@ namespace D3D12 {
 
 using namespace TextureDetail;
 
+namespace { std::atomic_bool copy_plan_cache_enabled{}; }
+void SetCopyPlanCache(bool enabled) {
+    copy_plan_cache_enabled.store(enabled, std::memory_order_relaxed);
+}
+
 bool TextureCacheRuntime::CanCheckpointImage(
     const Image& image, std::span<const VideoCommon::BufferImageCopy> copies) const {
     constexpr u64 Limit = 8ULL * 1024 * 1024;
@@ -107,7 +112,8 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
                                          CpuDescriptorAllocator& dsvs)
     : device{device_}, scheduler{scheduler_}, staging{staging_}, view_descriptors{views},
       sampler_descriptors{samplers}, rtv_descriptors{rtvs}, dsv_descriptors{dsvs},
-      texture_allocator{device_, scheduler_}, transfer_buffers{transfer_buffers_} {
+      texture_allocator{device_, scheduler_}, transfer_buffers{transfer_buffers_},
+      cache_copy_plans{copy_plan_cache_enabled.load(std::memory_order_relaxed)} {
     transfer_buffers.SetReclaimer([this] { texture_allocator.TrimEmptyHeaps(true); });
     null_rtv = rtv_descriptors.Allocate();
     D3D12_RENDER_TARGET_VIEW_DESC null_desc{
@@ -297,7 +303,13 @@ void TextureCacheRuntime::TickFrame() {
     // system refuses still reclaims everything (TransferBufferPool::ReclaimAfterOutOfMemory).
     const bool release_idle = pressure_level >= CachePressure::Critical;
     texture_allocator.TrimEmptyHeaps(release_idle);
-    transfer_buffers.Trim(release_idle);
+    if (release_idle) {
+        transfer_buffers.TrimForPressure(
+            CachePressureController::RequiresImmediateRecovery(pressure_snapshot));
+    } else {
+        transfer_buffers.Trim(false);
+    }
+    transfer_buffers.TickStatistics();
     if (VideoCore::FrameTrace::Active()) {
         const auto stats = texture_allocator.GetStats();
         VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureHeapUsage,
@@ -773,15 +785,12 @@ void Image::CopyThroughBuffer(ID3D12Resource* src, ID3D12Resource* dst) {
     // src in COPY_SOURCE and dst in COPY_DEST.
     const D3D12_RESOURCE_DESC src_desc = src->GetDesc();
     const DXGI_FORMAT dst_format = dst->GetDesc().Format;
-    const u32 count =
-        src_desc.MipLevels * (src_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D
-                                  ? 1U
-                                  : src_desc.DepthOrArraySize);
-    std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(count);
-    u64 total_bytes = 0;
-    runtime->device.Get()->GetCopyableFootprints(&src_desc, 0, count, 0, footprints.data(),
-                                                 nullptr, nullptr, &total_bytes);
-    ComPtr<ID3D12Resource> transfer = runtime->transfer_buffers.Acquire(total_bytes);
+    CopyFootprintCache::Plan uncached;
+    const auto& plan = runtime->copy_plans.Get(runtime->device.Get(), src_desc,
+                                              runtime->cache_copy_plans, uncached);
+    const auto& footprints = plan.footprints;
+    const u32 count = static_cast<u32>(footprints.size());
+    ComPtr<ID3D12Resource> transfer = runtime->transfer_buffers.AcquireCopy(plan.bytes);
     auto* const commands = runtime->scheduler.CommandList();
     for (u32 subresource = 0; subresource < count; ++subresource) {
         const D3D12_TEXTURE_COPY_LOCATION from{
@@ -805,7 +814,7 @@ void Image::CopyThroughBuffer(ID3D12Resource* src, ID3D12Resource* dst) {
             .SubresourceIndex = subresource};
         commands->CopyTextureRegion(&to, 0, 0, 0, &from, nullptr);
     }
-    runtime->transfer_buffers.Release(std::move(transfer));
+    runtime->transfer_buffers.ReleaseCopy(std::move(transfer));
 }
 
 void Image::RefreshSliceArray() {
@@ -817,12 +826,11 @@ void Image::RefreshSliceArray() {
     const D3D12_RESOURCE_DESC desc = slice_array->GetDesc();
     const u32 levels = desc.MipLevels;
     const u32 layers = desc.DepthOrArraySize;
-    const u32 count = levels * layers;
-    std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(count);
-    u64 total_bytes = 0;
-    runtime->device.Get()->GetCopyableFootprints(&desc, 0, count, 0, footprints.data(), nullptr,
-                                                 nullptr, &total_bytes);
-    ComPtr<ID3D12Resource> transfer = runtime->transfer_buffers.Acquire(total_bytes);
+    CopyFootprintCache::Plan uncached;
+    const auto& plan = runtime->copy_plans.Get(runtime->device.Get(), desc,
+                                              runtime->cache_copy_plans, uncached);
+    const auto& footprints = plan.footprints;
+    ComPtr<ID3D12Resource> transfer = runtime->transfer_buffers.AcquireCopy(plan.bytes);
     auto* const commands = runtime->scheduler.CommandList();
     Transition(D3D12_RESOURCE_STATE_COPY_SOURCE);
     const auto slices = [&](u32 level) { return std::min(layers, std::max(1U, layers >> level)); };
@@ -862,7 +870,7 @@ void Image::RefreshSliceArray() {
                         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
     TransitionBuffer(commands, slice_array.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
                      slice_array_state);
-    runtime->transfer_buffers.Release(std::move(transfer));
+    runtime->transfer_buffers.ReleaseCopy(std::move(transfer));
     slice_array_version = write_version;
 }
 void TextureCacheRuntime::TransitionImageLayout(Image& image) {

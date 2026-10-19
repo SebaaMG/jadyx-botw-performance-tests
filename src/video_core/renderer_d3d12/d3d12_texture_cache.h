@@ -16,6 +16,7 @@
 
 #include "shader_recompiler/shader_info.h"
 #include "video_core/renderer_d3d12/d3d12_cache_policy.h"
+#include "video_core/renderer_d3d12/d3d12_copy_plan.h"
 #include "video_core/renderer_d3d12/d3d12_bc_copy.h"
 #include "video_core/renderer_d3d12/d3d12_descriptor_heap.h"
 #include "video_core/renderer_d3d12/d3d12_gc_readback.h"
@@ -215,6 +216,8 @@ private:
     CpuDescriptorAllocator& dsv_descriptors;
     TextureResourceAllocator texture_allocator;
     TransferBufferPool& transfer_buffers; ///< shared with the buffer cache; trimmed here
+    CopyFootprintCache copy_plans;
+    bool cache_copy_plans{};
     CachePressureController cache_pressure;
     CachePressure pressure_level{};
     CacheMemorySnapshot pressure_snapshot{};
@@ -547,6 +550,7 @@ class ImageAlloc : public VideoCommon::ImageAllocBase {};
 /// Whether block-compressed 2D arrays are decoded on the CPU (the default; boot.cfg
 /// "bc_arrays=native" keeps them compressed). Applies to images created from now on.
 void SetBcArrayDecode(bool enabled);
+void SetCopyPlanCache(bool enabled);
 
 /// Whether ASTC images kept as RGBA8 are decoded by the compute shader (the default) rather than
 /// the CPU. Applies to images created from now on.

@@ -24,6 +24,10 @@
 namespace D3D12 {
 namespace {
 std::atomic_bool uniform_upload_copy_enabled{};
+std::atomic_bool coherent_uniform_cache_enabled{};
+}
+void SetCoherentUniformCache(bool enabled) {
+    coherent_uniform_cache_enabled.store(enabled, std::memory_order_relaxed);
 }
 void SetUniformUploadCopy(bool enabled) {
     uniform_upload_copy_enabled.store(enabled, std::memory_order_relaxed);
@@ -209,7 +213,8 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, Scheduler& schedul
     : device{device_}, scheduler{scheduler_}, staging{staging_},
       transfer_buffers{transfer_buffers_}, device_memory{device_memory_},
       buffer_allocator{device_, scheduler_, true},
-      uniform_upload_copy{uniform_upload_copy_enabled.load(std::memory_order_relaxed)} {
+      uniform_upload_copy{uniform_upload_copy_enabled.load(std::memory_order_relaxed)},
+      coherent_uniform_cache{coherent_uniform_cache_enabled.load(std::memory_order_relaxed)} {
     LOG_INFO(Render, "D3D12: buffer cache runtime ready (short uniform upload copy {})", uniform_upload_copy ? "on" : "off");
 
 }
@@ -277,9 +282,15 @@ ComPtr<ID3D12Resource> BufferCacheRuntime::CreateDefaultBuffer(
 
 void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& buffers) noexcept {
     RetirePersistentUploads();
+    ++stats_frame;
+    if (coherent_uniform_cache && stats_frame % 300 == 0) {
+        const auto stats = uniform_cache_policy.GetStatistics();
+        LOG_INFO(Render, "SeriesX coherent uniforms: clean {}, streamed {}, probes {}, "
+                 "backoffs {} (cumulative)", stats.clean, stats.streamed, stats.probes, stats.backoffs);
+    }
     if (PersistentResourcesSupported(device.Get())) {
         buffer_allocator.TrimEmptyHeaps(false);
-        if (++stats_frame % 300 == 0 && uniform_content) {
+        if (stats_frame % 300 == 0 && uniform_content) {
             const auto stats = uniform_content->GetStats();
             LOG_INFO(Render, "SeriesX persistent uniforms: hits={} misses={} saved_bytes={} heaps={}",
                      stats.hits, stats.misses, stats.saved_bytes, buffer_allocator.Report());

@@ -149,6 +149,9 @@ void SetUniformUploadCopy(bool enabled);
 void SetDrawSamplerReuse(bool enabled);
 void SetImageTableReuse(bool enabled);
 void SetPersistentResources(bool enabled);
+void SetOrderedCopyReuse(bool enabled);
+void SetCopyPlanCache(bool enabled);
+void SetCoherentUniformCache(bool enabled);
 void SetAsyncRecording(bool enabled);          // d3d12_scheduler.h
 using AppMemoryQuery = bool (*)(u64& used, u64& limit); // d3d12_device.h
 void SetAppMemoryQuery(AppMemoryQuery query);            // d3d12_device.h
@@ -341,6 +344,9 @@ struct BootConfig {
     bool upload_copy{}; ///< Experimental short uniform copies; default off.
     bool draw_sampler_reuse{}; ///< Experimental gather-local TSC resolution; default off.
     bool persistent_resources{};
+    bool ordered_copy_reuse{};
+    bool copy_plan_cache{};
+    bool coherent_uniform_cache{};
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool jit_page_reuse{};
     bool jit_fp_compare{};
@@ -530,6 +536,11 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     const bool reuse_image_tables = config.image_table_reuse && !config.async_record;
     D3D12::SetImageTableReuse(reuse_image_tables);
     D3D12::SetPersistentResources(config.persistent_resources);
+    D3D12::SetOrderedCopyReuse(config.ordered_copy_reuse);
+    D3D12::SetCopyPlanCache(config.copy_plan_cache);
+    D3D12::SetCoherentUniformCache(config.coherent_uniform_cache);
+    LOG_INFO(Frontend, "SeriesX: ordered copy reuse {}, copy plan cache {}",
+             config.ordered_copy_reuse, config.copy_plan_cache);
     LOG_INFO(Frontend, "SeriesX: persistent resources requested {} (tier 3/v4 required)", config.persistent_resources);
     WriteDiag(std::string{"Image table reuse: "} + (reuse_image_tables ? "on" : "off"));
     if (config.image_table_reuse && config.async_record) {
@@ -2427,6 +2438,18 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             config.jit_fp_compare = true;
                         } else if (line == "jit_fp_compare=0") {
                             config.jit_fp_compare = false;
+                        } else if (line == "coherent_uniform_cache=1") {
+                            config.coherent_uniform_cache = true;
+                        } else if (line == "coherent_uniform_cache=0") {
+                            config.coherent_uniform_cache = false;
+                        } else if (line == "ordered_copy_reuse=1") {
+                            config.ordered_copy_reuse = true;
+                        } else if (line == "ordered_copy_reuse=0") {
+                            config.ordered_copy_reuse = false;
+                        } else if (line == "copy_plan_cache=1") {
+                            config.copy_plan_cache = true;
+                        } else if (line == "copy_plan_cache=0") {
+                            config.copy_plan_cache = false;
                         } else if (line == "persistent_resources=1") {
                             config.persistent_resources = true;
                         } else if (line == "persistent_resources=0") {

@@ -1003,8 +1003,19 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
             return alignment > 1 && (offset % alignment) != 0;
         }
     }();
+    bool prefer_coherent = false;
+    if constexpr (requires { runtime.UseCoherentUniformCache(); }) {
+        if (!needs_alignment_stream && has_host_buffer && size != 0 &&
+            size <= channel_state->uniform_buffer_skip_cache_size &&
+            runtime.UseCoherentUniformCache()) {
+            prefer_coherent = runtime.PreferCachedUniformBuffer(
+                buffer, device_addr, size, frame_tick,
+                memory_tracker.IsRegionCpuModified(device_addr, size));
+        }
+    }
     const bool use_fast_buffer = needs_alignment_stream
         || (has_host_buffer && size <= channel_state->uniform_buffer_skip_cache_size
+            && !prefer_coherent
             && !memory_tracker.IsRegionGpuModified(device_addr, size));
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {

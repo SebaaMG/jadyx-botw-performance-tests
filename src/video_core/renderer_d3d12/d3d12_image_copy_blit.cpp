@@ -374,7 +374,7 @@ void TextureCacheRuntime::CopyThroughBuffer(Image& dst, Image& src,
                 staged_bytes = static_cast<u64>(staged.PlacedFootprint.Footprint.RowPitch) * rows;
             }
             const u32 staged_pitch = staged.PlacedFootprint.Footprint.RowPitch;
-            ComPtr<ID3D12Resource> transfer = transfer_buffers.Acquire(staged_bytes);
+            ComPtr<ID3D12Resource> transfer = transfer_buffers.AcquireCopy(staged_bytes);
             staged.pResource = transfer.Get();
             const D3D12_TEXTURE_COPY_LOCATION source{
                 .pResource = src.Handle(), .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
@@ -418,7 +418,7 @@ void TextureCacheRuntime::CopyThroughBuffer(Image& dst, Image& src,
                     commands->CopyTextureRegion(&target, copy.dst_offset.x, copy.dst_offset.y,
                                                 dst_z, &region, nullptr);
                 }
-                transfer_buffers.Release(std::move(transfer));
+                transfer_buffers.ReleaseCopy(std::move(transfer));
                 continue;
             }
             // Otherwise the rows move to a second buffer laid out for the destination: its whole
@@ -439,7 +439,7 @@ void TextureCacheRuntime::CopyThroughBuffer(Image& dst, Image& src,
                 dst_bytes = static_cast<u64>(placed.PlacedFootprint.Footprint.RowPitch) * rows;
             }
             const u32 placed_pitch = placed.PlacedFootprint.Footprint.RowPitch;
-            ComPtr<ID3D12Resource> repacked = transfer_buffers.Acquire(dst_bytes);
+            ComPtr<ID3D12Resource> repacked = transfer_buffers.AcquireCopy(dst_bytes);
             placed.pResource = repacked.Get();
             if (!covers_dst) {
                 dst.Transition(D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -467,8 +467,8 @@ void TextureCacheRuntime::CopyThroughBuffer(Image& dst, Image& src,
                 commands->CopyTextureRegion(&target, copy.dst_offset.x, copy.dst_offset.y, dst_z,
                                             &placed, nullptr);
             }
-            transfer_buffers.Release(std::move(transfer));
-            transfer_buffers.Release(std::move(repacked));
+            transfer_buffers.ReleaseCopy(std::move(transfer));
+            transfer_buffers.ReleaseCopy(std::move(repacked));
         }
     }
 }
