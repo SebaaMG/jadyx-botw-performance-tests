@@ -156,6 +156,8 @@ public:
     void BindTransformFeedbackBuffers(VideoCommon::HostBindings<Buffer>&) {}
     std::span<u8> BindMappedUniformBuffer(size_t, u32, u32 size);
     bool UseCoherentUniformCache() const noexcept { return coherent_uniform_cache; }
+    bool UseIncrementalUniformBindings() const noexcept { return incremental_uniform_bindings; }
+    void RecordCleanUniformBinding() { ++clean_uniform_sync_skips; }
     bool PreferCachedUniformBuffer(Buffer& buffer, DAddr address, u32 size, u64 frame,
                                     bool cpu_dirty) {
         return uniform_cache_policy.PreferCached(address, size, buffer.Id(), frame, cpu_dirty);
@@ -229,6 +231,8 @@ private:
     u64 stats_frame{};
     bool uniform_upload_copy{};
     bool coherent_uniform_cache{};
+    bool incremental_uniform_bindings{};
+    u64 clean_uniform_sync_skips{};
     UniformCachePolicy uniform_cache_policy;
     u32 pending_vertex_mask{};
     std::optional<u32> rewritten_count;

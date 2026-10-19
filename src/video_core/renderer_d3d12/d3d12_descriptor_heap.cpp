@@ -26,6 +26,7 @@ namespace {
 // Descriptor creation follows Allocate before another guest table can consume the slot.
 std::atomic<u64> offline_view_epoch{1};
 std::atomic<bool> persistent_resources_requested{false};
+std::atomic<bool> incremental_uniform_bindings{false};
 
 ComPtr<ID3D12DescriptorHeap> CreateHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type,
                                         u32 count, bool shader_visible) {
@@ -62,6 +63,14 @@ ComPtr<ID3D12DescriptorHeap> CreateHeap(ID3D12Device* device, D3D12_DESCRIPTOR_H
 
 void SetPersistentResources(bool enabled) {
     persistent_resources_requested.store(enabled, std::memory_order_relaxed);
+}
+
+void SetIncrementalUniformBindings(bool enabled) {
+    incremental_uniform_bindings.store(enabled, std::memory_order_relaxed);
+}
+
+bool IncrementalUniformBindingsEnabled() {
+    return incremental_uniform_bindings.load(std::memory_order_relaxed);
 }
 
 bool PersistentResourcesSupported(ID3D12Device* device) {
@@ -376,6 +385,12 @@ GuestDescriptorQueue::GuestDescriptorQueue(ID3D12Device* device_, DescriptorRing
 
 void GuestDescriptorQueue::Acquire(u32 count_, u32 image_count_, const PipelineLayout* layout) {
     FlushCopies();
+    incremental_uniforms = IncrementalUniformBindingsEnabled();
+    // A mixed stream pays more for sparse copies than it saves in view creation. Predict
+    // from the last table, but keep checking this draw. One fully coherent table rearms reuse.
+    reuse_uniform_views = incremental_uniforms && uniform_table_eligible;
+    uniform_table_eligible = incremental_uniforms && !layout && count_ != image_count_;
+    uniform_keys.clear();
     persistent_layout = layout;
     persistent_images.clear();
     binding_rows.clear();
@@ -532,6 +547,19 @@ void GuestDescriptorQueue::AddConstantBuffer(D3D12_GPU_VIRTUAL_ADDRESS address, 
         binding_rows[persistent_layout->PersistentSlots()[written++].binding].resource = slot;
         return;
     }
+    // Only a live cache-buffer identity permits reuse. Upload-stream addresses can be
+    // recycled, so they retain direct creation. Null CBVs have one immutable description.
+    const bool known_uniform = address == 0 || (identity >> 62) == 1;
+    if (incremental_uniforms && reuse_uniform_views && uniform_table_eligible &&
+        written < count && known_uniform) {
+        const u32 slot = FindUniformView(address, desc.SizeInBytes, address ? identity : 0);
+        const auto& view = uniform_views[slot];
+        uniform_keys.push_back(view.generation);
+        QueueCopy(Next(), {uniform_view_base.ptr + static_cast<SIZE_T>(slot) * stride});
+        return;
+    }
+    if (!known_uniform || written >= count) uniform_table_eligible = false;
+    ++uniform_stats.creates;
     create(Next());
     if (GpuDiagnosticsEnabled()) {
         TraceGpuDetail(fmt::format("CBV table={:x} slot={} address={:x} size={}",
@@ -544,6 +572,7 @@ void GuestDescriptorQueue::AddConstantBuffer(D3D12_GPU_VIRTUAL_ADDRESS address, 
 
 void GuestDescriptorQueue::AddStorageBuffer(ID3D12Resource* resource, u64 offset, u32 size,
                                            u64 identity) {
+    uniform_table_eligible = false;
     if (GpuDiagnosticsEnabled()) {
         TraceGpuDetail(fmt::format("storage buffer table={:x} slot={} resource={} offset={} size={}",
             range.gpu.ptr, written, static_cast<void*>(resource), offset, size));
@@ -604,6 +633,7 @@ void GuestDescriptorQueue::AddStorageBuffer(ID3D12Resource* resource, u64 offset
 void GuestDescriptorQueue::AddTexelBuffer(ID3D12Resource* resource, u64 offset, u32 size,
                                           DXGI_FORMAT format, u32 element_size, bool with_uav,
                                           u64 identity) {
+    uniform_table_eligible = false;
     if (GpuDiagnosticsEnabled()) {
         TraceGpuDetail(fmt::format("texel buffer table={:x} slot={} resource={} offset={} size={} format={} uav={}",
             range.gpu.ptr, written, static_cast<void*>(resource), offset, size,
@@ -664,6 +694,7 @@ void GuestDescriptorQueue::AddTexelBuffer(ID3D12Resource* resource, u64 offset, 
 }
 
 void GuestDescriptorQueue::AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor, u64 identity) {
+    uniform_table_eligible = false;
     if (IsPersistent()) {
         const auto plan = persistent_layout->PersistentSlots()[written++];
         auto image = std::ranges::find(persistent_images, plan.binding, &PersistentImage::binding);
@@ -695,15 +726,67 @@ void GuestDescriptorQueue::AddCopy(D3D12_CPU_DESCRIPTOR_HANDLE descriptor, u64 i
                                       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         return;
     }
-    const D3D12_CPU_DESCRIPTOR_HANDLE slot = Next();
-    if (!pending_copies.empty() &&
-        slot.ptr != copy_destination.ptr + pending_copies.size() * stride) {
-        FlushCopies(); // a view was created in between: start a new run
+    QueueCopy(Next(), descriptor);
+}
+
+void GuestDescriptorQueue::QueueCopy(D3D12_CPU_DESCRIPTOR_HANDLE destination,
+                                    D3D12_CPU_DESCRIPTOR_HANDLE source) {
+    // Directly created views may separate the destinations. Keep all runs in one CPU copy
+    // rather than flushing between stable and streamed uniforms on every draw.
+    if (copy_destinations.empty() || destination.ptr !=
+        copy_destinations.back().ptr + static_cast<SIZE_T>(copy_counts.back()) * stride) {
+        copy_destinations.push_back(destination);
+        copy_counts.push_back(0);
     }
-    if (pending_copies.empty()) {
-        copy_destination = slot;
+    ++copy_counts.back();
+    pending_copies.push_back(source);
+}
+
+u32 GuestDescriptorQueue::FindUniformView(u64 address, u32 size, u64 identity) {
+    if (!uniform_view_heap) {
+        uniform_view_heap = CreateHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                                       UNIFORM_VIEW_COUNT, false);
+        uniform_view_base = uniform_view_heap->GetCPUDescriptorHandleForHeapStart();
     }
-    pending_copies.push_back(descriptor);
+    const auto matches = [&](u32 slot) {
+        const auto& view = uniform_views[slot];
+        return view.generation != 0 && view.address == address && view.size == size &&
+               view.identity == identity;
+    };
+    u32 slot = written < last_uniform_slots.size() ? last_uniform_slots[written] : 0;
+    if (matches(slot)) {
+        ++uniform_stats.hits;
+    } else {
+        const u32 first = static_cast<u32>(((address >> 8) ^ (address >> 20) ^
+            (identity * 0x9e3779b97f4a7c15ull) ^ size) % (UNIFORM_VIEW_COUNT / 4)) * 4;
+        slot = first;
+        bool found = false;
+        for (u32 candidate = first; candidate != first + 4; ++candidate) {
+            if (matches(candidate)) { slot = candidate; found = true; break; }
+            if (uniform_views[candidate].last_use < uniform_views[slot].last_use) slot = candidate;
+        }
+        if (found) {
+            ++uniform_stats.hits;
+        } else {
+            if (uniform_views[slot].generation != 0) {
+                // A queued source may be this slot. Consume every pending CPU copy first;
+                // previously recorded GPU tables already contain independent descriptors.
+                FlushCopies();
+                uniform_table_eligible = false;
+                ++uniform_stats.evictions;
+            }
+            uniform_views[slot] = {address, identity, ++uniform_generation, 0, size};
+            const D3D12_CONSTANT_BUFFER_VIEW_DESC desc{address, size};
+            VideoCore::Perf::ScopedNsTimer timer{VideoCore::Perf::Counter::CbvCreateNs};
+            VideoCore::Perf::AddDetailed(VideoCore::Perf::Counter::CbvCreates, 1);
+            device->CreateConstantBufferView(&desc,
+                {uniform_view_base.ptr + static_cast<SIZE_T>(slot) * stride});
+            ++uniform_stats.creates;
+        }
+    }
+    uniform_views[slot].last_use = ++uniform_serial;
+    if (written < last_uniform_slots.size()) last_uniform_slots[written] = static_cast<u16>(slot);
+    return slot;
 }
 
 void GuestDescriptorQueue::FinishPersistentImages() {
@@ -736,14 +819,35 @@ void GuestDescriptorQueue::FlushCopies() {
     if (pending_copies.empty()) {
         return;
     }
+    const u64 tick = ring.CurrentTick();
+    const bool whole_uniform_table = uniform_table_eligible && written == count &&
+        pending_copies.size() == count && uniform_keys.size() == count && acquire_tick == tick;
+    if (whole_uniform_table && last_uniform_tick == tick && uniform_keys == last_uniform_keys) {
+        range.gpu = last_uniform_table;
+        pending_copies.clear();
+        copy_destinations.clear();
+        copy_counts.clear();
+        ++uniform_stats.table_hits;
+        return;
+    }
     VideoCore::Perf::ScopedNsTimer timer{VideoCore::Perf::Counter::ViewCopyNs};
     const UINT num = static_cast<UINT>(pending_copies.size());
-    device->CopyDescriptors(1, &copy_destination, &num, num, pending_copies.data(), nullptr,
+    device->CopyDescriptors(static_cast<UINT>(copy_destinations.size()), copy_destinations.data(),
+                            copy_counts.data(), num, pending_copies.data(), nullptr,
                             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    if (incremental_uniforms) ++uniform_stats.copy_calls;
+    if (whole_uniform_table) {
+        last_uniform_keys = uniform_keys;
+        last_uniform_tick = tick;
+        last_uniform_table = range.gpu;
+        ++uniform_stats.table_misses;
+    }
     CheckRemovedAfterDescriptor(device, [&] {
         return fmt::format("copying {} texture descriptors for a draw", num);
     });
     pending_copies.clear();
+    copy_destinations.clear();
+    copy_counts.clear();
 }
 
 // --- SamplerHeap ------------------------------------------------------------------------------

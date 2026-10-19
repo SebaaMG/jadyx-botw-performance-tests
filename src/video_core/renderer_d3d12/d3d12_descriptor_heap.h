@@ -23,6 +23,8 @@ class PipelineLayout;
 
 void SetPersistentResources(bool enabled);
 bool PersistentResourcesSupported(ID3D12Device* device);
+void SetIncrementalUniformBindings(bool enabled);
+bool IncrementalUniformBindingsEnabled();
 
 struct PersistentDescriptorKey {
     std::array<u64, 8> words{};
@@ -170,6 +172,10 @@ public:
         u64 copied_descriptors{};
     };
     [[nodiscard]] ImageTableStats GetImageTableStats() const { return image_stats; }
+    struct UniformBindingStats {
+        u64 hits{}, creates{}, evictions{}, table_hits{}, table_misses{}, copy_calls{};
+    };
+    [[nodiscard]] UniformBindingStats GetUniformBindingStats() const { return uniform_stats; }
 
     /// A CBV; address 0 writes a null one. size is rounded up to 256 bytes.
     void AddConstantBuffer(D3D12_GPU_VIRTUAL_ADDRESS address, u32 size, u64 identity = 0);
@@ -188,6 +194,13 @@ public:
 private:
     D3D12_CPU_DESCRIPTOR_HANDLE Next();
     void FinishPersistentImages();
+    void QueueCopy(D3D12_CPU_DESCRIPTOR_HANDLE destination,
+                   D3D12_CPU_DESCRIPTOR_HANDLE source);
+    struct UniformView {
+        u64 address{}, identity{}, generation{}, last_use{};
+        u32 size{};
+    };
+    u32 FindUniformView(u64 address, u32 size, u64 identity);
 
     ID3D12Device* device;
     DescriptorRing& ring;
@@ -197,7 +210,21 @@ private:
     u32 written{};
     /// Sources of the pending copies, written from copy_destination on.
     boost::container::small_vector<D3D12_CPU_DESCRIPTOR_HANDLE, 64> pending_copies;
-    D3D12_CPU_DESCRIPTOR_HANDLE copy_destination{};
+    boost::container::small_vector<D3D12_CPU_DESCRIPTOR_HANDLE, 16> copy_destinations;
+    boost::container::small_vector<UINT, 16> copy_counts;
+    // CPU-only immutable views. CopyDescriptors consumes these synchronously; flush pending
+    // copies before recycling a slot. No GPU descriptor is overwritten before its ring fence.
+    static constexpr u32 UNIFORM_VIEW_COUNT = 1024;
+    std::array<UniformView, UNIFORM_VIEW_COUNT> uniform_views{};
+    std::array<u16, 128> last_uniform_slots{};
+    ComPtr<ID3D12DescriptorHeap> uniform_view_heap;
+    D3D12_CPU_DESCRIPTOR_HANDLE uniform_view_base{};
+    u64 uniform_serial{}, uniform_generation{};
+    bool incremental_uniforms{}, uniform_table_eligible{}, reuse_uniform_views{};
+    boost::container::small_vector<u64, 64> uniform_keys, last_uniform_keys;
+    D3D12_GPU_DESCRIPTOR_HANDLE last_uniform_table{};
+    u64 last_uniform_tick{};
+    UniformBindingStats uniform_stats;
     bool logged_mismatch{};
     bool logged_unaligned{};
     struct ImageKeyHash {

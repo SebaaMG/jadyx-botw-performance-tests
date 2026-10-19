@@ -214,7 +214,8 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, Scheduler& schedul
       transfer_buffers{transfer_buffers_}, device_memory{device_memory_},
       buffer_allocator{device_, scheduler_, true},
       uniform_upload_copy{uniform_upload_copy_enabled.load(std::memory_order_relaxed)},
-      coherent_uniform_cache{coherent_uniform_cache_enabled.load(std::memory_order_relaxed)} {
+      coherent_uniform_cache{coherent_uniform_cache_enabled.load(std::memory_order_relaxed)},
+      incremental_uniform_bindings{IncrementalUniformBindingsEnabled()} {
     LOG_INFO(Render, "D3D12: buffer cache runtime ready (short uniform upload copy {})", uniform_upload_copy ? "on" : "off");
 
 }
@@ -283,6 +284,13 @@ ComPtr<ID3D12Resource> BufferCacheRuntime::CreateDefaultBuffer(
 void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& buffers) noexcept {
     RetirePersistentUploads();
     ++stats_frame;
+    if (incremental_uniform_bindings && stats_frame % 300 == 0 && descriptor_queue) {
+        const auto stats = descriptor_queue->GetUniformBindingStats();
+        LOG_INFO(Render, "SeriesX incremental uniforms: hits {}, creates {}, evictions {}, "
+                 "table_hits {}, table_misses {}, copy_calls {}, sync_skips {} (cumulative)",
+                 stats.hits, stats.creates, stats.evictions, stats.table_hits, stats.table_misses,
+                 stats.copy_calls, clean_uniform_sync_skips);
+    }
     if (coherent_uniform_cache && stats_frame % 300 == 0) {
         const auto stats = uniform_cache_policy.GetStatistics();
         LOG_INFO(Render, "SeriesX coherent uniforms: clean {}, streamed {}, probes {}, "

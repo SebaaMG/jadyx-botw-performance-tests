@@ -152,6 +152,7 @@ void SetPersistentResources(bool enabled);
 void SetOrderedCopyReuse(bool enabled);
 void SetCopyPlanCache(bool enabled);
 void SetCoherentUniformCache(bool enabled);
+void SetIncrementalUniformBindings(bool enabled);
 void SetAsyncRecording(bool enabled);          // d3d12_scheduler.h
 using AppMemoryQuery = bool (*)(u64& used, u64& limit); // d3d12_device.h
 void SetAppMemoryQuery(AppMemoryQuery query);            // d3d12_device.h
@@ -347,6 +348,7 @@ struct BootConfig {
     bool ordered_copy_reuse{};
     bool copy_plan_cache{};
     bool coherent_uniform_cache{};
+    bool incremental_uniform_bindings{};
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool jit_page_reuse{};
     bool jit_fp_compare{};
@@ -539,6 +541,7 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     D3D12::SetOrderedCopyReuse(config.ordered_copy_reuse);
     D3D12::SetCopyPlanCache(config.copy_plan_cache);
     D3D12::SetCoherentUniformCache(config.coherent_uniform_cache);
+    D3D12::SetIncrementalUniformBindings(config.incremental_uniform_bindings);
     LOG_INFO(Frontend, "SeriesX: ordered copy reuse {}, copy plan cache {}",
              config.ordered_copy_reuse, config.copy_plan_cache);
     LOG_INFO(Frontend, "SeriesX: persistent resources requested {} (tier 3/v4 required)", config.persistent_resources);
@@ -2438,6 +2441,10 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             config.jit_fp_compare = true;
                         } else if (line == "jit_fp_compare=0") {
                             config.jit_fp_compare = false;
+                        } else if (line == "incremental_uniform_bindings=1") {
+                            config.incremental_uniform_bindings = true;
+                        } else if (line == "incremental_uniform_bindings=0") {
+                            config.incremental_uniform_bindings = false;
                         } else if (line == "coherent_uniform_cache=1") {
                             config.coherent_uniform_cache = true;
                         } else if (line == "coherent_uniform_cache=0") {

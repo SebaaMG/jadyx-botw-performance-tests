@@ -1004,13 +1004,20 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
         }
     }();
     bool prefer_coherent = false;
+    bool already_coherent = false;
     if constexpr (requires { runtime.UseCoherentUniformCache(); }) {
         if (!needs_alignment_stream && has_host_buffer && size != 0 &&
             size <= channel_state->uniform_buffer_skip_cache_size &&
             runtime.UseCoherentUniformCache()) {
+            const bool cpu_dirty = memory_tracker.IsRegionCpuModified(device_addr, size);
             prefer_coherent = runtime.PreferCachedUniformBuffer(
-                buffer, device_addr, size, frame_tick,
-                memory_tracker.IsRegionCpuModified(device_addr, size));
+                buffer, device_addr, size, frame_tick, cpu_dirty);
+            if constexpr (requires { runtime.UseIncrementalUniformBindings(); }) {
+                // The same dirty-page query already proved no CPU upload is required.
+                // GPU-written bytes remain in this coherent buffer. Do not walk/upload the
+                // same clean range again; a later write stays dirty for the next binding.
+                already_coherent = !cpu_dirty && runtime.UseIncrementalUniformBindings();
+            }
         }
     }
     const bool use_fast_buffer = needs_alignment_stream
@@ -1054,8 +1061,11 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
         return;
     }
     // Classic cached path
-    if (SynchronizeBuffer(buffer, device_addr, size)) {
+    if (already_coherent || SynchronizeBuffer(buffer, device_addr, size)) {
         ++channel_state->uniform_cache_hits[0];
+    }
+    if constexpr (requires { runtime.RecordCleanUniformBinding(); }) {
+        if (already_coherent) runtime.RecordCleanUniformBinding();
     }
     // Skip binding if it's not needed and if the bound buffer is not the fast version
     // This exists to avoid instances where the fast buffer is bound and a GPU write happens
