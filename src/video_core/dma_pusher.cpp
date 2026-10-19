@@ -4,9 +4,11 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <atomic>
 #include "common/settings.h"
 #include "core/core.h"
 #include "video_core/dma_pusher.h"
+#include "video_core/dma_packet_decoder.h"
 #include "video_core/engines/const_buffer_run.h"
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/gpu.h"
@@ -16,6 +18,13 @@
 #include "video_core/rasterizer_interface.h"
 
 namespace Tegra {
+
+namespace {
+std::atomic<bool> packet_batching{false};
+}
+void SetDmaPacketBatching(bool enabled) {
+    packet_batching.store(enabled, std::memory_order_relaxed);
+}
 
 constexpr u32 MacroRegistersStart = 0xE00;
 constexpr u32 ComputeInline = 0x6D;
@@ -28,7 +37,10 @@ DmaPusher::DmaPusher(Core::System& system_, MemoryManager& memory_manager_, Cont
     , synced{false}
 {}
 
-DmaPusher::~DmaPusher() = default;
+DmaPusher::~DmaPusher() {
+    if (state_batches != 0)
+        LOG_INFO(HW_GPU, "SeriesX DMA: {} state batches, {} words", state_batches, state_words);
+}
 
 void DmaPusher::DispatchCalls() {
     dma_pushbuffer_subindex = 0;
@@ -114,68 +126,32 @@ bool DmaPusher::Step() {
 }
 
 void DmaPusher::ProcessCommands(std::span<const CommandHeader> commands) {
-    for (size_t index = 0; index < commands.size();) {
-        // Data word of methods command
-        if (dma_state.method_count && dma_state.non_incrementing) {
-            auto const& command_header = commands[index]; //must ref (MUltiMethod re)
-            dma_state.dma_word_offset = u32(index * sizeof(u32));
-            const u32 max_write = u32(std::min<std::size_t>(index + dma_state.method_count, commands.size()) - index);
-            CallMultiMethod(&command_header.argument, max_write);
-            dma_state.method_count -= max_write;
-            dma_state.is_last_call = true;
-            index += max_write;
-        } else if (dma_state.method_count) {
-            if (const u32 words = CallConstBufferRun(commands.subspan(index), index); words != 0) {
-                index += words;
-                continue;
-            }
-            auto const command_header = commands[index]; //can copy
-            dma_state.dma_word_offset = u32(index * sizeof(u32));
-            dma_state.is_last_call = dma_state.method_count <= 1;
-            CallMethod(command_header.argument);
-            dma_state.method += !dma_state.non_incrementing ? 1 : 0;
-            dma_state.non_incrementing |= dma_increment_once;
-            dma_state.method_count--;
-            index++;
-        } else {
-            auto const command_header = commands[index]; //can copy
-            // No command active - this is the first word of a new one
-            switch (command_header.mode) {
-            case SubmissionMode::Increasing:
-                SetState(command_header);
-                dma_state.non_incrementing = false;
-                dma_increment_once = false;
-                break;
-            case SubmissionMode::NonIncreasing:
-                SetState(command_header);
-                dma_state.non_incrementing = true;
-                dma_increment_once = false;
-                break;
-            case SubmissionMode::Inline:
-                dma_state.method = command_header.method;
-                dma_state.subchannel = command_header.subchannel;
-                dma_state.dma_word_offset = u64(-s64(dma_state.dma_get)); // negate to set address as 0
-                CallMethod(command_header.arg_count);
-                dma_state.non_incrementing = true;
-                dma_increment_once = false;
-                break;
-            case SubmissionMode::IncreaseOnce:
-                SetState(command_header);
-                dma_state.non_incrementing = false;
-                dma_increment_once = true;
-                break;
-            default:
-                break;
-            }
-            index++;
+    struct Dispatch {
+        DmaPusher& pusher;
+        void Single(u32 argument) { pusher.CallMethod(argument); }
+        void Multi(const u32* values, u32 count) { pusher.CallMultiMethod(values, count); }
+        u32 Constants(std::span<const CommandHeader> pending, size_t index) {
+            return pusher.CallConstBufferRun(pending, index);
         }
-    }
+        u32 StateRun(std::span<const CommandHeader> pending) {
+            return pusher.CallStateRegisterRun(pending);
+        }
+    } dispatch{*this};
+    constexpr u32 first_cb_data =
+        u32(offsetof(Engines::Maxwell3D::Regs, const_buffer.buffer) / sizeof(u32));
+    Detail::DecodePackets(dma_state, dma_increment_once, packet_may_have_constants, commands,
+                         {packet_batching.load(std::memory_order_relaxed), first_cb_data}, dispatch);
 }
 
-void DmaPusher::SetState(const CommandHeader& command_header) {
-    dma_state.method = command_header.method;
-    dma_state.subchannel = command_header.subchannel;
-    dma_state.method_count = command_header.method_count;
+u32 DmaPusher::CallStateRegisterRun(std::span<const CommandHeader> pending) {
+    const u32 words = Detail::AppendStateRegisters(subchannels[dma_state.subchannel], pending,
+                                                  dma_state.method, dma_state.method_count,
+                                                  dma_increment_once);
+    if (words) {
+        ++state_batches;
+        state_words += words;
+    }
+    return words;
 }
 
 void DmaPusher::CallMethod(u32 argument) {

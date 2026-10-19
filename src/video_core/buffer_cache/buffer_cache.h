@@ -2099,10 +2099,18 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         return NULL_BINDING;
     }
 
+    const u64 next_qword = gpu_memory->Read<u64>(ssbo_addr + 8);
+    const bool reuse = BindingDependencyReuseEnabled();
+    StoragePlanKey plan_key{};
+    if (reuse) {
+        plan_key = {gpu_memory->GetID(), gpu_memory->MappingGeneration(), ssbo_addr,
+                    gpu_addr, next_qword, runtime.GetStorageBufferAlignment(), is_written};
+        if (const auto* plan = channel_state->storage_plan_cache.Find(plan_key)) return *plan;
+    }
+
     const auto size = [&]() {
         const u32 memory_layout_size =
             static_cast<u32>(gpu_memory->GetMemoryLayoutSize(gpu_addr));
-        const u64 next_qword = gpu_memory->Read<u64>(ssbo_addr + 8);
         const u32 packed_size = static_cast<u32>(next_qword);
         const bool next_qword_is_size = static_cast<u32>(next_qword >> 32) == 0 &&
                                         packed_size != 0 &&
@@ -2139,6 +2147,7 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         .size = binding_size,
         .buffer_id = BufferId{},
     };
+    if (reuse) channel_state->storage_plan_cache.Insert(plan_key, binding);
     return binding;
 }
 

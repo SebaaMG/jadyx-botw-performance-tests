@@ -33,7 +33,8 @@ public:
         std::ranges::fill(read_descriptors, 0);
     }
 
-    [[nodiscard]] std::pair<T, bool> Read(Tegra::MemoryManager const& gpu_memory, u32 index) noexcept {
+    template <class Memory>
+    [[nodiscard]] std::pair<T, bool> Read(Memory const& gpu_memory, u32 index) noexcept {
         DEBUG_ASSERT(index <= current_limit);
         const GPUVAddr gpu_addr = current_gpu_addr + index * sizeof(T);
         std::pair<T, bool> result;

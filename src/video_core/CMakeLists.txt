@@ -15,6 +15,8 @@ endif()
 
 add_library(video_core STATIC
     buffer_cache/buffer_base.h
+    buffer_cache/binding_dependency.cpp
+    buffer_cache/binding_dependency.h
     buffer_cache/buffer_cache_base.h
     buffer_cache/buffer_cache.cpp
     buffer_cache/buffer_cache.h
@@ -39,6 +41,7 @@ add_library(video_core STATIC
     dirty_flags.h
     dma_pusher.cpp
     dma_pusher.h
+    dma_packet_decoder.h
     engines/sw_blitter/blitter.cpp
     engines/sw_blitter/blitter.h
     engines/sw_blitter/converter.cpp
@@ -242,6 +245,8 @@ add_library(video_core STATIC
     texture_cache/format_lookup_table.h
     texture_cache/image_base.cpp
     texture_cache/image_base.h
+    texture_cache/partial_upload.h
+    texture_cache/partial_rows.inc
     texture_cache/image_info.cpp
     texture_cache/image_info.h
     texture_cache/image_view_base.cpp

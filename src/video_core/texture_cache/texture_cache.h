@@ -24,6 +24,7 @@
 #include "video_core/perf_counters.h"
 #include "video_core/frame_trace.h"
 #include "video_core/texture_cache/blit_coverage.h"
+#include "video_core/buffer_cache/binding_dependency.h"
 #include "video_core/texture_cache/gc_budget.h"
 #include "video_core/texture_cache/gc_policy.h"
 #include "video_core/texture_cache/image_view_base.h"
@@ -377,6 +378,12 @@ SamplerId TextureCache<P>::GetSamplerId(u32 index, bool compute) {
     }
     auto const map_index = index | (compute ? Common::SlotId::TAGGED_VALUE : 0);
     auto const [descriptor, is_new] = table.Read(*gpu_memory, index);
+    if (BindingDependencyReuseEnabled()) {
+        auto& slots = channel_state->resolved_sampler_ids[compute];
+        if (slots.size() <= index) slots.resize(size_t(index) + 1);
+        if (is_new) slots[index] = FindSampler(descriptor, compute);
+        return slots[index];
+    }
     if (is_new) {
         auto const id = FindSampler(descriptor, compute);
         channel_state->sampler_ids.insert_or_assign(map_index, id);
@@ -608,6 +615,20 @@ ImageViewId TextureCache<P>::VisitImageView(u32 index, bool compute) {
     auto const map_index = index | (compute ? Common::SlotId::TAGGED_VALUE : 0);
     // Is new (on the tegra engine side)?
     auto const [descriptor, is_new] = table.Read(*gpu_memory, index);
+    if (BindingDependencyReuseEnabled()) {
+        auto& slots = channel_state->resolved_image_ids[compute];
+        if (slots.size() <= index) slots.resize(size_t(index) + 1);
+        if (is_new) {
+            if (IsValidEntry(*gpu_memory, descriptor)) {
+                const auto [pair, is_new_tc] = channel_state->image_views.try_emplace(descriptor);
+                if (is_new_tc) pair->second = CreateImageView(descriptor);
+                slots[index] = pair->second;
+            } else slots[index] = NULL_IMAGE_VIEW_ID;
+        }
+        const auto id = slots[index];
+        if (id != NULL_IMAGE_VIEW_ID) PrepareImageView(id, false, false);
+        return id;
+    }
     if (is_new) {
         if (IsValidEntry(*gpu_memory, descriptor)) {
             // Is new (registered view) on the texture cache side?
@@ -646,7 +667,35 @@ FramebufferId TextureCache<P>::GetFramebufferId(const RenderTargets& key) {
 
 template <class P>
 void TextureCache<P>::WriteMemory(DAddr cpu_addr, size_t size) {
-    ForEachImageInRegion(cpu_addr, size, [this](ImageId image_id, Image& image) {
+    ForEachImageInRegion(cpu_addr, size, [this, cpu_addr, size](ImageId image_id, Image& image) {
+        auto& partial = image.partial_upload;
+        constexpr auto excluded = ImageFlagBits::Sparse | ImageFlagBits::Converted |
+                                  ImageFlagBits::AcceleratedUpload |
+                                  ImageFlagBits::AsynchronousDecode | ImageFlagBits::Rescaled;
+        const bool continuing = !partial.dirty_pages.empty() &&
+                                True(image.flags & ImageFlagBits::Tracked);
+        // A streaming replacement or many accumulated writes should use one full upload,
+        // rather than maintaining hundreds of dirty-page entries and uploading every row anyway.
+        const bool mostly_dirty = size >= image.guest_size_bytes / 4 ||
+                                  partial.dirty_pages.size() * 4096 >= image.guest_size_bytes / 4;
+        if (continuing && (mostly_dirty || True(image.flags & (excluded | ImageFlagBits::GpuModified)))) {
+            image.flags |= ImageFlagBits::CpuModified;
+            UntrackImage(image, image_id); // restores pending pages before whole untracking
+            return;
+        }
+        const bool eligible = partial.initialized && PartialTextureUploadsEnabled() &&
+                              !mostly_dirty &&
+                              False(image.flags & (excluded | ImageFlagBits::CpuModified |
+                                                   ImageFlagBits::GpuModified)) &&
+                              True(image.flags & ImageFlagBits::Tracked) &&
+                              image.cpu_addr < ~(1ULL << 40) &&
+                              image.guest_size_bytes >= (1U << 20) &&
+                              CanUnswizzleImageRows(image.info, image.guest_size_bytes);
+        if (continuing || eligible) {
+            partial.Write(device_memory, image.cpu_addr, image.guest_size_bytes, cpu_addr, size);
+            image.flags |= ImageFlagBits::CpuModified;
+            return;
+        }
         if (True(image.flags & ImageFlagBits::CpuModified)) {
             return;
         }
@@ -851,11 +900,9 @@ void TextureCache<P>::UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t siz
                             [&](ImageId id, Image&) { deleted_images.push_back(id); });
     for (const ImageId id : deleted_images) {
         Image& image = slot_images[id];
-        if (False(image.flags & ImageFlagBits::CpuModified)) {
-            image.flags |= ImageFlagBits::CpuModified;
-            if (True(image.flags & ImageFlagBits::Tracked)) {
-                UntrackImage(image, id);
-            }
+        image.flags |= ImageFlagBits::CpuModified;
+        if (True(image.flags & ImageFlagBits::Tracked)) {
+            UntrackImage(image, id);
         }
         if (True(image.flags & ImageFlagBits::Remapped)) {
             continue;
@@ -1316,6 +1363,32 @@ void TextureCache<P>::RefreshContents(Image& image, ImageId image_id) {
                                 image.guest_size_bytes, image.gpu_addr);
     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureUploadFormat,
                                 static_cast<u64>(image.info.format), image.gpu_addr);
+    if (!image.partial_upload.dirty_pages.empty()) {
+        const auto pages = image.partial_upload.End(device_memory);
+        image.flags &= ~ImageFlagBits::CpuModified;
+        const auto ranges = PartialUploadState::Ranges(pages, image.cpu_addr, image.guest_size_bytes);
+        const auto read = [this, &image](u32 offset, u8* data, u32 size) {
+            gpu_memory->ReadBlockUnsafe(image.gpu_addr + offset, data, size);
+        };
+        if (const auto copies = UnswizzleImageRows(image.info, image.guest_size_bytes, ranges,
+                                                  read, unswizzle_data_buffer)) {
+            size_t bytes = 0;
+            for (const auto& copy : *copies) bytes += copy.buffer_size;
+            if (bytes != 0) {
+                auto staging = runtime.UploadStagingBuffer(bytes);
+                std::memcpy(staging.mapped_span.data(), unswizzle_data_buffer.data(), bytes);
+                image.UploadMemory(staging, *copies);
+                runtime.InsertUploadMemoryBarrier();
+            }
+            ++partial_uploads;
+            partial_uploaded_bytes += bytes;
+            partial_full_bytes += image.unswizzled_size_bytes;
+            return;
+        }
+        // Pages were restored above; normal untracking/full-upload balances the entire image.
+        UntrackImage(image, image_id);
+        image.flags |= ImageFlagBits::CpuModified;
+    }
     image.flags &= ~ImageFlagBits::CpuModified;
 
     TrackImage(image, image_id);
@@ -1386,6 +1459,7 @@ void TextureCache<P>::RefreshContents(Image& image, ImageId image_id) {
     timer.Lap(VideoCore::Perf::Counter::TextureCacheStagingNs);
     UploadImageContents(image, staging);
     runtime.InsertUploadMemoryBarrier();
+    image.partial_upload.initialized = true;
 }
 
 template <class P>
@@ -2089,6 +2163,12 @@ void TextureCache<P>::RestoreBlitDestination(ImageId image_id, ImageFlagBits fla
     }
     constexpr ImageFlagBits contents = ImageFlagBits::CpuModified | ImageFlagBits::GpuModified;
     image.flags = (image.flags & ~contents) | (flags & contents);
+    // A discarded partial update no longer has dirty-page metadata. Restore through the
+    // ordinary full-upload path if the backend declined the blit.
+    if (True(image.flags & ImageFlagBits::CpuModified) &&
+        True(image.flags & ImageFlagBits::Tracked) && image.partial_upload.dirty_pages.empty()) {
+        UntrackImage(image, image_id);
+    }
     image.modification_tick = tick;
     VideoCore::Perf::AddDetailed(VideoCore::Perf::Counter::BlitDiscardsRestored, 1);
 }
@@ -2671,6 +2751,10 @@ void TextureCache<P>::TrackImage(ImageBase& image, ImageId image_id) {
 template <class P>
 void TextureCache<P>::UntrackImage(ImageBase& image, ImageId image_id) {
     ASSERT(True(image.flags & ImageFlagBits::Tracked));
+    if (!image.partial_upload.dirty_pages.empty()) {
+        (void)image.partial_upload.End(device_memory);
+    }
+    image.partial_upload.initialized = false;
     image.flags &= ~ImageFlagBits::Tracked;
     if (False(image.flags & ImageFlagBits::Sparse)) {
         if (image.cpu_addr < ~(1ULL << 40)) {
@@ -2882,6 +2966,10 @@ template <class P>
 void TextureCache<P>::PrepareImage(ImageId image_id, bool is_modification, bool invalidate) {
     Image& image = slot_images[image_id];
     if (invalidate) {
+        if (!image.partial_upload.dirty_pages.empty()) {
+            (void)image.partial_upload.End(device_memory);
+        }
+        image.partial_upload.initialized = false;
         image.flags &= ~(ImageFlagBits::CpuModified | ImageFlagBits::GpuModified);
         if (False(image.flags & ImageFlagBits::Tracked)) {
             TrackImage(image, image_id);

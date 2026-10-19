@@ -114,6 +114,12 @@
 #include "video_core/performance_overlay.h"
 #include "jadyx/storage/utf8.h"
 
+namespace Tegra { void SetDmaPacketBatching(bool enabled); }
+namespace VideoCommon {
+void SetPartialTextureUploads(bool enabled);
+void SetBindingDependencyReuse(bool enabled);
+}
+
 namespace D3D12 {
 // renderer_d3d12.h; its includes need Mesa's headers, which only video_core sees.
 void SetTracedFrame(u32 frame, u32 count);
@@ -349,6 +355,9 @@ struct BootConfig {
     bool copy_plan_cache{};
     bool coherent_uniform_cache{};
     bool incremental_uniform_bindings{};
+    bool dma_packet_batch{};
+    bool partial_texture_uploads{};
+    bool binding_dependency_reuse{};
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool jit_page_reuse{};
     bool jit_fp_compare{};
@@ -550,6 +559,12 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
         WriteDiag("Image table reuse disabled for async recording: no end-to-end gain qualified");
     }
     Core::SetJitPageReuse(config.jit_page_reuse);
+    Tegra::SetDmaPacketBatching(config.dma_packet_batch);
+    VideoCommon::SetPartialTextureUploads(config.partial_texture_uploads);
+    VideoCommon::SetBindingDependencyReuse(config.binding_dependency_reuse);
+    WriteDiag(std::string{"Binding dependency reuse: "} + (config.binding_dependency_reuse ? "on" : "off"));
+    WriteDiag(std::string{"Partial texture uploads: "} + (config.partial_texture_uploads ? "on" : "off"));
+    WriteDiag(std::string{"DMA packet batching: "} + (config.dma_packet_batch ? "on" : "off"));
     Core::SetJitEfficientFpCompare(config.jit_fp_compare);
     WriteDiag(std::string{"JIT page reuse: "} + (config.jit_page_reuse ? "on" : "off") +
               ", efficient FP compare: " + (config.jit_fp_compare ? "on" : "off"));
@@ -2441,6 +2456,12 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             config.jit_fp_compare = true;
                         } else if (line == "jit_fp_compare=0") {
                             config.jit_fp_compare = false;
+                        } else if (line == "binding_dependency_reuse=1" || line == "binding_dependency_reuse=0") {
+                            config.binding_dependency_reuse = line.back() == '1';
+                        } else if (line == "partial_texture_uploads=1" || line == "partial_texture_uploads=0") {
+                            config.partial_texture_uploads = line.back() == '1';
+                        } else if (line == "dma_packet_batch=1" || line == "dma_packet_batch=0") {
+                            config.dma_packet_batch = line.back() == '1';
                         } else if (line == "incremental_uniform_bindings=1") {
                             config.incremental_uniform_bindings = true;
                         } else if (line == "incremental_uniform_bindings=0") {

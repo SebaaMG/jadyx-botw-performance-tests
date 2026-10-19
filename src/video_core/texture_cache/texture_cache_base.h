@@ -90,6 +90,10 @@ public:
 
     ::Common::unordered_map<u32, SamplerId> sampler_ids;
     ::Common::unordered_map<u32, ImageViewId> image_view_ids;
+    // TIC/TSC table Read still validates the live descriptor. Invalidate/Refresh clears its
+    // read bit, forcing these slots to be rebuilt before a deleted ID can be used.
+    std::array<std::vector<SamplerId>, 2> resolved_sampler_ids;
+    std::array<std::vector<ImageViewId>, 2> resolved_image_ids;
 
     TextureCacheGPUMap* gpu_page_table = nullptr;
     TextureCacheGPUMap* sparse_page_table = nullptr;
@@ -156,6 +160,12 @@ class TextureCache : public VideoCommon::ChannelSetupCaches<TextureCacheChannelI
 
 public:
     explicit TextureCache(Runtime&, Tegra::MaxwellDeviceMemoryManager&);
+    ~TextureCache() {
+        if (partial_uploads != 0) {
+            LOG_INFO(HW_GPU, "SeriesX partial textures: {} uploads, {} bytes versus {} full bytes",
+                     partial_uploads, partial_uploaded_bytes, partial_full_bytes);
+        }
+    }
 
     /// What the Pulse capture downloads (DownloadMemory with modified_only), for its memory log.
     struct CheckpointDownloads {
@@ -483,6 +493,7 @@ private:
     DAddr virtual_invalid_space{};
 
     bool has_deleted_images = false;
+    u64 partial_uploads{}, partial_uploaded_bytes{}, partial_full_bytes{};
     bool is_rescaling = false;
     u64 total_used_memory = 0;
     u64 minimum_memory;

@@ -15,6 +15,7 @@
 #include "common/common_types.h"
 #include "video_core/texture_cache/image_info.h"
 #include "video_core/texture_cache/image_view_info.h"
+#include "video_core/texture_cache/partial_upload.h"
 #include "video_core/texture_cache/types.h"
 
 namespace VideoCommon {
@@ -105,6 +106,7 @@ struct ImageBase {
     VAddr cpu_addr_end = 0;
 
     u64 modification_tick = 0;
+    PartialUploadState partial_upload;
     size_t lru_index = SIZE_MAX;
 
     std::array<u32, MAX_MIP_LEVELS> mip_level_offsets{};

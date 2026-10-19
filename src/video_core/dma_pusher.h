@@ -25,6 +25,9 @@ class System;
 
 namespace Tegra {
 
+/// SeriesX: opt-in packet-level store-only grouping; set before a game starts.
+void SetDmaPacketBatching(bool enabled);
+
 namespace Control {
 struct ChannelState;
 }
@@ -145,13 +148,12 @@ private:
     bool Step();
     void ProcessCommands(std::span<const CommandHeader> commands);
 
-    void SetState(const CommandHeader& command_header);
-
     void CallMethod(u32 argument);
     void CallMultiMethod(const u32* base_start, u32 num_methods);
     /// Writes the leading CB_DATA words of the current packet as one block; returns how many it
     /// took, 0 to leave them to CallMethod.
     u32 CallConstBufferRun(std::span<const CommandHeader> pending, size_t index);
+    u32 CallStateRegisterRun(std::span<const CommandHeader> pending);
 
 public:
     Common::ScratchBuffer<CommandHeader> command_headers; ///< Buffer for list of commands fetched at once
@@ -185,7 +187,9 @@ public:
     VideoCore::RasterizerInterface* rasterizer = nullptr;
 
     const bool ib_enable : 1 = true; ///< IB mode enabled
-    bool dma_increment_once : 1 = false;
+    bool dma_increment_once = false;
+    bool packet_may_have_constants = true;
+    u64 state_batches{}, state_words{};
     bool signal_sync : 1 = false;
     bool synced : 1 = false;
 };

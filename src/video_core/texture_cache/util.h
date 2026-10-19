@@ -7,6 +7,7 @@
 #pragma once
 
 #include <optional>
+#include <functional>
 #include <span>
 #include <boost/container/small_vector.hpp>
 
@@ -91,8 +92,19 @@ void DetectOpaqueAstc(ImageInfo& info, std::span<const u8> guest_blocks) noexcep
     Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr, const ImageInfo& info,
     std::span<const u8> input, std::span<u8> output);
 
+// Same block-linear decoder without the guest-memory callback needed only by Linear images.
+[[nodiscard]] boost::container::small_vector<BufferImageCopy, 16> UnswizzleBlockLinearImage(
+    const ImageInfo& info, std::span<const u8> input, std::span<u8> output);
+
 void ConvertImage(std::span<const u8> input, const ImageInfo& info, std::span<u8> output,
                   std::span<BufferImageCopy> copies);
+
+// Single-layer block-linear 2D mip chains only. Other layouts keep the original full upload.
+[[nodiscard]] bool CanUnswizzleImageRows(const ImageInfo& info, u32 guest_size);
+[[nodiscard]] std::optional<std::vector<BufferImageCopy>> UnswizzleImageRows(
+    const ImageInfo& info, u32 guest_size, std::span<const std::pair<u32, u32>> dirty,
+    const std::function<void(u32 offset, u8* data, u32 size)>& read,
+    Common::ScratchBuffer<u8>& output);
 
 [[nodiscard]] boost::container::small_vector<BufferImageCopy, 16> FullDownloadCopies(
     const ImageInfo& info);

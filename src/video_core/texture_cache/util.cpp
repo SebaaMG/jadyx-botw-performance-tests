@@ -41,6 +41,14 @@
 
 namespace VideoCommon {
 
+namespace { std::atomic<bool> partial_texture_uploads{false}; }
+void SetPartialTextureUploads(bool enabled) {
+    partial_texture_uploads.store(enabled, std::memory_order_relaxed);
+}
+bool PartialTextureUploadsEnabled() {
+    return partial_texture_uploads.load(std::memory_order_relaxed);
+}
+
 namespace {
 
 using Tegra::Texture::GOB_SIZE;
@@ -933,6 +941,14 @@ boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(Tegra::Memory
             .image_extent = size,
         }};
     }
+    return UnswizzleBlockLinearImage(info, input, output);
+}
+
+boost::container::small_vector<BufferImageCopy, 16> UnswizzleBlockLinearImage(
+    const ImageInfo& info, std::span<const u8> input, std::span<u8> output) {
+    const u32 bpp_log2 = BytesPerBlockLog2(info.format);
+    const Extent2D tile_size = DefaultBlockSize(info.format);
+    const Extent3D size = info.size;
     const LevelInfo level_info = MakeLevelInfo(info);
     const s32 num_layers = info.resources.layers;
     const s32 num_levels = info.resources.levels;
@@ -981,6 +997,8 @@ boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(Tegra::Memory
     }
     return copies;
 }
+
+#include "video_core/texture_cache/partial_rows.inc"
 
 void ConvertImage(std::span<const u8> input, const ImageInfo& info, std::span<u8> output,
                   std::span<BufferImageCopy> copies) {
