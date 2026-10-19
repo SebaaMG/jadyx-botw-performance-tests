@@ -15,6 +15,7 @@
 #include <optional>
 
 #include "dynarmic/interface/optimization_flags.h"
+#include "dynarmic/interface/register_allocation_config.h"
 
 namespace Dynarmic {
 class ExclusiveMonitor;
@@ -132,6 +133,10 @@ struct UserCallbacks {
 };
 
 struct UserConfig {
+    /// Opt-in x64 register allocation. Changing the caller's copy after construction
+    /// does not alter this Jit's already compiled blocks.
+    RegisterAllocationConfig register_allocation{};
+
     /// Fastmem Pointer
     /// This should point to the beginning of a 2^page_table_address_space_bits bytes
     /// address space which is in arranged just like what you wish for emulated memory to

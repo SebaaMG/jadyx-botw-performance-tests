@@ -352,6 +352,8 @@ struct BootConfig {
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool jit_page_reuse{};
     bool jit_fp_compare{};
+    bool jit_free_moves{};
+    bool jit_r13{};
     /// Host timing waits sleep on a high-resolution timer and wait only its lateness on the CPU
     /// ("timer_sleep=0" waits the last timer tick on the CPU, as before).
     bool timer_sleep{true};
@@ -551,6 +553,9 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     }
     Core::SetJitPageReuse(config.jit_page_reuse);
     Core::SetJitEfficientFpCompare(config.jit_fp_compare);
+    Core::SetJitRegisterAllocation(config.jit_free_moves, config.jit_r13);
+    WriteDiag(std::string{"JIT free GPR moves: "} + (config.jit_free_moves ? "on" : "off") +
+              ", R13 without fastmem: " + (config.jit_r13 ? "on" : "off"));
     WriteDiag(std::string{"JIT page reuse: "} + (config.jit_page_reuse ? "on" : "off") +
               ", efficient FP compare: " + (config.jit_fp_compare ? "on" : "off"));
     if (config.debug_layer) {
@@ -2441,6 +2446,14 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             config.jit_fp_compare = true;
                         } else if (line == "jit_fp_compare=0") {
                             config.jit_fp_compare = false;
+                        } else if (line == "jit_free_moves=1") {
+                            config.jit_free_moves = true;
+                        } else if (line == "jit_free_moves=0") {
+                            config.jit_free_moves = false;
+                        } else if (line == "jit_r13=1") {
+                            config.jit_r13 = true;
+                        } else if (line == "jit_r13=0") {
+                            config.jit_r13 = false;
                         } else if (line == "incremental_uniform_bindings=1") {
                             config.incremental_uniform_bindings = true;
                         } else if (line == "incremental_uniform_bindings=0") {

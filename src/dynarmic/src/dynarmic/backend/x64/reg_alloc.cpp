@@ -185,8 +185,9 @@ bool Argument::IsInMemory(RegAlloc& reg_alloc) const noexcept {
     return HostLocIsSpill(*reg_alloc.ValueLocation(value.GetInst()));
 }
 
-RegAlloc::RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order) noexcept
-    : gpr_order(gpr_order), xmm_order(xmm_order)
+RegAlloc::RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order,
+                   RegisterAllocationConfig register_config) noexcept
+    : gpr_order(gpr_order), xmm_order(xmm_order), register_config(register_config)
 {}
 
 RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(const IR::Inst* inst) noexcept {
@@ -329,6 +330,8 @@ void RegAlloc::HostCall(
     const std::optional<Argument::copyable_reference> arg3
 ) noexcept {
     constexpr size_t args_count = 4;
+    ASSERT(!preparing_host_call);
+    preparing_host_call = true;
     constexpr std::array<HostLoc, args_count> args_hostloc = {ABI_PARAM1, ABI_PARAM2, ABI_PARAM3, ABI_PARAM4};
     const std::array<std::optional<Argument::copyable_reference>, args_count> args = {arg0, arg1, arg2, arg3};
 
@@ -379,6 +382,7 @@ void RegAlloc::HostCall(
             }
         }
     }
+    preparing_host_call = false;
 }
 
 void RegAlloc::AllocStackSpace(BlockOfCode& code, const size_t stack_space) noexcept {
@@ -414,11 +418,12 @@ HostLoc RegAlloc::SelectARegister(std::bitset<32> desired_locations) const noexc
             // Abstain from using upper registers unless absolutely nescesary
             if (loc_info.IsLocked()) {
                 // skip, not suitable for allocation
-            // While R13 and R14 are technically available, we avoid allocating for them
-            // at all costs, because theoretically skipping them is better than spilling
-            // all over the place - i also fixes bugs with high reg pressure
-            // %rbp must not be trashed, so skip it as well
-            } else if (i == HostLoc::RBP || (i >= HostLoc::R13 && i <= HostLoc::R15)) {
+            // R13 is available only if both the per-Jit option AND the emitter's
+            // mask permit it. Fastmem removes it from that mask. RBP/R14/R15 keep
+            // their original dedicated roles, irrespective of the options.
+            } else if (i == HostLoc::RBP || (i >= HostLoc::R14 && i <= HostLoc::R15) ||
+                       (i == HostLoc::R13 && (!register_config.use_r13 ||
+                                             !gpr_order.test(size_t(HostLoc::R13))))) {
                 // skip, do not touch
             // Intel recommends to reuse registers as soon as they're overwritable (DO NOT SPILL)
             } else if (loc_info.IsEmpty()) {
@@ -452,6 +457,9 @@ HostLoc RegAlloc::SelectARegister(std::bitset<32> desired_locations) const noexc
     ASSERT(it_final != HostLoc::FirstSpill && "All candidate registers have already been allocated");
     // Evil magic - increment LRU counter (will wrap at 256)
     const_cast<RegAlloc*>(this)->LocInfo(HostLoc(it_final)).lru_counter++;
+    if (it_final == HostLoc::R13 && register_config.statistics) {
+        ++register_config.statistics->r13_selections;
+    }
     return HostLoc(it_final);
 }
 
@@ -516,6 +524,43 @@ void RegAlloc::Exchange(BlockOfCode& code, HostLoc a, HostLoc b) noexcept {
 void RegAlloc::MoveOutOfTheWay(BlockOfCode& code, HostLoc reg) noexcept {
     ASSERT(!LocInfo(reg).IsLocked());
     if (!LocInfo(reg).IsEmpty()) {
+        // Adapted from ProsperoEden a26ba788, headless/dynarmic/reg_alloc.cmake.
+        // Prefer a free GPR to a store/reload pair. Use THIS platform's callee-save
+        // mask first, so HostCall's caller-save sweep need not relocate it again.
+        // IsEmpty also excludes locked/scratch operands of the current instruction.
+        if (register_config.free_gpr_moves && HostLocIsGPR(reg)) {
+            static constexpr std::array order{
+                HostLoc::RBX, HostLoc::RSI, HostLoc::RDI, HostLoc::R12, HostLoc::R13,
+                HostLoc::RAX, HostLoc::RCX, HostLoc::RDX, HostLoc::R8, HostLoc::R9,
+                HostLoc::R10, HostLoc::R11,
+            };
+            for (const bool preserved : {true, false}) {
+                // Some emitters materialize ABI arguments, then EndOfAllocScope
+                // before HostCall (notably 128-bit memory writes). Their last-use
+                // metadata may be empty but their physical arguments must survive.
+                // During the whole call preparation, only callee-save destinations
+                // are eligible. Spilling preserves a source register's contents.
+                if (preparing_host_call && !preserved) {
+                    break;
+                }
+                for (const HostLoc to : order) {
+                    if (to == reg || !gpr_order.test(size_t(to)) ||
+                        ABI_ALL_CALLEE_SAVE.test(size_t(to)) != preserved ||
+                        (to == HostLoc::R13 && !register_config.use_r13) ||
+                        !LocInfo(to).IsEmpty()) {
+                        continue;
+                    }
+                    Move(code, to, reg);
+                    if (register_config.statistics) {
+                        ++register_config.statistics->free_gpr_moves;
+                        if (to == HostLoc::R13) {
+                            ++register_config.statistics->free_gpr_moves_to_r13;
+                        }
+                    }
+                    return;
+                }
+            }
+        }
         SpillRegister(code, reg);
     }
 }
@@ -525,6 +570,13 @@ void RegAlloc::SpillRegister(BlockOfCode& code, HostLoc loc) noexcept {
     ASSERT(!LocInfo(loc).IsEmpty() && "There is no need to spill unoccupied registers");
     ASSERT(!LocInfo(loc).IsLocked() && "Registers that have been allocated must not be spilt");
     auto const new_loc = FindFreeSpill(HostLocIsXMM(loc));
+    if (register_config.statistics) {
+        if (HostLocIsGPR(loc)) {
+            ++register_config.statistics->gpr_stack_spills;
+        } else {
+            ++register_config.statistics->xmm_stack_spills;
+        }
+    }
     Move(code, new_loc, loc);
 }
 

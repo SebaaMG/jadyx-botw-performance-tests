@@ -27,6 +27,7 @@
 #include "dynarmic/ir/cond.h"
 #include "dynarmic/ir/microinstruction.h"
 #include "dynarmic/ir/value.h"
+#include "dynarmic/interface/register_allocation_config.h"
 
 namespace Dynarmic::IR {
 enum class AccType;
@@ -139,7 +140,8 @@ class RegAlloc final {
 public:
     using ArgumentInfo = std::array<Argument, IR::max_arg_count>;
     RegAlloc() noexcept = default;
-    RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order) noexcept;
+    RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order,
+             RegisterAllocationConfig register_config = {}) noexcept;
 
     ArgumentInfo GetArgumentInfo(const IR::Inst* inst) noexcept;
     void RegisterPseudoOperation(const IR::Inst* inst) noexcept;
@@ -249,6 +251,8 @@ private:
     alignas(64) std::array<HostLocInfo, NonSpillHostLocCount + SpillCount> hostloc_info;
     std::bitset<32> gpr_order;
     std::bitset<32> xmm_order;
+    const RegisterAllocationConfig register_config;
+    bool preparing_host_call = false;
     size_t reserved_stack_space = 0;
 };
 

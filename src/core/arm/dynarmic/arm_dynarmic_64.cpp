@@ -20,10 +20,16 @@ namespace Core {
 namespace {
 std::atomic_bool jit_page_reuse{};
 std::atomic_bool jit_efficient_fp_compare{};
+std::atomic_bool jit_free_gpr_moves{};
+std::atomic_bool jit_use_r13{};
 }
 void SetJitPageReuse(bool enabled) { jit_page_reuse.store(enabled, std::memory_order_relaxed); }
 void SetJitEfficientFpCompare(bool enabled) {
     jit_efficient_fp_compare.store(enabled, std::memory_order_relaxed);
+}
+void SetJitRegisterAllocation(bool free_moves, bool use_r13) {
+    jit_free_gpr_moves.store(free_moves, std::memory_order_relaxed);
+    jit_use_r13.store(use_r13, std::memory_order_relaxed);
 }
 
 using namespace Common::Literals;
@@ -216,6 +222,9 @@ void DynarmicCallbacks64::ReturnException(u64 pc, Dynarmic::HaltReason hr) {
 void ArmDynarmic64::MakeJit(Common::PageTable* page_table, std::size_t address_space_bits) {
     Dynarmic::JitProfile::SetEnabled(CpuProfile::Enabled());
     Dynarmic::A64::UserConfig config;
+    config.register_allocation.free_gpr_moves =
+        jit_free_gpr_moves.load(std::memory_order_relaxed);
+    config.register_allocation.use_r13 = jit_use_r13.load(std::memory_order_relaxed);
     if (jit_page_reuse.load(std::memory_order_relaxed)) {
         config.optimizations |= Dynarmic::OptimizationFlag::ReusePageLookups;
     }
