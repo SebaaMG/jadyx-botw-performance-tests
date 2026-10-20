@@ -291,6 +291,13 @@ const char* Name(Event event) {
     case Event::GpuWorkEnd: return "gpu-work-end";
     case Event::GpuFlushRecorded: return "gpu-flush-recorded";
     case Event::GpuPartialSubmit: return "gpu-partial-submit";
+    case Event::GpuFrameBoundary: return "gpu-frame-boundary";
+    case Event::GpuListWork: return "gpu-list-work";
+    case Event::GpuListUpload: return "gpu-list-upload";
+    case Event::GpuListClose: return "gpu-list-close";
+    case Event::GpuListReset: return "gpu-list-reset";
+    case Event::GpuListPreviousSubmitted: return "gpu-list-previous-submitted";
+    case Event::GpuListPreviousCompleted: return "gpu-list-previous-completed";
     case Event::BufferDequeueBegin: return "buffer-dequeue-begin";
     case Event::BufferDequeueEnd: return "buffer-dequeue-end";
     case Event::BufferDequeued: return "buffer-dequeued";

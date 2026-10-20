@@ -4,6 +4,22 @@ Cuaderno de trabajo del port: cómo compilar, en qué fase vamos y lo que hemos 
 Los docs "de verdad" son [`uwp_build.md`](uwp_build.md) (toolchain) y [`xbox_deploy.md`](xbox_deploy.md)
 (empaquetar y desplegar). Aquí va el resumen rápido y todo lo que no cabe en ellos.
 
+20oct2026 privado SeriesX.29: continuous_submit sincuotaporframe; intervalos2/4ms
+segúntickspendientes, min128/reloj64 ybackpressure>=2. coalesce_fence_flush
+limpia contador de drawsdespués deFlushdefence real, no en todoslosreset.
+Flagsindependientes paracontrol.28/solocontinuo/solofences/combinado.
+Contadorlogmidenotificaciones, no ahorros. Política512cortes sinBeginFrame,
+51Python ypolítica pasan. Queries continuas pliegan prefijos terminados sinesperar,
+lectura/destrucción iterativas yguard reentrante; legacy intacto. Tañade operaciones,
+bytes staging, Close/reset yprogreso nativo porlista, agrupados porTickFrame.
+No confundir scheduler drenado con cola física ociosa. Build final71ops y GPU
+legacy/ampliado inline-async pasan, bytes/contadores exactos y debug limpio.
+Fixture corregido: main anidado y geometría12/12 incompatible con Map pequeño;
+16/12 yBindInterface restauran construcción legítima, sin parche de producción.
+Paquete25files/716blocks, firma íntegra y20assets idénticos a.28. Inicio solo
+continuo; coalescencia se medirá por separado. Ver xbox_continuous_submission.md.
+Sin FPS.29medidos.
+
 20 oct 2026, candidato privado SeriesX .28: partial_submit opt-in, presupuesto4ms,
 min128operaciones, relojcada64, max3cortes/frame y2ticksanterioresen vuelo.
 Solo al terminar operaciones realmente grabadas; restaura estado/queries con

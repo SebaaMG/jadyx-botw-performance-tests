@@ -121,6 +121,8 @@ void SetReadbackReuse(bool enabled);
 void SetReadbackCoalescing(bool enabled);
 void SetGcReadbackBatching(bool enabled);
 void SetPartialSubmission(bool enabled);
+void SetContinuousSubmission(bool enabled);
+void SetFenceFlushCoalescing(bool enabled);
 // renderer_d3d12.h; its includes need Mesa's headers, which only video_core sees.
 void SetTracedFrame(u32 frame, u32 count);
 void TraceNextFrames(u32 count);
@@ -357,6 +359,8 @@ struct BootConfig {
     bool copy_plan_cache{};
     bool coherent_uniform_cache{};
     bool incremental_uniform_bindings{};
+    bool continuous_submit{};
+    bool coalesce_fence_flush{};
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool draw_plan_reuse{};
     bool draw_plan_validate{};
@@ -547,6 +551,8 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     Settings::values.async_presentation.SetValue(config.async_present);
     if (config.upscaling) ApplyUpscaling(*config.upscaling); // before the renderer exists
     D3D12::SetAsyncRecording(config.async_record);
+    D3D12::SetContinuousSubmission(config.continuous_submit);
+    D3D12::SetFenceFlushCoalescing(config.coalesce_fence_flush);
     D3D12::SetUniformUploadCopy(config.upload_copy);
     D3D12::SetDrawSamplerReuse(config.draw_sampler_reuse);
     const bool reuse_image_tables = config.image_table_reuse && !config.async_record;
@@ -2578,6 +2584,14 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             D3D12::SetPartialSubmission(line.back() == '1');
                             WriteDiag(line.back() == '1' ? "boot.cfg: bounded partial submission on"
                                                         : "boot.cfg: bounded partial submission off");
+                        } else if (line == "continuous_submit=0" || line == "continuous_submit=1") {
+                            config.continuous_submit = line.back() == '1';
+                            WriteDiag(config.continuous_submit ? "boot.cfg: continuous GPU supply on"
+                                                               : "boot.cfg: continuous GPU supply off");
+                        } else if (line == "coalesce_fence_flush=0" || line == "coalesce_fence_flush=1") {
+                            config.coalesce_fence_flush = line.back() == '1';
+                            WriteDiag(config.coalesce_fence_flush ? "boot.cfg: fence submit coalescing on"
+                                                                 : "boot.cfg: fence submit coalescing off");
                         } else if (line == "readback_reuse=0") {
                             D3D12::SetReadbackReuse(false);
                         } else if (line == "readback_reuse=1") {

@@ -93,10 +93,12 @@ RasterizerD3D12::RasterizerD3D12(Tegra::GPU& gpu_,
       query_cache{*this, device_memory_, device, scheduler_},
       conditional_rendering{device, scheduler_, query_cache},
       accelerate_dma{buffer_cache, texture_cache},
-      fence_manager{*this, gpu_, texture_cache, buffer_cache, query_cache, scheduler_},
+      fence_manager{*this, gpu_, texture_cache, buffer_cache, query_cache, scheduler_,
+                    [this] { draw_counter = 0; }},
       draw_hunt{device, scheduler_} {
     buffer_runtime.SetDescriptorQueue(&descriptor_queue);
     scheduler.RegisterOnReset([this] { InvalidateCommandListState(); });
+    scheduler.SetSubmissionUploadSize([this] { return this->staging.PendingUploadBytes(); });
     LOG_INFO(Render, "D3D12: rasterizer active (draws, clears, caches, DMA and pipelines)");
 }
 
@@ -731,6 +733,10 @@ void RasterizerD3D12::FlushIfUploadHeavy() {
 }
 void RasterizerD3D12::TickFrame() {
     scheduler.BeginFrame();
+    if ((draw_plan_frames + 1) % 300 == 0) {
+        LOG_INFO(Render, "D3D12 fence submit coalescing: {} submitted-boundary notifications (cumulative)",
+                 fence_manager.SubmissionNotificationCount());
+    }
     if (++draw_plan_frames % 300 == 0 && draw_plans.Enabled()) {
         const auto& stats = draw_plans.stats;
         LOG_INFO(Render, "D3D12 draw plans: attempts {}, unsupported {}, queries {}, hits {}, key misses {}, input misses {}, "

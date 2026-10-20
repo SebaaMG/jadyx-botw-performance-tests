@@ -76,10 +76,15 @@ struct PendingReport {
     bool complete{true}; ///< false when more than MAX_SLICES slices count into it
 };
 
+PendingReport DescribePendingReport(std::shared_ptr<HostCounter> counter);
+
 class QueryCache final
     : public VideoCommon::QueryCacheLegacy<QueryCache, CachedQuery, CounterStream, HostCounter> {
 public:
     QueryCache(RasterizerD3D12& rasterizer, Tegra::MaxwellDeviceMemoryManager& device_memory,
+               const Device& device, Scheduler& scheduler);
+    QueryCache(VideoCore::RasterizerInterface& rasterizer,
+               Tegra::MaxwellDeviceMemoryManager& device_memory,
                const Device& device, Scheduler& scheduler);
     ~QueryCache();
 
@@ -93,7 +98,7 @@ public:
     [[nodiscard]] std::optional<PendingReport> PeekReport(VAddr addr);
 
 private:
-    RasterizerD3D12& rasterizer;
+    RasterizerD3D12* rasterizer{};
     const Device& device;
     Scheduler& scheduler;
     /// Shared with the counters: the base class's streams, and the counters they hold, are
@@ -105,8 +110,12 @@ class HostCounter final : public VideoCommon::HostCounterBase<QueryCache, HostCo
 public:
     HostCounter(QueryCache& cache, std::shared_ptr<HostCounter> dependency,
                 VideoCore::QueryType type);
+    HostCounter(Scheduler& scheduler, std::shared_ptr<QueryPool> pool,
+                std::shared_ptr<HostCounter> dependency, VideoCore::QueryType type);
     ~HostCounter();
     void EndQuery();
+    void FoldCompletedDependencies();
+    bool IsKnownComplete() const noexcept;
 
     [[nodiscard]] bool Ended() const noexcept { return ended; }
     [[nodiscard]] const QueryPool::Slot& Slot() const noexcept { return slot; }
@@ -118,7 +127,7 @@ public:
 private:
     u64 BlockingQuery(bool async = false) const override;
 
-    QueryCache& cache;
+    Scheduler& scheduler;
     VideoCore::QueryType type;
     D3D12_QUERY_TYPE query_type{};
     std::shared_ptr<QueryPool> pool;

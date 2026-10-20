@@ -10,23 +10,27 @@ public:
     static constexpr std::uint32_t MinWork = 128;
     static constexpr std::uint32_t MaxPerFrame = 3;
     static constexpr std::uint64_t BudgetUs = 4000;
+    static constexpr std::uint64_t DrainedQueueBudgetUs = 2000;
     static constexpr std::uint64_t MaxInFlight = 2;
 
+    explicit PartialSubmitPolicy(bool continuous_ = false) : continuous{continuous_} {}
+
     bool RecordWork() {
-        if (partial_count >= MaxPerFrame) return false;
+        if (!continuous && partial_count >= MaxPerFrame) return false;
         ++pending_work;
         return pending_work == 1 ||
                (pending_work >= MinWork && pending_work % CheckInterval == 0);
     }
 
-    bool Due(std::uint64_t now_us) {
+    bool Due(std::uint64_t now_us, std::uint64_t outstanding = 0) {
         if (!started) {
             started = true;
             start_us = now_us;
             return false;
         }
-        return partial_count < MaxPerFrame && pending_work >= MinWork &&
-               now_us >= start_us && now_us - start_us >= BudgetUs;
+        const auto budget = continuous && outstanding == 0 ? DrainedQueueBudgetUs : BudgetUs;
+        return (continuous || partial_count < MaxPerFrame) && outstanding < MaxInFlight &&
+               pending_work >= MinWork && now_us >= start_us && now_us - start_us >= budget;
     }
 
     void Submitted() {
@@ -35,7 +39,7 @@ public:
     }
 
     void PartiallySubmitted() {
-        ++partial_count;
+        if (!continuous) ++partial_count;
         Submitted();
     }
 
@@ -43,6 +47,7 @@ public:
     std::uint32_t PendingWork() const { return pending_work; }
 
 private:
+    const bool continuous;
     std::uint64_t start_us{};
     std::uint32_t pending_work{};
     std::uint32_t partial_count{};

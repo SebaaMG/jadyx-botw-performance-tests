@@ -82,7 +82,15 @@ void QueryPool::AddPage(VideoCore::QueryType type) {
 QueryCache::QueryCache(RasterizerD3D12& rasterizer_,
                        Tegra::MaxwellDeviceMemoryManager& device_memory_, const Device& device_,
                        Scheduler& scheduler_)
-    : QueryCacheLegacy{rasterizer_, device_memory_}, rasterizer{rasterizer_}, device{device_},
+    : QueryCache{static_cast<VideoCore::RasterizerInterface&>(rasterizer_), device_memory_,
+                 device_, scheduler_} {
+    rasterizer = &rasterizer_;
+}
+
+QueryCache::QueryCache(VideoCore::RasterizerInterface& rasterizer_,
+                       Tegra::MaxwellDeviceMemoryManager& device_memory_, const Device& device_,
+                       Scheduler& scheduler_)
+    : QueryCacheLegacy{rasterizer_, device_memory_}, device{device_},
       scheduler{scheduler_}, pool{std::make_shared<QueryPool>(device_, scheduler_)} {
     EnableCounters();
     scheduler.RegisterOnSubmit([this] { DisableStreams(); });
@@ -100,7 +108,7 @@ QueryCache::~QueryCache() {
 }
 
 bool QueryCache::AnyCommandQueued() const noexcept {
-    return rasterizer.AnyCommandQueued();
+    return !rasterizer || rasterizer->AnyCommandQueued();
 }
 
 std::optional<PendingReport> QueryCache::PeekReport(VAddr addr) {
@@ -108,31 +116,54 @@ std::optional<PendingReport> QueryCache::PeekReport(VAddr addr) {
         if (!query) {
             return std::nullopt;
         }
-        // The value is the counter's slice plus every slice it continues from (HostCounterBase).
-        PendingReport report;
-        for (std::shared_ptr<HostCounter> counter = query->GetCounter(); counter;) {
-            if (const std::optional<u64>& value = counter->KnownResult()) {
-                report.known += *value;
-                break;
-            }
-            if (report.num_slices == PendingReport::MAX_SLICES || !counter->Ended()) {
-                report.complete = false;
-                break;
-            }
-            report.known += counter->BaseResult();
-            std::shared_ptr<HostCounter> next = counter->Dependency();
-            report.slices[report.num_slices++] = std::move(counter);
-            counter = std::move(next);
-        }
-        return report;
+        return DescribePendingReport(query->GetCounter());
     });
+}
+
+PendingReport DescribePendingReport(std::shared_ptr<HostCounter> counter) {
+    PendingReport report;
+    if (counter) counter->FoldCompletedDependencies();
+    while (counter) {
+        if (const std::optional<u64>& value = counter->KnownResult()) {
+            report.known += *value;
+            break;
+        }
+        if (report.num_slices == PendingReport::MAX_SLICES || !counter->Ended()) {
+            report.complete = false;
+            break;
+        }
+        report.known += counter->BaseResult();
+        std::shared_ptr<HostCounter> next = counter->Dependency();
+        report.slices[report.num_slices++] = std::move(counter);
+        counter = std::move(next);
+    }
+    return report;
 }
 
 HostCounter::HostCounter(QueryCache& cache_, std::shared_ptr<HostCounter> dependency_,
                          VideoCore::QueryType type_)
-    : HostCounterBase{std::move(dependency_)}, cache{cache_}, type{type_},
-      query_type{GetQueryInfo(type_).query}, pool{cache_.GetPool()}, slot{pool->Reserve(type_)} {
-    cache.GetScheduler().CommandList()->BeginQuery(slot.heap, query_type, slot.index);
+    : HostCounter{cache_.GetScheduler(), cache_.GetPool(), std::move(dependency_), type_} {}
+
+HostCounter::HostCounter(Scheduler& scheduler_, std::shared_ptr<QueryPool> pool_,
+                         std::shared_ptr<HostCounter> dependency_, VideoCore::QueryType type_)
+    : HostCounterBase{std::move(dependency_), scheduler_.ContinuousSubmissionEnabled()},
+      scheduler{scheduler_}, type{type_}, query_type{GetQueryInfo(type_).query},
+      pool{std::move(pool_)}, slot{pool->Reserve(type_)} {
+    FoldCompletedDependencies();
+    scheduler.CommandList()->BeginQuery(slot.heap, query_type, slot.index);
+}
+
+bool HostCounter::IsKnownComplete() const noexcept {
+    return ended && scheduler.IsKnownFree(tick);
+}
+
+void HostCounter::FoldCompletedDependencies() {
+    if (!scheduler.ContinuousSubmissionEnabled()) return;
+    if (IsKnownComplete()) {
+        Query();
+        return;
+    }
+    FoldReadyDependencies([](const HostCounter& counter) { return counter.IsKnownComplete(); });
 }
 
 HostCounter::~HostCounter() {
@@ -147,10 +178,10 @@ void HostCounter::EndQuery() {
     if (ended) {
         return;
     }
-    auto* list = cache.GetScheduler().CommandList();
+    auto* list = scheduler.CommandList();
     list->EndQuery(slot.heap, query_type, slot.index);
     list->ResolveQueryData(slot.heap, query_type, slot.index, 1, slot.readback, slot.offset);
-    tick = cache.GetScheduler().CurrentTick();
+    tick = scheduler.CurrentTick();
     ended = true;
 }
 
@@ -166,7 +197,7 @@ u64 HostCounter::BlockingQuery([[maybe_unused]] bool async) const {
     if (!ended) {
         const_cast<HostCounter*>(this)->EndQuery();
     }
-    cache.GetScheduler().Wait(tick);
+    scheduler.Wait(tick);
     void* mapped_page{};
     const D3D12_RANGE read_range{static_cast<SIZE_T>(slot.offset),
                                  static_cast<SIZE_T>(slot.offset + GetQueryInfo(type).bytes)};

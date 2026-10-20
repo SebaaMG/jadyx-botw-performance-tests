@@ -368,23 +368,34 @@ private:
 template <class QueryCache, class HostCounter>
 class HostCounterBase {
 public:
-    explicit HostCounterBase(std::shared_ptr<HostCounter> dependency_)
-        : dependency{std::move(dependency_)}, depth{dependency ? (dependency->Depth() + 1) : 0} {
+    explicit HostCounterBase(std::shared_ptr<HostCounter> dependency_, bool deferred_ = false)
+        : dependency{std::move(dependency_)}, depth{dependency ? (dependency->Depth() + 1) : 0},
+          deferred{deferred_} {
         // Avoid nesting too many dependencies to avoid a stack overflow when these are deleted.
         constexpr u64 depth_threshold = 96;
-        if (depth > depth_threshold) {
+        if (depth > depth_threshold && !deferred) {
             depth = 0;
             base_result = dependency->Query();
             dependency = nullptr;
         }
     }
-    virtual ~HostCounterBase() = default;
+    virtual ~HostCounterBase() {
+        if (deferred) {
+            while (dependency && dependency.use_count() == 1) {
+                auto next = std::move(static_cast<HostCounterBase&>(*dependency).dependency);
+                dependency.reset();
+                dependency = std::move(next);
+            }
+        }
+    }
 
     /// Returns the current value of the query.
     u64 Query(bool async = false) {
         if (result) {
             return *result;
         }
+
+        if (deferred) return QueryIterative(async);
 
         u64 value = BlockingQuery(async) + base_result;
         if (dependency) {
@@ -421,14 +432,66 @@ public:
     }
 
 protected:
+    template <typename Ready>
+    void FoldReadyDependencies(Ready&& ready) {
+        auto* current = this;
+        u64 remaining{};
+        while (current->dependency) {
+            auto& previous = static_cast<HostCounterBase&>(*current->dependency);
+            if (previous.result || ready(*current->dependency)) {
+                current->base_result += current->dependency->Query();
+                current->dependency.reset();
+                break;
+            }
+            current = &previous;
+            ++remaining;
+        }
+        current = this;
+        for (;;) {
+            current->depth = remaining;
+            if (remaining == 0) break;
+            --remaining;
+            current = &static_cast<HostCounterBase&>(*current->dependency);
+        }
+    }
+
     /// Returns the value of query from the backend API blocking as needed.
     virtual u64 BlockingQuery(bool async = false) const = 0;
 
 private:
+    u64 QueryIterative(bool async) {
+        std::vector<std::pair<HostCounterBase*, u64>> pending;
+        auto* current = this;
+        u64 value{};
+        for (;;) {
+            if (current->result) {
+                value = *current->result;
+                break;
+            }
+            const u64 counted = current->BlockingQuery(pending.empty() ? async : false);
+            if (current->result) {
+                value = *current->result;
+                break;
+            }
+            const u64 own = counted + current->base_result;
+            pending.emplace_back(current, own);
+            if (!current->dependency) break;
+            current = &static_cast<HostCounterBase&>(*current->dependency);
+        }
+        for (auto entry = pending.rbegin(); entry != pending.rend(); ++entry) {
+            value += entry->second;
+            entry->first->result = value;
+            entry->first->depth = 0;
+            entry->first->dependency.reset();
+        }
+        return *result;
+    }
+
     std::shared_ptr<HostCounter> dependency; ///< Counter to add to this value.
     std::optional<u64> result;               ///< Filled with the already returned value.
     u64 depth;                               ///< Number of nested dependencies.
     u64 base_result = 0;                     ///< Equivalent to nested dependencies value.
+    const bool deferred;
 };
 
 template <class HostCounter>

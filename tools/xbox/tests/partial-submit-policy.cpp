@@ -9,6 +9,17 @@ static void Check(bool condition, const char* message) {
 
 int main() try {
     using D3D12::PartialSubmitPolicy;
+    for (const auto event : {VideoCore::FrameTrace::Event::GpuFrameBoundary,
+                            VideoCore::FrameTrace::Event::GpuListWork,
+                            VideoCore::FrameTrace::Event::GpuListUpload,
+                            VideoCore::FrameTrace::Event::GpuListClose,
+                            VideoCore::FrameTrace::Event::GpuListReset,
+                            VideoCore::FrameTrace::Event::GpuListPreviousSubmitted,
+                            VideoCore::FrameTrace::Event::GpuListPreviousCompleted}) {
+        Check(VideoCore::FrameTrace::EnabledForMode(event, 0, 0, true) &&
+              !VideoCore::FrameTrace::EnabledForMode(event, 0, 0, false),
+              "submission diagnostics escaped selective capture");
+    }
     Check(VideoCore::FrameTrace::EnabledForMode(VideoCore::FrameTrace::Event::GpuPartialSubmit, 0, 0, true) &&
           !VideoCore::FrameTrace::EnabledForMode(VideoCore::FrameTrace::Event::GpuPartialSubmit, 0, 0, false),
           "partial submit marker escaped selective frame-chain capture");
@@ -39,7 +50,31 @@ int main() try {
     policy.Submitted();
     Check(policy.PendingWork() == 0, "ordinary submission retained old work");
     Check(policy.RecordWork() && !policy.Due(100000), "ordinary submission retained old latency");
-    std::cout << "PASS: partial submit minimum work, sampled clock, latency, frame cap and natural flush boundaries\n";
+    PartialSubmitPolicy continuous{true};
+    for (unsigned delivery = 0; delivery < 512; ++delivery) {
+        const std::uint64_t start = 100 + delivery * 10000;
+        Check(continuous.RecordWork() && !continuous.Due(start), "continuous list did not start its clock");
+        for (unsigned work = 2; work <= 128; ++work) {
+            const bool probe = continuous.RecordWork();
+            Check(probe == (work == 128), "continuous mode changed clock sampling");
+        }
+        Check(!continuous.Due(start + 1999), "drained queue bypassed the minimum interval");
+        Check(continuous.Due(start + 2000), "drained queue did not get its shorter interval");
+        Check(!continuous.Due(start + 2000, 1), "queued work bypassed its batching interval");
+        Check(continuous.Due(start + 4000, 1), "queued work failed to become eligible");
+        Check(!continuous.Due(start + 100000, 2), "full queue bypassed backpressure");
+        Check(!continuous.Due(start - 1), "continuous clock reversal submitted early");
+        continuous.PartiallySubmitted();
+    }
+    Check(continuous.RecordWork() && !continuous.Due(100), "continuous supply stopped without BeginFrame");
+    continuous.BeginFrame();
+    for (unsigned work = 2; work <= 128; ++work) continuous.RecordWork();
+    Check(!continuous.Due(2099), "frame boundary restarted or bypassed the list interval");
+    Check(continuous.Due(2100), "frame boundary prevented continuous supply");
+    continuous.Submitted();
+    Check(continuous.PendingWork() == 0, "natural flush retained continuous work");
+    Check(continuous.RecordWork() && !continuous.Due(100000), "natural flush retained continuous latency");
+    std::cout << "PASS: legacy frame cap, continuous 512 deliveries without frame reset, queue-aware intervals, backpressure and flush boundaries\n";
     return 0;
 } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

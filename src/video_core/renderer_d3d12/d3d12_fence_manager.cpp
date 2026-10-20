@@ -4,17 +4,29 @@
 #include "video_core/renderer_d3d12/d3d12_fence_manager.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
 
+#include <atomic>
+#include <utility>
+
 namespace D3D12 {
+
+namespace {
+std::atomic<bool> fence_flush_coalescing{false};
+}
+
+void SetFenceFlushCoalescing(bool enabled) {
+    fence_flush_coalescing.store(enabled, std::memory_order_relaxed);
+}
 
 InnerFence::InnerFence(Scheduler& scheduler_, bool is_stubbed_)
     : FenceBase{is_stubbed_}, scheduler{scheduler_} {}
 
-void InnerFence::Queue() {
+void InnerFence::Queue(const std::function<void()>& on_submission) {
     if (is_stubbed) return;
     wait_tick = scheduler.CurrentTick();
     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::FenceBackendTick,
                                wait_tick, reinterpret_cast<uintptr_t>(this));
     scheduler.Flush();
+    if (on_submission) on_submission();
 }
 
 bool InnerFence::IsSignaled() const {
@@ -27,15 +39,25 @@ void InnerFence::Wait() {
 
 FenceManager::FenceManager(VideoCore::RasterizerInterface& rasterizer, Tegra::GPU& gpu,
                            TextureCache& texture_cache, BufferCache& buffer_cache,
-                           QueryCache& query_cache, Scheduler& scheduler_)
+                           QueryCache& query_cache, Scheduler& scheduler_,
+                           std::function<void()> on_submission_)
     : VideoCommon::FenceManager<FenceManagerParams>{rasterizer, gpu, texture_cache, buffer_cache,
                                                     query_cache},
-      scheduler{scheduler_} {}
+      scheduler{scheduler_},
+      coalescing_enabled{fence_flush_coalescing.load(std::memory_order_relaxed)},
+      on_submission{std::move(on_submission_)} {}
 
 Fence FenceManager::CreateFence(bool is_stubbed) {
     return std::make_shared<InnerFence>(scheduler, is_stubbed);
 }
-void FenceManager::QueueFence(Fence& fence) { fence->Queue(); }
+void FenceManager::QueueFence(Fence& fence) {
+    if (coalescing_enabled && on_submission && !fence->IsStubbed()) {
+        fence->Queue(on_submission);
+        ++submission_notifications;
+    } else {
+        fence->Queue();
+    }
+}
 bool FenceManager::IsFenceSignaled(Fence& fence) const { return fence->IsSignaled(); }
 void FenceManager::WaitFence(Fence& fence) { fence->Wait(); }
 

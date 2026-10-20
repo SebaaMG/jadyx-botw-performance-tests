@@ -157,6 +157,13 @@ enum class Event : u8 {
     BufferQueuedFence,
     BufferDequeueSignal,
     GpuPartialSubmit,
+    GpuFrameBoundary,
+    GpuListWork,
+    GpuListUpload,
+    GpuListClose,
+    GpuListReset,
+    GpuListPreviousSubmitted,
+    GpuListPreviousCompleted,
 };
 
 void SetFrameChainMode(bool enabled);
@@ -207,6 +214,13 @@ inline constexpr u64 SignallingGuest = 79;
         case Event::GpuWorkEnd:
         case Event::GpuFlushRecorded:
         case Event::GpuPartialSubmit:
+        case Event::GpuFrameBoundary:
+        case Event::GpuListWork:
+        case Event::GpuListUpload:
+        case Event::GpuListClose:
+        case Event::GpuListReset:
+        case Event::GpuListPreviousSubmitted:
+        case Event::GpuListPreviousCompleted:
         case Event::BufferDequeueBegin:
         case Event::BufferDequeueEnd:
         case Event::BufferDequeued:
@@ -307,6 +321,13 @@ inline constexpr u64 SignallingGuest = 79;
     case Event::GpuWorkEnd:
     case Event::GpuFlushRecorded:
     case Event::GpuPartialSubmit:
+    case Event::GpuFrameBoundary:
+    case Event::GpuListWork:
+    case Event::GpuListUpload:
+    case Event::GpuListClose:
+    case Event::GpuListReset:
+    case Event::GpuListPreviousSubmitted:
+    case Event::GpuListPreviousCompleted:
     case Event::BufferDequeueBegin:
     case Event::BufferDequeueEnd:
     case Event::BufferDequeued:
