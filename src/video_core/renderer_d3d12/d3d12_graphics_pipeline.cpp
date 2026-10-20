@@ -46,12 +46,25 @@ namespace D3D12 {
 
 namespace {
 std::atomic_bool draw_sampler_reuse{};
+std::atomic_bool draw_plan_reuse{};
+std::atomic_bool draw_plan_validation{};
 }
 void SetDrawSamplerReuse(bool enabled) {
     draw_sampler_reuse.store(enabled, std::memory_order_relaxed);
 }
 bool DrawSamplerReuseEnabled() {
     return draw_sampler_reuse.load(std::memory_order_relaxed);
+}
+
+void SetDrawPlanReuse(bool enabled, bool validate) {
+    draw_plan_reuse.store(enabled, std::memory_order_relaxed);
+    draw_plan_validation.store(validate, std::memory_order_relaxed);
+}
+bool DrawPlanReuseEnabled() {
+    return draw_plan_reuse.load(std::memory_order_relaxed);
+}
+bool DrawPlanValidationEnabled() {
+    return draw_plan_validation.load(std::memory_order_relaxed);
 }
 
 namespace {
@@ -445,6 +458,64 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
     buffer_cache.SetUniformBuffersState(enabled_uniform_buffer_masks, &uniform_buffer_sizes);
 
     const bool via_header_index = regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding;
+    DrawPlanCache* const plans = context.draw_plans;
+    DrawPlanCache::Entry* plan = nullptr;
+    DrawPlanKey plan_key;
+    bool reused_plan = false;
+    bool shadow_candidate = false;
+    bool eligible_plan = plans && plans->Enabled() && !has_images && !out.trace_views &&
+                         !out.trace_filters && !out.trace_types;
+    if (plans && plans->Enabled()) ++plans->stats.attempts;
+    size_t plan_views = 0;
+    if (eligible_plan) {
+        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+            if (!HasStage(stage)) continue;
+            const auto& info = *stage_infos[stage];
+            plan_key.stages[stage] = stage_infos[stage].get();
+            plan_views += info.num_texture_views;
+            eligible_plan &= info.texture_buffer_descriptors.empty() &&
+                             info.image_buffer_descriptors.empty();
+        }
+        eligible_plan &= plan_views != 0 &&
+                         plan_views <= VideoCommon::GraphicsBindingSnapshot::CAPACITY;
+    }
+    if (plans && plans->Enabled() && !eligible_plan) ++plans->stats.unsupported;
+    if (eligible_plan) {
+        ++plans->stats.queries;
+        plan_key.channel = &maxwell3d;
+        plan_key.memory_id = gpu_memory.GetID();
+        plan_key.mapping_generation = gpu_memory.MappingGeneration();
+        plan_key.view_generation = texture_cache.GraphicsBindingGeneration();
+        plan_key.image_table = regs.tex_header.Address();
+        plan_key.sampler_table = regs.tex_sampler.Address();
+        plan_key.image_limit = regs.tex_header.limit;
+        plan_key.sampler_limit = via_header_index ? plan_key.image_limit : regs.tex_sampler.limit;
+        plan_key.via_header = via_header_index;
+        plan = &plans->Select(plan_key);
+        if (plan_key.mapping_generation == ~u64{} || !plan->valid || plan->key != plan_key) {
+            ++plans->stats.key_misses;
+        } else if (!plan->InputsMatch(
+                       [&](u32 stage, u32 buffer) {
+                           return maxwell3d.state.shader_stages[stage].const_buffers[buffer].address;
+                       },
+                       [&](GPUVAddr address) { return gpu_memory.Read<u32>(address); })) {
+            ++plans->stats.input_misses;
+        } else if (!texture_cache.ValidateGraphicsBindings(plan->bindings)) {
+            ++plans->stats.descriptor_misses;
+        } else if (plans->Validate()) {
+            shadow_candidate = true;
+        } else if (gpu_memory.MappingGeneration() == plan_key.mapping_generation) {
+            for (u32 index = 0; index < plan->bindings.image_count; ++index)
+                views.push_back(plan->bindings.images[index].view);
+            for (u32 index = 0; index < plan->bindings.sampler_count; ++index)
+                samplers.push_back(plan->bindings.samplers[index].id);
+            reused_plan = true;
+            ++plans->stats.hits;
+        } else {
+            ++plans->stats.refresh_misses;
+        }
+        if (!reused_plan) plans->Begin(*plan, plan_key, stage_infos);
+    }
     for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
         if (!HasStage(stage)) {
             continue;
@@ -462,9 +533,78 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
             return ReadTextureHandle(gpu_memory, desc, index, via_header_index,
                                      [&](u32 cbuf) { return cbufs[cbuf].address; });
         };
-        GatherStageViews(info, texture_cache, false, read_handle, views, samplers, sampler_cache);
+        if (!reused_plan) {
+            const auto read_planned_handle = [&](const auto& desc, u32 index) {
+                const auto handle = ReadTextureHandleWords(desc, index, via_header_index,
+                    [&](u32 buffer, u32 offset) {
+                        const auto base = cbufs[buffer].address;
+                        const u32 word = gpu_memory.Read<u32>(base + offset);
+                        if (plan) plan->Record(static_cast<u32>(stage), buffer, base, offset, word);
+                        return word;
+                    });
+                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(desc)>, Shader::TextureDescriptor>) {
+                    if (plan) plan->RecordSampler(handle.second);
+                }
+                return handle;
+            };
+            if (plan) {
+                GatherStageViews(info, texture_cache, false, read_planned_handle, views, samplers, sampler_cache);
+            } else {
+                GatherStageViews(info, texture_cache, false, read_handle, views, samplers, sampler_cache);
+            }
+        }
     }
-    texture_cache.FillImageViews(std::span(views.data(), views.size()), false, has_images);
+    if (reused_plan && (!texture_cache.PrepareGraphicsBindings(plan->bindings) ||
+                       gpu_memory.MappingGeneration() != plan_key.mapping_generation)) {
+        --plans->stats.hits;
+        ++plans->stats.refresh_misses;
+        plan->valid = false;
+        plan = nullptr;
+        reused_plan = false;
+        views.clear();
+        samplers.clear();
+        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+            if (!HasStage(stage)) continue;
+            const auto& cbufs = maxwell3d.state.shader_stages[stage].const_buffers;
+            const auto read_handle = [&](const auto& desc, u32 index) {
+                return ReadTextureHandle(gpu_memory, desc, index, via_header_index,
+                    [&](u32 buffer) { return cbufs[buffer].address; });
+            };
+            GatherStageViews(*stage_infos[stage], texture_cache, false, read_handle,
+                             views, samplers, sampler_cache);
+        }
+    }
+    if (!reused_plan) {
+        texture_cache.FillImageViews(std::span(views.data(), views.size()), false, has_images);
+        if (plan) {
+            if (shadow_candidate &&
+                plan->bindings.generation == texture_cache.GraphicsBindingGeneration() &&
+                gpu_memory.MappingGeneration() == plan_key.mapping_generation) {
+                bool matches = views.size() == plan->bindings.image_count &&
+                               samplers.size() == plan->bindings.sampler_count;
+                for (size_t index = 0; matches && index < views.size(); ++index) {
+                    matches &= views[index].id == plan->bindings.images[index].view.id &&
+                               views[index].index == plan->bindings.images[index].view.index;
+                }
+                for (size_t index = 0; matches && index < samplers.size(); ++index)
+                    matches &= samplers[index] == plan->bindings.samplers[index].id;
+                if (matches) {
+                    ++plans->stats.validated;
+                } else {
+                    ++plans->stats.mismatches;
+                    LOG_ERROR(Render, "D3D12 draw plan mismatch; reverting to general preparation");
+                }
+            }
+            const bool captured = !plan->overflow &&
+                texture_cache.CaptureGraphicsBindings(
+                    {views.data(), views.size()}, {samplers.data(), samplers.size()},
+                    {plan->sampler_indices.data(), plan->sampler_count}, plan->bindings);
+            plan->key.view_generation = texture_cache.GraphicsBindingGeneration();
+            plans->Commit(*plan, captured && plans->Enabled() &&
+                          plan_key.mapping_generation != ~u64{} &&
+                          gpu_memory.MappingGeneration() == plan_key.mapping_generation);
+        }
+    }
     if (VideoCore::Perf::DetailedGpuProfileEnabled()) {
         DrawMetrics::sampler_resolve_requests.fetch_add(samplers.size(), std::memory_order_relaxed);
         DrawMetrics::sampler_resolve_reused.fetch_add(sampler_cache.Hits(), std::memory_order_relaxed);

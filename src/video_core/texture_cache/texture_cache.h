@@ -279,6 +279,7 @@ void TextureCache<P>::MarkModification(ImageId id) noexcept {
 
 template <class P>
 void TextureCache<P>::FillImageViews(std::span<ImageViewInOut> views, bool compute, bool blacklist) {
+    graphics_binding_cookie = 0;
     bool has_blacklisted = false;
     do {
         has_deleted_images = false;
@@ -297,6 +298,66 @@ void TextureCache<P>::FillImageViews(std::span<ImageViewInOut> views, bool compu
             }
         }
     } while (has_deleted_images || (blacklist && has_blacklisted));
+}
+
+template <class P>
+bool TextureCache<P>::CaptureGraphicsBindings(std::span<const ImageViewInOut> views,
+                                             std::span<const SamplerId> samplers,
+                                             std::span<const u32> sampler_indices,
+                                             GraphicsBindingSnapshot& snapshot) const {
+    const auto& images = channel_state->graphics_image_table;
+    const auto& sampler_table = channel_state->graphics_sampler_table;
+    return snapshot.Capture(views, samplers, sampler_indices, graphics_binding_generation,
+        [&](const ImageViewInOut& view) -> std::optional<GraphicsBindingSnapshot::Image> {
+            if (view.index > images.current_limit ||
+                (images.read_descriptors[view.index / 64] & (1ULL << (view.index % 64))) == 0)
+                return std::nullopt;
+            const auto found = channel_state->image_view_ids.find(view.index);
+            if (found == channel_state->image_view_ids.end() || found->second != view.id)
+                return std::nullopt;
+            return GraphicsBindingSnapshot::Image{view, images.descriptors[view.index]};
+        },
+        [&](u32 source, SamplerId id) -> std::optional<GraphicsBindingSnapshot::Sampler> {
+            if (source > sampler_table.current_limit ||
+                (sampler_table.read_descriptors[source / 64] & (1ULL << (source % 64))) == 0)
+                return std::nullopt;
+            const auto found = channel_state->sampler_ids.find(source);
+            if (found == channel_state->sampler_ids.end() || found->second != id)
+                return std::nullopt;
+            return GraphicsBindingSnapshot::Sampler{source, id, sampler_table.descriptors[source]};
+        });
+}
+
+template <class P>
+bool TextureCache<P>::ValidateGraphicsBindings(const GraphicsBindingSnapshot& snapshot) const {
+    const auto& images = channel_state->graphics_image_table;
+    const auto& samplers = channel_state->graphics_sampler_table;
+    return snapshot.Validate([&] { return graphics_binding_generation; },
+        [&](u32 index) -> std::optional<TICEntry> {
+            if (index > images.current_limit) return std::nullopt;
+            TICEntry descriptor;
+            gpu_memory->ReadBlockUnsafe(images.current_gpu_addr + index * sizeof(TICEntry),
+                                        &descriptor, sizeof(descriptor));
+            return descriptor;
+        },
+        [&](u32 index) -> std::optional<TSCEntry> {
+            if (index > samplers.current_limit) return std::nullopt;
+            TSCEntry descriptor;
+            gpu_memory->ReadBlockUnsafe(samplers.current_gpu_addr + index * sizeof(TSCEntry),
+                                        &descriptor, sizeof(descriptor));
+            return descriptor;
+        });
+}
+
+template <class P>
+bool TextureCache<P>::PrepareGraphicsBindings(const GraphicsBindingSnapshot& snapshot) {
+    if (!snapshot.Prepare([&] { return graphics_binding_generation; },
+                          [&](ImageViewId id) { PrepareImageView(id, false, false); })) return false;
+    if (graphics_binding_cookie != snapshot.cookie) {
+        ++texture_bindings_serial;
+        graphics_binding_cookie = snapshot.cookie;
+    }
+    return true;
 }
 
 template <class P>
@@ -2785,6 +2846,8 @@ void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete) {
 
 template <class P>
 void TextureCache<P>::RemoveImageViewReferences(std::span<const ImageViewId> removed_views) {
+    ++graphics_binding_generation;
+    graphics_binding_cookie = 0;
     for (size_t c : active_channel_ids) {
         auto& channel_info = channel_storage[c];
         auto it = channel_info.image_views.begin();

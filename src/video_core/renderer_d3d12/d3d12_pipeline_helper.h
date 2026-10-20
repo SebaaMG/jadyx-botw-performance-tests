@@ -61,24 +61,30 @@ using ImageTransitionList =
 
 /// Reads the texture handle of element index of desc from guest constant buffers.
 /// cbuf_address(i) returns the GPU address of constant buffer i.
-template <typename Descriptor, typename CbufAddress>
-[[nodiscard]] auto ReadTextureHandle(Tegra::MemoryManager& gpu_memory, const Descriptor& desc,
-                                     u32 index, bool via_header_index,
-                                     CbufAddress&& cbuf_address) {
+template <typename Descriptor, typename ReadWord>
+[[nodiscard]] auto ReadTextureHandleWords(const Descriptor& desc, u32 index,
+                                         bool via_header_index, ReadWord&& read_word) {
     const u32 index_offset = index << desc.size_shift;
     const u32 offset = desc.cbuf_offset + index_offset;
-    const GPUVAddr addr = cbuf_address(desc.cbuf_index) + offset;
     if constexpr (std::is_same_v<Descriptor, Shader::TextureDescriptor> ||
                   std::is_same_v<Descriptor, Shader::TextureBufferDescriptor>) {
         if (desc.has_secondary) {
             const u32 second_offset = desc.secondary_cbuf_offset + index_offset;
-            const GPUVAddr separate_addr = cbuf_address(desc.secondary_cbuf_index) + second_offset;
-            const u32 lhs_raw = gpu_memory.Read<u32>(addr) << desc.shift_left;
-            const u32 rhs_raw = gpu_memory.Read<u32>(separate_addr) << desc.secondary_shift_left;
+            const u32 lhs_raw = read_word(desc.cbuf_index, offset) << desc.shift_left;
+            const u32 rhs_raw = read_word(desc.secondary_cbuf_index, second_offset) << desc.secondary_shift_left;
             return Tegra::Texture::TexturePair(lhs_raw | rhs_raw, via_header_index);
         }
     }
-    return Tegra::Texture::TexturePair(gpu_memory.Read<u32>(addr), via_header_index);
+    return Tegra::Texture::TexturePair(read_word(desc.cbuf_index, offset), via_header_index);
+}
+
+template <typename Descriptor, typename CbufAddress>
+[[nodiscard]] auto ReadTextureHandle(Tegra::MemoryManager& gpu_memory, const Descriptor& desc,
+                                     u32 index, bool via_header_index,
+                                     CbufAddress&& cbuf_address) {
+    return ReadTextureHandleWords(desc, index, via_header_index, [&](u32 buffer, u32 offset) {
+        return gpu_memory.Read<u32>(cbuf_address(buffer) + offset);
+    });
 }
 
 /// Appends the image views (and the samplers of the textures) a stage reads, in the order the

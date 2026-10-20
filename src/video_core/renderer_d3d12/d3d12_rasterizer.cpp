@@ -179,7 +179,7 @@ void RasterizerD3D12::Draw(bool is_indexed, u32 instance_count) {
     }
     pipeline->Configure(is_indexed,
                         {*maxwell3d, *gpu_memory, buffer_cache, texture_cache, descriptor_queue,
-                         sampler_heap, scheduler},
+                         sampler_heap, scheduler, &draw_plans},
                         bindings);
     buffer_runtime.SetTraceBuffers(nullptr);
     if (!pipeline->Handle()) {
@@ -724,6 +724,15 @@ void RasterizerD3D12::FlushIfUploadHeavy() {
     scheduler.Flush();
 }
 void RasterizerD3D12::TickFrame() {
+    if (++draw_plan_frames % 300 == 0 && draw_plans.Enabled()) {
+        const auto& stats = draw_plans.stats;
+        LOG_INFO(Render, "D3D12 draw plans: attempts {}, unsupported {}, queries {}, hits {}, key misses {}, input misses {}, "
+                 "descriptor misses {}, refresh misses {}, captures {}, uncacheable {}, "
+                 "validated {}, mismatches {} (cumulative, bounded {} KiB)",
+                 stats.attempts, stats.unsupported, stats.queries, stats.hits, stats.key_misses, stats.input_misses,
+                 stats.descriptor_misses, stats.refresh_misses, stats.captures,
+                 stats.uncacheable, stats.validated, stats.mismatches, sizeof(draw_plans) / 1024);
+    }
     Common::BugTracker::TickFrame();
     draw_counter = 0;
     fence_manager.TickFrame();

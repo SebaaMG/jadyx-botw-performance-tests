@@ -24,6 +24,7 @@
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/renderer_d3d12/d3d12_buffer_cache.h"
 #include "video_core/renderer_d3d12/d3d12_device.h"
+#include "video_core/renderer_d3d12/d3d12_draw_plan.h"
 #include "video_core/renderer_d3d12/d3d12_pso_cache.h"
 #include "video_core/renderer_d3d12/d3d12_pipeline_transition_order.h"
 #include "video_core/renderer_d3d12/d3d12_root_signature.h"
@@ -99,6 +100,7 @@ struct PipelineBindContext {
     GuestDescriptorQueue& descriptor_queue;
     SamplerHeap& sampler_heap;
     Scheduler& scheduler;
+    DrawPlanCache* draw_plans{};
 };
 
 /// Root arguments of one draw, filled by GraphicsPipeline::Configure.

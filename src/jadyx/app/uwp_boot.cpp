@@ -149,6 +149,7 @@ void SetDescriptorRemovalChecks(bool enabled); // d3d12_device.h
 void SetUniformUploadCopy(bool enabled);
 void SetDrawSamplerReuse(bool enabled);
 void SetImageTableReuse(bool enabled);
+void SetDrawPlanReuse(bool enabled, bool validate);
 void SetPersistentResources(bool enabled);
 void SetOrderedCopyReuse(bool enabled);
 void SetCopyPlanCache(bool enabled);
@@ -351,6 +352,8 @@ struct BootConfig {
     bool coherent_uniform_cache{};
     bool incremental_uniform_bindings{};
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
+    bool draw_plan_reuse{};
+    bool draw_plan_validate{};
     bool jit_page_reuse{};
     bool jit_fp_compare{};
     bool jit_zero_upper{};
@@ -540,6 +543,9 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     D3D12::SetDrawSamplerReuse(config.draw_sampler_reuse);
     const bool reuse_image_tables = config.image_table_reuse && !config.async_record;
     D3D12::SetImageTableReuse(reuse_image_tables);
+    D3D12::SetDrawPlanReuse(config.draw_plan_reuse, config.draw_plan_validate);
+    WriteDiag(std::string{"Draw plans: "} + (config.draw_plan_reuse ? "on" : "off") +
+              (config.draw_plan_validate ? " (reference validation)" : ""));
     D3D12::SetPersistentResources(config.persistent_resources);
     D3D12::SetOrderedCopyReuse(config.ordered_copy_reuse);
     D3D12::SetCopyPlanCache(config.copy_plan_cache);
@@ -2479,6 +2485,14 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             config.persistent_resources = false;
                         } else if (line == "image_table_reuse=1") {
                             config.image_table_reuse = true;
+                        } else if (line == "draw_plan_reuse=1") {
+                            config.draw_plan_reuse = true;
+                        } else if (line == "draw_plan_reuse=0") {
+                            config.draw_plan_reuse = false;
+                        } else if (line == "draw_plan_validate=1") {
+                            config.draw_plan_validate = true;
+                        } else if (line == "draw_plan_validate=0") {
+                            config.draw_plan_validate = false;
                         } else if (line == "image_table_reuse=0") {
                             config.image_table_reuse = false;
                         } else if (line == "draw_sampler_reuse=1") {

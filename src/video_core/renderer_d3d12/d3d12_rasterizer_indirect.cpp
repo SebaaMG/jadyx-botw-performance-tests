@@ -79,7 +79,7 @@ void RasterizerD3D12::DrawIndirect() {
     buffer_cache.SetDrawIndirect(&params);
     pipeline->Configure(params.is_indexed,
                         {*maxwell3d, *gpu_memory, buffer_cache, texture_cache, descriptor_queue,
-                         sampler_heap, scheduler},
+                         sampler_heap, scheduler, &draw_plans},
                         bindings);
     buffer_cache.SetDrawIndirect(nullptr);
     if (!pipeline->Handle()) {

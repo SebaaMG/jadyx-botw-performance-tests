@@ -253,6 +253,8 @@ private:
     BufferCache buffer_cache;
     TextureCache texture_cache;
     PipelineCache pipeline_cache;
+    DrawPlanCache draw_plans;
+    u64 draw_plan_frames{};
     Vulkan::StateTracker state_tracker;
     struct CommandListState {
         bool valid{};
