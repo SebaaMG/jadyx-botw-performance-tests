@@ -11,6 +11,7 @@
 #include "common/logging.h"
 #include "core/hle/service/nvnflinger/buffer_item.h"
 #include "core/hle/service/nvnflinger/buffer_queue_consumer.h"
+#include "video_core/synchronization_options.h"
 #include "core/hle/service/nvnflinger/buffer_queue_core.h"
 #include "core/hle/service/nvnflinger/parcel.h"
 #include "core/hle/service/nvnflinger/producer_listener.h"
@@ -128,6 +129,7 @@ Status BufferQueueConsumer::AcquireBuffer(BufferItem* out_buffer,
 }
 
 Status BufferQueueConsumer::ReleaseBuffer(s32 slot, u64 frame_number, const Fence& release_fence) {
+    if (release_fence.num_fences > release_fence.fences.size()) return Status::BadValue;
     if (slot < 0 || slot >= BufferQueueDefs::NUM_BUFFER_SLOTS) {
         LOG_ERROR(Service_Nvnflinger, "slot {} out of range", slot);
         return Status::BadValue;
@@ -155,10 +157,9 @@ Status BufferQueueConsumer::ReleaseBuffer(s32 slot, u64 frame_number, const Fenc
         }
 
         if (slots[slot].buffer_state == BufferState::Acquired) {
-            // TODO: for now, avoid resetting the fence, so that when we next return this
-            // slot to the producer, it can wait for its own fence to pass. We should fix this
-            // by properly waiting for the fence in the BufferItemConsumer.
-            // slots[slot].fence = release_fence;
+            if (VideoCore::GetSynchronizationOptions().consumer_release_fences) {
+                slots[slot].fence = release_fence;
+            }
             slots[slot].buffer_state = BufferState::Free;
             VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferReleasedFrame,
                                         core->TraceId(), frame_number);

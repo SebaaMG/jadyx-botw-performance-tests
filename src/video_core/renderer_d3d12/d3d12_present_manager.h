@@ -6,6 +6,7 @@
 #include <array>
 #include <condition_variable>
 #include <deque>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -97,7 +98,7 @@ public:
     [[nodiscard]] FrameLease AcquireFrame();
 
     /// Submits the commands recorded so far (they must have rendered the frame) and presents it.
-    void Present(FrameLease&& lease);
+    void Present(FrameLease&& lease, const std::function<u64()>& submit = {});
 
     /// Blocks until every queued frame has been presented.
     void WaitIdle();

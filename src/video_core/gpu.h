@@ -174,6 +174,7 @@ public:
     /// Runs `action` on the GPU thread between its commands and waits for it. For frontends that
     /// draw on the renderer while the guest is paused (it is the renderer's only safe thread).
     void RunOnGpuThread(std::function<void()> action);
+    void RequestFlushCommands();
 
     /// Tick pending requests within the GPU.
     void TickWork();
@@ -223,7 +224,8 @@ public:
     void RendererFrameEndNotify();
 
     void RequestComposite(std::vector<Tegra::FramebufferConfig>&& layers,
-                          std::vector<Service::Nvidia::NvFence>&& fences);
+                          std::vector<Service::Nvidia::NvFence>&& fences,
+                          u32 consumer_syncpoint = 0, u32 consumer_value = 0);
 
     void WaitForComposite();
 

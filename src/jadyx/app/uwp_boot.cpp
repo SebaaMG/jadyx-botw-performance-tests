@@ -83,6 +83,7 @@
 #include "video_core/frame_trace.h"
 #include "video_core/gpu.h"
 #include "video_core/gpu_thread.h"
+#include "video_core/synchronization_options.h"
 #include "video_core/perf_counters.h"
 #include "video_core/rasterizer_interface.h"
 #include "video_core/renderer_base.h"
@@ -361,6 +362,9 @@ struct BootConfig {
     bool incremental_uniform_bindings{};
     bool continuous_submit{};
     bool coalesce_fence_flush{};
+    bool nonblocking_nv_events{};
+    bool consumer_release_fences{};
+    bool detached_syncpoint_actions{};
     bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
     bool draw_plan_reuse{};
     bool draw_plan_validate{};
@@ -553,6 +557,11 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     D3D12::SetAsyncRecording(config.async_record);
     D3D12::SetContinuousSubmission(config.continuous_submit);
     D3D12::SetFenceFlushCoalescing(config.coalesce_fence_flush);
+    VideoCore::SetSynchronizationOptions({config.nonblocking_nv_events,
+        config.consumer_release_fences, config.detached_syncpoint_actions});
+    WriteDiag("Synchronization: nonblocking_nv_events=" + std::to_string(config.nonblocking_nv_events) +
+              " consumer_release_fences=" + std::to_string(config.consumer_release_fences) +
+              " detached_syncpoint_actions=" + std::to_string(config.detached_syncpoint_actions));
     D3D12::SetUniformUploadCopy(config.upload_copy);
     D3D12::SetDrawSamplerReuse(config.draw_sampler_reuse);
     const bool reuse_image_tables = config.image_table_reuse && !config.async_record;
@@ -2592,6 +2601,12 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             config.coalesce_fence_flush = line.back() == '1';
                             WriteDiag(config.coalesce_fence_flush ? "boot.cfg: fence submit coalescing on"
                                                                  : "boot.cfg: fence submit coalescing off");
+                        } else if (line == "nonblocking_nv_events=0" || line == "nonblocking_nv_events=1") {
+                            config.nonblocking_nv_events = line.back() == '1';
+                        } else if (line == "consumer_release_fences=0" || line == "consumer_release_fences=1") {
+                            config.consumer_release_fences = line.back() == '1';
+                        } else if (line == "detached_syncpoint_actions=0" || line == "detached_syncpoint_actions=1") {
+                            config.detached_syncpoint_actions = line.back() == '1';
                         } else if (line == "readback_reuse=0") {
                             D3D12::SetReadbackReuse(false);
                         } else if (line == "readback_reuse=1") {

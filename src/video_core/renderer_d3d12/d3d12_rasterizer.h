@@ -93,6 +93,7 @@ public:
     void SignalFence(std::function<void()>&&) override;
     void SyncOperation(std::function<void()>&&) override;
     void SignalSyncPoint(u32) override;
+    u64 SubmitCompositeFence(u32 syncpoint, u32 value);
     void SignalReference() override;
     void ReleaseFences(bool = true) override;
     void FlushAndInvalidateRegion(DAddr, u64,

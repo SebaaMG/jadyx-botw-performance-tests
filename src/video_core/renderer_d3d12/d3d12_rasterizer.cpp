@@ -680,6 +680,10 @@ void RasterizerD3D12::ModifyGPUMemory(size_t as_id, GPUVAddr address, u64 size) 
 void RasterizerD3D12::SignalFence(std::function<void()>&& f) { fence_manager.SignalFence(std::move(f)); }
 void RasterizerD3D12::SyncOperation(std::function<void()>&& f) { fence_manager.SyncOperation(std::move(f)); }
 void RasterizerD3D12::SignalSyncPoint(u32 value) { fence_manager.SignalSyncPoint(value); }
+u64 RasterizerD3D12::SubmitCompositeFence(u32 syncpoint, u32 value) {
+    fence_manager.SignalConsumerFence(syncpoint, value);
+    return scheduler.CurrentTick() - 1;
+}
 void RasterizerD3D12::SignalReference() { fence_manager.SignalOrdering(); }
 void RasterizerD3D12::ReleaseFences(bool force) { fence_manager.WaitPendingFences(force); }
 void RasterizerD3D12::FlushAndInvalidateRegion(DAddr a, u64 s, VideoCommon::CacheType w) {

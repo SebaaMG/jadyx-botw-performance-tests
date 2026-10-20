@@ -292,6 +292,13 @@ const char* Name(Event event) {
     case Event::GpuFlushRecorded: return "gpu-flush-recorded";
     case Event::GpuPartialSubmit: return "gpu-partial-submit";
     case Event::GpuFrameBoundary: return "gpu-frame-boundary";
+    case Event::SyncpointLockLong: return "syncpoint-lock-long";
+    case Event::SyncpointCallbackLong: return "syncpoint-callback-long";
+    case Event::NvEventRecoveryLong: return "nv-event-recovery-long";
+    case Event::NvEventRecovery: return "nv-event-recovery";
+    case Event::ConsumerFence: return "consumer-fence";
+    case Event::ConsumerFenceQueued: return "consumer-fence-queued";
+    case Event::ConsumerFenceReady: return "consumer-fence-ready";
     case Event::GpuListWork: return "gpu-list-work";
     case Event::GpuListUpload: return "gpu-list-upload";
     case Event::GpuListClose: return "gpu-list-close";

@@ -164,6 +164,13 @@ enum class Event : u8 {
     GpuListReset,
     GpuListPreviousSubmitted,
     GpuListPreviousCompleted,
+    SyncpointLockLong,
+    SyncpointCallbackLong,
+    NvEventRecoveryLong,
+    NvEventRecovery,
+    ConsumerFence,
+    ConsumerFenceQueued,
+    ConsumerFenceReady,
 };
 
 void SetFrameChainMode(bool enabled);
@@ -253,6 +260,13 @@ inline constexpr u64 SignallingGuest = 79;
         case Event::NvEventArmed:
         case Event::NvEventSignal:
         case Event::NvEventSignalLong:
+        case Event::SyncpointLockLong:
+        case Event::SyncpointCallbackLong:
+        case Event::NvEventRecoveryLong:
+        case Event::NvEventRecovery:
+        case Event::ConsumerFence:
+        case Event::ConsumerFenceQueued:
+        case Event::ConsumerFenceReady:
         case Event::GpuFenceWait:
         case Event::GpuFenceSignal:
         case Event::FenceQueued:

@@ -4,6 +4,20 @@ Cuaderno de trabajo del port: cómo compilar, en qué fase vamos y lo que hemos 
 Los docs "de verdad" son [`uwp_build.md`](uwp_build.md) (toolchain) y [`xbox_deploy.md`](xbox_deploy.md)
 (empaquetar y desplegar). Aquí va el resumen rápido y todo lo que no cabe en ellos.
 
+20 oct 2026, candidato privado SeriesX .30: contratos EventWait contrastados con
+nvservices 22.5.0; sondeo no bloqueante, recuperación sin StallApplication,
+handles estables y callbacks fuera del mutex global. Fence real de consumidor
+integrada en el submit de composición, no en trabajo privado del presenter;
+targets exactos y frontera contigua protegen frames que terminan fuera de orden.
+Tres flags independientes; fuente por defecto OFF. Build UWP y54Python pasan;
+gate FirmwareSync inline/async pasa con bytes exactos y debug limpio. Incluye
+cancelación durante Signal y solicitud de progreso sin esperar el hilo GPU,
+incluso en emulación síncrona. Revisión Dewey añade cancelación anidada de
+ancestros y ready serializado en modo detached; ambas corregidas y gateadas.
+Build finalv6 y regresión ContinuousSubmit inline/async pasan. EXEea05f8...6910c.
+Entrega/paquete en evidencia del propietario; sin FPS .30 medidos.
+Diseño y estado en [xbox_firmware_sync.md](xbox_firmware_sync.md).
+
 20oct2026 privado SeriesX.29: continuous_submit sincuotaporframe; intervalos2/4ms
 segúntickspendientes, min128/reloj64 ybackpressure>=2. coalesce_fence_flush
 limpia contador de drawsdespués deFlushdefence real, no en todoslosreset.

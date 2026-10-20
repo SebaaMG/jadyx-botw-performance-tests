@@ -43,6 +43,11 @@ public:
 
     /// Finalize rendering the guest frame and draw into the presentation texture
     virtual void Composite(std::span<const Tegra::FramebufferConfig> layers) = 0;
+    virtual bool SupportsCompositeFences() const { return false; }
+    virtual void CompositeWithFence(std::span<const Tegra::FramebufferConfig> layers,
+                                    u32 consumer_syncpoint, u32 consumer_value) {
+        Composite(layers);
+    }
 
     /// Get the tiled applet layer capture buffer
     virtual std::vector<u8> GetAppletCaptureBuffer() = 0;

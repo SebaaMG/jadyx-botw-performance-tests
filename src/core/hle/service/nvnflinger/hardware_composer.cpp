@@ -150,7 +150,18 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
                          [&](const HwcLayer& l, const HwcLayer& r) { return l.z_index < r.z_index; });
 
         // Composite.
-        nvdisp.Composite(composition_stack);
+        const auto release = nvdisp.Composite(composition_stack);
+        if (release) {
+            for (const auto& layer : display.stack.layers) {
+                const auto found = m_framebuffers.find(layer->consumer_id);
+                if (layer->visible && found != m_framebuffers.end() && found->second.is_acquired) {
+                    auto& fence = found->second.release_fence;
+                    fence = android::Fence::NoFence();
+                    fence.num_fences = 1;
+                    fence.fences[0] = *release;
+                }
+            }
+        }
     }
 
     // Advance by 1 frame (60 FPS compositing)
@@ -185,8 +196,9 @@ void HardwareComposer::ReleaseFramebuffersLocked(Display& display) {
             framebuffer.item.frame_number,
             (static_cast<u64>(static_cast<u32>(layer_id)) << 32) |
             static_cast<u32>(m_frame_number - framebuffer.last_acquire_frame));
-        layer->buffer_item_consumer->ReleaseBuffer(framebuffer.item, android::Fence::NoFence());
+        layer->buffer_item_consumer->ReleaseBuffer(framebuffer.item, framebuffer.release_fence);
         framebuffer.is_acquired = false;
+        framebuffer.release_fence = android::Fence::NoFence();
     }
 }
 
@@ -200,7 +212,7 @@ void HardwareComposer::RemoveLayerLocked(Display& display, ConsumerId consumer_i
     // Try to release the buffer item.
     const auto layer = display.stack.FindLayer(consumer_id);
     if (layer && it->second.is_acquired) {
-        layer->buffer_item_consumer->ReleaseBuffer(it->second.item, android::Fence::NoFence());
+        layer->buffer_item_consumer->ReleaseBuffer(it->second.item, it->second.release_fence);
     }
 
     // Erase the slot.
@@ -219,6 +231,7 @@ bool HardwareComposer::TryAcquireFramebufferLocked(Layer& layer, Framebuffer& fr
     framebuffer.release_frame_number = m_frame_number + swap_interval;
     framebuffer.last_acquire_frame = m_frame_number;
     framebuffer.is_acquired = true;
+    framebuffer.release_fence = android::Fence::NoFence();
     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::FrameLeaseQueue,
         static_cast<u32>(layer.consumer_id), layer.buffer_item_consumer->TraceId());
     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::FrameLeaseAcquire,

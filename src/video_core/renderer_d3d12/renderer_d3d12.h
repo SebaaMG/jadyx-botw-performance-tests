@@ -82,6 +82,9 @@ public:
     void RemoveDeviceForProbe();
 
     void Composite(std::span<const Tegra::FramebufferConfig> framebuffers) override;
+    bool SupportsCompositeFences() const override { return true; }
+    void CompositeWithFence(std::span<const Tegra::FramebufferConfig> framebuffers,
+                            u32 consumer_syncpoint, u32 consumer_value) override;
 
     std::vector<u8> GetAppletCaptureBuffer() override;
 
@@ -165,6 +168,8 @@ private:
 
     Tegra::MaxwellDeviceMemoryManager& device_memory;
     Tegra::GPU& gpu;
+    u32 pending_consumer_syncpoint{};
+    u32 pending_consumer_value{};
     Device device;
     Swapchain swapchain;
     ShaderCompiler shader_compiler;
