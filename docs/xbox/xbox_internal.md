@@ -4,6 +4,23 @@ Cuaderno de trabajo del port: cómo compilar, en qué fase vamos y lo que hemos 
 Los docs "de verdad" son [`uwp_build.md`](uwp_build.md) (toolchain) y [`xbox_deploy.md`](xbox_deploy.md)
 (empaquetar y desplegar). Aquí va el resumen rápido y todo lo que no cabe en ellos.
 
+20 oct 2026, diagnóstico privado SeriesX .27 sobre .26: FrameTrace opt-in por T,
+120vsyncs, todos los guest IDs, IPC original, lotes software y Flush/Submit nativo
+correlacionados; colas/frame/slot y fences observados sin cambiar sus decisiones.
+Política, 48Python, GPU inline/async y enlace UWP pasan. Detalle y límites en
+[xbox_frame_chain.md](xbox_frame_chain.md). Maxwell sucede después de PopWait;
+no atribuir su espera a preparación Maxwell simultánea. Push-end puede aparecer
+después de work-begin: publicar tiene dos límites, no un timestamp inventado.
+Elapsed Run no es CPU busy; scopes IPC no usan TLS por migración/fibers. El origen
+GPU sí viaja al worker nativo con capture ID; un Flush puede agrupar trabajo de
+lotes anteriores. No cambiar release fences ni medir FPS durante el volcado.
+TmanualBOTW:66153eventos/120vsyncs/1995,260ms completos,48frames encolados.
+705,606/762,005ms deidle (92,5986%) coinciden conguest79 esperando unnv-event
+despertado porcallback de fence nativa;83 envía los lotes. Despertar→resumir
+mediana0,034ms. Dequeuewaitsin solapamiento conidle enesta captura. En46/51lotes
+>5ms, primeraSubmitobservada tras98%deltiempo; investigar entrega nativa tardía
+y solapamientoCPU/GPU, no saltarfences. Inventario/catalejo/Q pasan; biblioteca.
+
 20 oct 2026, candidato privado SeriesX .26: recuperación de readbacks, reserva
 adaptativa y agrupación GC descritas en [xbox_readback_recovery.md](xbox_readback_recovery.md).
 El gate con recorder asíncrono debe esperar WaitSubmitted antes de insertar un

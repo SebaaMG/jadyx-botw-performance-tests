@@ -230,8 +230,11 @@ u64 Scheduler::Flush() {
         TraceGpuOperation(fmt::format("submit tick={} completed={} PSO={}", signaled,
                                      fence->GetCompletedValue(), static_cast<void*>(current_pipeline)));
     }
-    stream->Record([this, signaled](ID3D12GraphicsCommandList* list) {
-        SubmitRecorded(list, signaled);
+    const auto origin = VideoCore::FrameTrace::CurrentGpuOrigin();
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuFlushRecorded,
+                               signaled, origin.work);
+    stream->Record([this, signaled, origin](ID3D12GraphicsCommandList* list) {
+        SubmitRecorded(list, signaled, origin.capture, origin.work);
     });
     recorder->Dispatch();
     VideoCore::Perf::Add(VideoCore::Perf::Counter::Submits, 1);
@@ -251,7 +254,7 @@ u64 Scheduler::Flush() {
     return signaled;
 }
 
-void Scheduler::SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick) {
+void Scheduler::SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick, u32 capture, u64 work) {
     const bool probing = CloseProbeEnabled();
     if (probing) {
         ProbeBeforeClose();
@@ -274,7 +277,8 @@ void Scheduler::SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick) {
         device.Queue()->ExecuteCommandLists(1, lists);
         ThrowIfFailed(device.Queue()->Signal(fence.Get(), tick), "ID3D12CommandQueue::Signal");
     }
-    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuSubmit);
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuSubmit, tick,
+        capture == VideoCore::FrameTrace::GetCaptureStatus().id ? work : 0);
     CheckRemovedAfter(device.Get(), [&] {
         return fmt::format("submitting tick {} (removed by the GPU or by a recorded command)",
                            tick);

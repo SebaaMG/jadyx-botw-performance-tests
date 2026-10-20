@@ -170,6 +170,9 @@ void HardwareComposer::ReleaseFramebuffersLocked(Display& display) {
             continue;
         }
 
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::FrameLeaseQueue,
+            static_cast<u32>(layer_id), layer->buffer_item_consumer->TraceId());
+
         if (!layer->is_overlay && framebuffer.release_frame_number > m_frame_number) {
             VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::FrameLeaseHold,
                 framebuffer.item.frame_number,
@@ -216,6 +219,8 @@ bool HardwareComposer::TryAcquireFramebufferLocked(Layer& layer, Framebuffer& fr
     framebuffer.release_frame_number = m_frame_number + swap_interval;
     framebuffer.last_acquire_frame = m_frame_number;
     framebuffer.is_acquired = true;
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::FrameLeaseQueue,
+        static_cast<u32>(layer.consumer_id), layer.buffer_item_consumer->TraceId());
     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::FrameLeaseAcquire,
         framebuffer.item.frame_number,
         (static_cast<u64>(static_cast<u32>(layer.consumer_id)) << 32) |

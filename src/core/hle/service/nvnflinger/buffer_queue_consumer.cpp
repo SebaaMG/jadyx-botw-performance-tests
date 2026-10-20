@@ -18,6 +18,10 @@
 
 namespace Service::android {
 
+u64 BufferQueueConsumer::TraceId() const {
+    return core->TraceId();
+}
+
 BufferQueueConsumer::BufferQueueConsumer(std::shared_ptr<BufferQueueCore> core_)
     : core{std::move(core_)}, slots{core->slots} {}
 
@@ -92,6 +96,10 @@ Status BufferQueueConsumer::AcquireBuffer(BufferItem* out_buffer,
 
     const auto slot = front->slot;
     *out_buffer = *front;
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferAcquiredFrame,
+                                core->TraceId(), front->frame_number);
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferAcquiredSlot,
+                                core->TraceId(), static_cast<u64>(slot));
     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::AcquireBuffer,
                                 static_cast<u64>(slot), front->frame_number);
 
@@ -152,6 +160,10 @@ Status BufferQueueConsumer::ReleaseBuffer(s32 slot, u64 frame_number, const Fenc
             // by properly waiting for the fence in the BufferItemConsumer.
             // slots[slot].fence = release_fence;
             slots[slot].buffer_state = BufferState::Free;
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferReleasedFrame,
+                                        core->TraceId(), frame_number);
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferReleasedSlot,
+                                        core->TraceId(), static_cast<u64>(slot));
             VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::ReleaseBuffer,
                                         static_cast<u64>(slot), frame_number);
 

@@ -132,32 +132,146 @@ enum class Event : u8 {
     StagingWaitReason,
     StagingWaitLong,
     TextureGcWaitRequest,
+    IpcRequestBegin,
+    IpcRequestEnd,
+    GpuQueuePushBegin,
+    GpuQueuePushEnd,
+    GpuQueueWait,
+    GpuQueueLockLong,
+    GpuWorkBegin,
+    GpuWorkEnd,
+    GpuFlushRecorded,
+    BufferDequeueBegin,
+    BufferDequeueEnd,
+    BufferDequeued,
+    BufferWaitBegin,
+    BufferWaitEnd,
+    BufferQueuedFrame,
+    BufferQueuedSlot,
+    BufferAcquiredFrame,
+    BufferAcquiredSlot,
+    BufferReleasedFrame,
+    BufferReleasedSlot,
+    FrameLeaseQueue,
+    BufferReturnedFence,
+    BufferQueuedFence,
+    BufferDequeueSignal,
 };
+
+void SetFrameChainMode(bool enabled);
+[[nodiscard]] bool FrameChainMode();
+[[nodiscard]] bool FrameChainActive();
+[[nodiscard]] u64 NextIdentity();
 
 // Focused diagnostic for this investigation. Change the target here for another run.
 inline constexpr u64 TargetGuest = 83;
 inline constexpr u64 SignallingGuest = 79;
-[[nodiscard]] constexpr bool TracksGuest(u64 guest) {
-    return guest == TargetGuest || guest == SignallingGuest;
+[[nodiscard]] constexpr bool TracksGuestForMode(u64 guest, bool frame_chain) {
+    return frame_chain || guest == TargetGuest || guest == SignallingGuest;
 }
-[[nodiscard]] constexpr bool TracksRunGuest(u64 guest) {
-    return TracksGuest(guest) || guest == 123 || guest == 124 || guest == 125;
-}
-[[nodiscard]] constexpr bool Enabled(Event event, u64 a = 0, u64 b = 0) {
+[[nodiscard]] bool TracksGuest(u64 guest);
+[[nodiscard]] bool TracksRunGuest(u64 guest);
+[[nodiscard]] constexpr bool EnabledForMode(Event event, u64 a, u64 b, bool frame_chain) {
+    if (frame_chain) {
+        switch (event) {
+        case Event::Vsync:
+        case Event::VsyncTick:
+        case Event::VsyncSignal:
+        case Event::VsyncComposed:
+        case Event::ComposeWaitEnd:
+        case Event::Composite:
+        case Event::GpuSubmit:
+        case Event::GpuIdleEnd:
+        case Event::GuestThreadReady:
+        case Event::GuestDispatch:
+        case Event::GuestSvcBegin:
+        case Event::GuestSvcEnd:
+        case Event::GuestSvcLong:
+        case Event::GuestRunLong:
+        case Event::GuestRunStop:
+        case Event::GuestHostCpuWindow:
+        case Event::GuestIpcCommand:
+        case Event::GuestIpcName0:
+        case Event::GuestIpcName1:
+        case Event::GuestIpcName2:
+        case Event::GuestIpcLock:
+        case Event::GuestIpcHandler:
+        case Event::IpcRequestBegin:
+        case Event::IpcRequestEnd:
+        case Event::GpuQueuePushBegin:
+        case Event::GpuQueuePushEnd:
+        case Event::GpuQueueWait:
+        case Event::GpuQueueLockLong:
+        case Event::GpuWorkBegin:
+        case Event::GpuWorkEnd:
+        case Event::GpuFlushRecorded:
+        case Event::BufferDequeueBegin:
+        case Event::BufferDequeueEnd:
+        case Event::BufferDequeued:
+        case Event::BufferWaitBegin:
+        case Event::BufferWaitEnd:
+        case Event::BufferQueuedFrame:
+        case Event::BufferQueuedSlot:
+        case Event::BufferAcquiredFrame:
+        case Event::BufferAcquiredSlot:
+        case Event::BufferReleasedFrame:
+        case Event::BufferReleasedSlot:
+        case Event::FrameLeaseQueue:
+        case Event::BufferReturnedFence:
+        case Event::BufferQueuedFence:
+        case Event::BufferDequeueSignal:
+        case Event::FrameLeaseAcquire:
+        case Event::FrameLeaseHold:
+        case Event::FrameLeaseRelease:
+        case Event::DisplayComposeLock:
+        case Event::DisplayComposeLong:
+        case Event::HostPresentLong:
+        case Event::AddressWaitBegin:
+        case Event::AddressWaitEnd:
+        case Event::AddressWake:
+        case Event::AddressCancel:
+        case Event::SyncWaitBegin:
+        case Event::SyncWaitObject:
+        case Event::SyncWakeObject:
+        case Event::SyncWaitEnd:
+        case Event::NvEventArmed:
+        case Event::NvEventSignal:
+        case Event::NvEventSignalLong:
+        case Event::GpuFenceWait:
+        case Event::GpuFenceSignal:
+        case Event::FenceQueued:
+        case Event::FenceDequeued:
+        case Event::FenceCallbacksBegin:
+        case Event::FenceDone:
+        case Event::FenceBackendTick:
+        case Event::FenceWaitLong:
+        case Event::FenceGpuWaitLong:
+        case Event::FenceSubmitWaitLong:
+        case Event::StagingWaitRequest:
+        case Event::StagingWaitReason:
+        case Event::StagingWaitLong:
+        case Event::TextureGcWaitRequest: return true;
+        default: return false;
+        }
+    }
+    const auto tracks = [](u64 guest) { return TracksGuestForMode(guest, false); };
+    const auto tracks_run = [&tracks](u64 guest) {
+        return tracks(guest) || guest == 123 || guest == 124 || guest == 125;
+    };
     switch (event) {
     case Event::GuestThreadReady:
     case Event::GuestDispatch:
     case Event::GuestSvcBegin:
-    case Event::GuestSvcEnd: return TracksGuest(a);
+    case Event::GuestSvcEnd: return tracks(a);
     case Event::GuestSvcLong:
     case Event::GuestRunLong:
     case Event::GuestRunPc:
-    case Event::GuestRunStop: return TracksRunGuest(b >> 8);
+    case Event::GuestRunStop: return tracks_run(b >> 8);
     case Event::GuestIpcCommand:
     case Event::GuestIpcName0:
     case Event::GuestIpcName1:
     case Event::GuestIpcName2:
-    case Event::GuestIpcHandler: return TracksGuest(b);
+    case Event::GuestIpcHandler: return tracks(b);
     case Event::GuestRunCompile:
     case Event::GuestRunFlush:
     case Event::GuestRunClock:
@@ -180,9 +294,37 @@ inline constexpr u64 SignallingGuest = 79;
     case Event::DisplayComposeLock:
     case Event::DisplayComposeLong:
     case Event::HostPresentLong:
-    case Event::GpuSubmit: return false;
+    case Event::GpuSubmit:
+    case Event::IpcRequestBegin:
+    case Event::IpcRequestEnd:
+    case Event::GpuQueuePushBegin:
+    case Event::GpuQueuePushEnd:
+    case Event::GpuQueueWait:
+    case Event::GpuQueueLockLong:
+    case Event::GpuWorkBegin:
+    case Event::GpuWorkEnd:
+    case Event::GpuFlushRecorded:
+    case Event::BufferDequeueBegin:
+    case Event::BufferDequeueEnd:
+    case Event::BufferDequeued:
+    case Event::BufferWaitBegin:
+    case Event::BufferWaitEnd:
+    case Event::BufferQueuedFrame:
+    case Event::BufferQueuedSlot:
+    case Event::BufferAcquiredFrame:
+    case Event::BufferAcquiredSlot:
+    case Event::BufferReleasedFrame:
+    case Event::BufferReleasedSlot:
+    case Event::FrameLeaseQueue:
+    case Event::BufferReturnedFence:
+    case Event::BufferQueuedFence:
+    case Event::BufferDequeueSignal: return false;
     default: return true;
     }
+}
+
+[[nodiscard]] inline bool Enabled(Event event, u64 a = 0, u64 b = 0) {
+    return EnabledForMode(event, a, b, FrameChainMode());
 }
 
 /// Records the next `vsyncs` vsyncs (ignored while a trace is running).
@@ -200,6 +342,37 @@ struct CaptureStatus {
 [[nodiscard]] CaptureStatus GetCaptureStatus();
 
 void Mark(Event event, u64 a = 0, u64 b = 0);
+
+struct GpuOrigin {
+    u32 capture{};
+    u64 work{};
+};
+[[nodiscard]] GpuOrigin CurrentGpuOrigin();
+
+class ScopedRequest {
+public:
+    ScopedRequest(Event begin, Event end_, u64 context_);
+    ~ScopedRequest();
+    ScopedRequest(const ScopedRequest&) = delete;
+    ScopedRequest& operator=(const ScopedRequest&) = delete;
+private:
+    Event end;
+    u64 context;
+    u64 identity{};
+    u32 capture{};
+};
+
+class ScopedGpuWork {
+public:
+    ScopedGpuWork(u64 work_, u64 metadata_);
+    ~ScopedGpuWork();
+    ScopedGpuWork(const ScopedGpuWork&) = delete;
+    ScopedGpuWork& operator=(const ScopedGpuWork&) = delete;
+private:
+    GpuOrigin previous;
+    GpuOrigin origin;
+    u64 metadata;
+};
 
 /// Emits only completed spans >=200 us in the same capture. Elapsed time includes
 /// preemption, translation and callbacks; it is not host CPU utilization or GPU duration.

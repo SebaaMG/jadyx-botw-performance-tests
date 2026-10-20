@@ -167,7 +167,7 @@ private:
 
     /// Closes the list, submits it to signal tick and resets it for the next one. Recorded by
     /// Flush, so it runs where the list is recorded (the worker or the recording thread).
-    void SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick);
+    void SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick, u32 capture, u64 work);
     /// On the worker after a recorded call threw: releases every waiter, so the recording thread
     /// reaches its next Flush or Wait, which rethrows the error.
     void ReleaseWaitersAfterError() noexcept;

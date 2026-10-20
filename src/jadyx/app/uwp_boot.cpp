@@ -2870,6 +2870,11 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                         } else if (line == "pso_probe=1") {
                             D3D12::SetPsoCostProbe(true);
                             WriteDiag("boot.cfg: measuring the driver's commit per graphics PSO");
+                        } else if (line == "frame_chain_trace=1") {
+                            VideoCore::FrameTrace::SetFrameChainMode(true);
+                            WriteDiag("boot.cfg: selective frame-chain trace armed by T, 120 vsyncs");
+                        } else if (line == "frame_chain_trace=0") {
+                            VideoCore::FrameTrace::SetFrameChainMode(false);
                         } else if (line == "host_trim=1") {
                             config.host_trim = true;
                         } else if (line == "host_trim=0") {

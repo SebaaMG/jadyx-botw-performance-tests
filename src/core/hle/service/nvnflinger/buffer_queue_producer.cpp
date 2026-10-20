@@ -233,11 +233,15 @@ Status BufferQueueProducer::WaitForFreeSlotThenRelock(bool async, s32* found, St
                                      (static_cast<u64>(max_buffer_count & 0xff) << 16);
             VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::DequeueWait,
                                         core->queue.size(), buffer_state);
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferWaitBegin,
+                                        core->TraceId(), buffer_state);
             const bool running = core->WaitForDequeueCondition(lk);
             const u64 waited_us = VideoCore::Perf::ElapsedUs(wait_start);
             VideoCore::Perf::Add(VideoCore::Perf::Counter::GuestDequeueWaits, 1);
             VideoCore::Perf::Add(VideoCore::Perf::Counter::GuestDequeueWaitUs, waited_us);
             VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::DequeueWaitEnd, waited_us);
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferWaitEnd,
+                                        core->TraceId(), waited_us);
             if (!running) {
                 // We are no longer running
                 return Status::NoError;
@@ -250,6 +254,9 @@ Status BufferQueueProducer::WaitForFreeSlotThenRelock(bool async, s32* found, St
 
 Status BufferQueueProducer::DequeueBuffer(s32* out_slot, Fence* out_fence, bool async, u32 width,
                                           u32 height, PixelFormat format, u32 usage) {
+    const VideoCore::FrameTrace::ScopedRequest trace_dequeue{
+        VideoCore::FrameTrace::Event::BufferDequeueBegin,
+        VideoCore::FrameTrace::Event::BufferDequeueEnd, core->TraceId()};
     LOG_DEBUG(Service_Nvnflinger, "async={} w={} h={} format={}, usage={}",
               async ? "true" : "false", width, height, format, usage);
 
@@ -338,6 +345,15 @@ Status BufferQueueProducer::DequeueBuffer(s32* out_slot, Fence* out_fence, bool 
 
     LOG_DEBUG(Service_Nvnflinger, "returning slot={} frame={}, flags={}", *out_slot,
               slots[*out_slot].frame_number, return_flags);
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferDequeued,
+                                core->TraceId(), static_cast<u64>(*out_slot));
+    if (VideoCore::FrameTrace::FrameChainActive()) {
+        for (u32 index = 0; index < std::min<u32>(out_fence->num_fences, static_cast<u32>(out_fence->fences.size())); ++index) {
+            const auto& returned_fence = out_fence->fences[index];
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferReturnedFence,
+                core->TraceId(), static_cast<u32>(returned_fence.id) | (u64{returned_fence.value} << 32));
+        }
+    }
 
     return return_flags;
 }
@@ -567,6 +583,18 @@ Status BufferQueueProducer::QueueBuffer(s32 slot, const QueueBufferInput& input,
                                     static_cast<u64>(slot),
                                     static_cast<u64>(static_cast<u32>(requested_swap_interval)) |
                                         (static_cast<u64>(static_cast<u32>(swap_interval)) << 32));
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferQueuedFrame,
+                                    core->TraceId(), item.frame_number);
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferQueuedSlot,
+            core->TraceId(), static_cast<u32>(slot) |
+                (static_cast<u64>(static_cast<u32>(swap_interval)) << 32));
+        if (VideoCore::FrameTrace::FrameChainActive()) {
+            for (u32 index = 0; index < std::min<u32>(item.fence.num_fences, static_cast<u32>(item.fence.fences.size())); ++index) {
+                const auto& queued_fence = item.fence.fences[index];
+                VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferQueuedFence,
+                    core->TraceId(), static_cast<u32>(queued_fence.id) | (u64{queued_fence.value} << 32));
+            }
+        }
 
         output->Inflate(core->default_width, core->default_height, core->transform_hint, static_cast<u32>(core->queue.size()));
     }

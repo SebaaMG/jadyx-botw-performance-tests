@@ -32,6 +32,9 @@ struct Entry {
 constexpr size_t CAPACITY = 524288;
 
 std::atomic_bool active{false};
+std::atomic_bool frame_chain_mode{false};
+std::atomic<u64> identity_counter{0};
+thread_local GpuOrigin current_gpu_origin;
 std::atomic<CaptureState> capture_state{CaptureState::Idle};
 std::atomic<u32> capture_id{0};
 std::atomic<u32> vsyncs_left{0};
@@ -278,6 +281,30 @@ const char* Name(Event event) {
         return "staging-wait-long";
     case Event::TextureGcWaitRequest:
         return "texture-gc-wait-request";
+    case Event::IpcRequestBegin: return "ipc-request-begin";
+    case Event::IpcRequestEnd: return "ipc-request-end";
+    case Event::GpuQueuePushBegin: return "gpu-queue-push-begin";
+    case Event::GpuQueuePushEnd: return "gpu-queue-push-end";
+    case Event::GpuQueueWait: return "gpu-queue-wait";
+    case Event::GpuQueueLockLong: return "gpu-queue-lock-long";
+    case Event::GpuWorkBegin: return "gpu-work-begin";
+    case Event::GpuWorkEnd: return "gpu-work-end";
+    case Event::GpuFlushRecorded: return "gpu-flush-recorded";
+    case Event::BufferDequeueBegin: return "buffer-dequeue-begin";
+    case Event::BufferDequeueEnd: return "buffer-dequeue-end";
+    case Event::BufferDequeued: return "buffer-dequeued";
+    case Event::BufferWaitBegin: return "buffer-wait-begin";
+    case Event::BufferWaitEnd: return "buffer-wait-end";
+    case Event::BufferQueuedFrame: return "buffer-queued-frame";
+    case Event::BufferQueuedSlot: return "buffer-queued-slot";
+    case Event::BufferAcquiredFrame: return "buffer-acquired-frame";
+    case Event::BufferAcquiredSlot: return "buffer-acquired-slot";
+    case Event::BufferReleasedFrame: return "buffer-released-frame";
+    case Event::BufferReleasedSlot: return "buffer-released-slot";
+    case Event::FrameLeaseQueue: return "frame-lease-queue";
+    case Event::BufferReturnedFence: return "buffer-returned-fence";
+    case Event::BufferQueuedFence: return "buffer-queued-fence";
+    case Event::BufferDequeueSignal: return "buffer-dequeue-signal";
     }
     return "?";
 }
@@ -295,10 +322,69 @@ void Dump(u32 count) {
 
 } // Anonymous namespace
 
+void SetFrameChainMode(bool enabled) {
+    if (!Active()) frame_chain_mode.store(enabled, std::memory_order_relaxed);
+}
+
+bool FrameChainMode() {
+    return frame_chain_mode.load(std::memory_order_relaxed);
+}
+
+bool FrameChainActive() {
+    return Active() && FrameChainMode();
+}
+
+u64 NextIdentity() {
+    return identity_counter.fetch_add(1, std::memory_order_relaxed) + 1;
+}
+
+bool TracksGuest(u64 guest) {
+    return TracksGuestForMode(guest, FrameChainMode());
+}
+
+bool TracksRunGuest(u64 guest) {
+    return TracksGuest(guest) || guest == 123 || guest == 124 || guest == 125;
+}
+
+GpuOrigin CurrentGpuOrigin() {
+    return FrameChainActive() && current_gpu_origin.capture == GetCaptureStatus().id
+        ? current_gpu_origin : GpuOrigin{};
+}
+
+ScopedRequest::ScopedRequest(Event begin, Event end_, u64 context_)
+    : end{end_}, context{context_} {
+    if (FrameChainActive()) {
+        capture = GetCaptureStatus().id;
+        identity = NextIdentity();
+        Mark(begin, identity, context);
+    }
+}
+
+ScopedRequest::~ScopedRequest() {
+    if (identity && FrameChainActive() && capture == GetCaptureStatus().id)
+        Mark(end, identity, context);
+}
+
+ScopedGpuWork::ScopedGpuWork(u64 work_, u64 metadata_)
+    : previous{current_gpu_origin}, metadata{metadata_} {
+    if (FrameChainActive()) {
+        origin = {GetCaptureStatus().id, work_};
+        current_gpu_origin = origin;
+        Mark(Event::GpuWorkBegin, work_, metadata);
+    }
+}
+
+ScopedGpuWork::~ScopedGpuWork() {
+    current_gpu_origin = previous;
+    if (origin.capture && FrameChainActive() && origin.capture == GetCaptureStatus().id)
+        Mark(Event::GpuWorkEnd, origin.work, metadata);
+}
+
 void Start(u32 vsyncs) {
     if (active.load() || capture_state.load() == CaptureState::Saving || vsyncs == 0) {
         return;
     }
+    if (FrameChainMode()) vsyncs = std::min(vsyncs, 120U);
     next_entry.store(0);
     vsyncs_left.store(vsyncs);
     jit_profiled = Dynarmic::JitProfile::enabled.load(std::memory_order_relaxed);
@@ -307,7 +393,9 @@ void Start(u32 vsyncs) {
     Core::JitPrewarm::capture_active.store(true, std::memory_order_relaxed);
     start_time = std::chrono::steady_clock::now();
     const u32 id = capture_id.fetch_add(1) + 1;
-    LOG_INFO(Render, "Frame trace: recording {} vsyncs (capture {}), focused address chain guests79/83", vsyncs, id);
+    LOG_INFO(Render, "Frame trace: recording {} vsyncs (capture {}), {}", vsyncs, id,
+             FrameChainMode() ? "frame-chain-v1 all guest IDs; diagnostic timing, not FPS benchmark"
+                              : "focused address chain guests79/83");
     capture_state.store(CaptureState::Recording);
     active.store(true);
 }

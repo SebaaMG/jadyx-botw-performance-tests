@@ -170,10 +170,13 @@ void PhysicalCore::RunThread(KernelCore& kernel, Kernel::KThread* thread) {
                         VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GuestRunFlush,
                                                     flush_us, trace_context);
                     }
-                    Kernel::Svc::ThreadContext context{};
-                    interface->GetContext(context);
-                    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GuestRunPc,
-                                                context.pc, trace_context);
+                    if (VideoCore::FrameTrace::Enabled(VideoCore::FrameTrace::Event::GuestRunPc,
+                                                       0, trace_context)) {
+                        Kernel::Svc::ThreadContext context{};
+                        interface->GetContext(context);
+                        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GuestRunPc,
+                                                    context.pc, trace_context);
+                    }
                     const u64 svc = True(hr & Core::HaltReason::SupervisorCall) ?
                                         interface->GetSvcNumber() : UINT32_MAX;
                     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GuestRunStop,
@@ -292,7 +295,8 @@ void PhysicalCore::RunThread(KernelCore& kernel, Kernel::KThread* thread) {
                 VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GuestSvcBegin,
                                             trace_thread, svc_number);
             }
-            if (VideoCore::FrameTrace::Active() &&
+            if (VideoCore::FrameTrace::Enabled(VideoCore::FrameTrace::Event::GuestSvcPc) &&
+                VideoCore::FrameTrace::Active() &&
                 VideoCore::FrameTrace::TracksGuest(thread->GetThreadId()) &&
                 (trace_wait ||
                  svc_number == static_cast<u32>(Svc::SvcId::SignalToAddress))) {
