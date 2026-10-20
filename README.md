@@ -3,18 +3,37 @@ SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-> **BOTW performance experiments, checkpoint .30 (20 October 2026).** This branch
-> contains the tested source changes on Jadyx `068d86bc21`, plus native test
-> harnesses and aggregate measurements. In one Windows fixed-view ON–OFF–ON
-> comparison, the three synchronization options reduced mean frame time by
-> 1.57–1.81 ms (+5.3–6.1% FPS). P99 did not clearly improve. See the
-> [experiment report and reproduction notes](docs/performance/BOTW-PERFORMANCE.md).
-> The [complete experiment history](docs/performance/HISTORY.md) includes all 25
-> retained source changes, historical checkpoint tags, and 33 aggregate records.
-> Upstream credits, licensing, and the original project overview follow below.
->
-> **Series X testing is pending.** The console may have more performance headroom
-> than this test PC; the results below document the progress measured on PC.
+## BOTW performance fork: from original Jadyx to .30
+
+**From roughly 10–15 FPS initially to 30 FPS at the normal cap, and
+33.40–33.67 FPS with the 60-FPS mod, on the same Windows test PC.** This fork
+publishes the full optimization work, not just the last synchronization change.
+
+| Historical milestone | FPS | Mean ms/frame |
+|---|---:|---:|
+| [Original Jadyx 0.2.93.3, unmodified capture](docs/performance/history/jadyx-windows-2026-10-18.json) | 14.78 | 67.64 |
+| [.17, native PGO reference](docs/performance/history/jadyx-pgo-native-2026-10-18.json) | 27.46 | 36.42 |
+| [.30, normal 30-FPS cap](docs/performance/history/jadyx-firmware-sync-2026-10-20.json) | 30.00 | 33.34 |
+| [.30, 60-FPS mod, ON and ON repeat](docs/performance/evidence/botw-30-on-off-on-2026-10-20.json) | 33.40–33.67 | 29.70–29.94 |
+
+Across the original and latest captures, that is **2.26–2.28× the observed FPS
+and 37.70–37.94 ms less per frame**. These historical sessions differ in scene/load,
+cache state, memory settings, upstream revision and FPS mod: this is the overall
+observed progression, not a matched original-versus-current A/B benchmark.
+
+The work includes BC1 array uploads, memory/pool and readback recovery, native
+LTO/PGO, earlier and continuous GPU submissions, and synchronization corrections.
+The latest .30 ON–OFF–ON comparison adds **1.57–1.81 ms / +5.3–6.1% FPS** on top
+of earlier work; that figure is **not the total improvement**.
+
+**Series X:** original Jadyx already reports about **20 FPS in the open world
+and 30 FPS in lighter areas**, better than the original capture on this PC.
+Testing this fork's changes on the console is pending.
+
+See the [full report](docs/performance/BOTW-PERFORMANCE.md) and
+[experiment history](docs/performance/HISTORY.md): all 25 retained source changes,
+checkpoint tags, and 33 aggregate records. Upstream credits, licensing, and the
+original project overview follow below.
 
 <p align="center">
   <img src="dist/qt_themes/default/icons/256x256/eden.png" alt="Eden logo" width="128">

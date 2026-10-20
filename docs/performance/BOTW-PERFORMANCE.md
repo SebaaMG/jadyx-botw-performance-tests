@@ -15,18 +15,47 @@ snapshot.
 The [full history](HISTORY.md) also preserves the initial .0/.1 controls and every
 retained earlier candidate, including experiments later left disabled or dropped.
 
-## Latest measured result
+## Overall progress from original Jadyx
 
-The owner reported roughly 10–15 FPS during the initial PC gameplay tests. The
-later .29 combination reached 29.99 FPS / 33.35 ms in the fixed view, and .30
-reached 33.40–33.67 FPS with the 60-FPS mod. The initial figure describes the
-owner's experience, not a same-scene benchmark against .30.
+All milestones below were recorded on the same Windows 10 PC with an Intel
+Xeon E5-2696 v3 and Radeon RX 580. The owner initially reported roughly 10–15 FPS;
+the unmodified upstream capture also contains the numeric baseline:
+
+| Milestone | Recorded scope | FPS | Mean ms/frame |
+|---|---|---:|---:|
+| Original Jadyx 0.2.93.3 | All 36 complete windows, 10,800 frames, traversal/loading included | 14.78466 | 67.63769 |
+| Original, dense-window subset | 24 windows, 7,200 frames, >=3,000 draws/frame after 120 s | 12.52298 | 79.85319 |
+| .17 native PGO reference | 1,200 frames, owner-confirmed save/view | 27.45933 | 36.41750 |
+| .30, normal 30-FPS cap | 1,200 frames, fixed view | 29.99700 | 33.33667 |
+| .30, 60-FPS mod, ON | 1,200 frames, fixed view | 33.66909 | 29.70083 |
+| .30, 60-FPS mod, ON repeat | 1,200 frames, fixed view | 33.40292 | 29.93750 |
+
+Against the original all-window capture, the latest observed FPS is
+**2.25930–2.27730× (+125.93–127.73%)**, with mean frame time
+**37.70019–37.93685 ms lower**. At the normal cap, the recorded progression is
+14.78 → 30.00 FPS. This is the historical total, not just the .30 increment.
+
+Sources: [original capture](history/jadyx-windows-2026-10-18.json),
+[.17](history/jadyx-pgo-native-2026-10-18.json),
+[.30 capped](history/jadyx-firmware-sync-2026-10-20.json), and
+[.30 uncapped ON–OFF–ON](evidence/botw-30-on-off-on-2026-10-20.json).
+The original session and latest fixed view differ in workload, cache state,
+memory settings, upstream revision and FPS mod; the total is an observed
+progression, not a controlled original-versus-current speedup. Same-executable
+comparisons establish individual increments separately; those percentages
+must not simply be added together.
 
 Upstream already reports 30 FPS in lighter Xbox Series X areas and about 20 FPS
-in the open world. That is a different starting point from this PC. Missing a
+in the open world, ahead of the original PC capture. Missing a
 33.3-ms deadline can also amplify the visible FPS drop when presentation or
 game pacing waits for a later interval; the exact timing chain matters alongside
-the amount of work saved. See the original overview below these experiment notes.
+the amount of work saved. See the original project overview in the root README.
+
+## Latest measured increment: .30 synchronization
+
+The following comparison isolates the three new .30 options, retaining all
+earlier optimizations in both variants. Its gain is additional to the earlier
+work, not the original-to-current total.
 
 20 October 2026, Windows 10, Intel Xeon E5-2696 v3 and Radeon RX 580. BOTW 1.9.0,
 same 60-FPS mod, owner-confirmed save and fixed camera, downloads paused, same
