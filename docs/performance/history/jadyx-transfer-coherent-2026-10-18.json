@@ -1,0 +1,451 @@
+{
+  "recorded_at_utc": "2026-10-18T23:57:07.490203+00:00",
+  "status": "Implemented, UWP built/packaged, PC benchmark and owner functional checks passed; Xbox pending",
+  "source": {
+    "upstream": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+    "previous_tree": "638fa2659a3b6760222ab6c919b2ff3c7fb4e66b",
+    "tree": "245545bbe13e1d535ae858b989012de588187405",
+    "clean_index_sequence": "pass",
+    "patches": [
+      {
+        "file": "0001-texture-gc-budget-and-oom-context.patch",
+        "sha256": "12d8d788fdaa6f980dab961970a4b52fa2be9c629053fcfefd743d6770f4fc52"
+      },
+      {
+        "file": "0002-bc1-array-gpu-upload.patch",
+        "sha256": "b33bba79c94a122255e751776a834dcf1be7ff8c568d19de01564ac1c150534c"
+      },
+      {
+        "file": "0003-windows-memory-accounting.patch",
+        "sha256": "4d0433deaf2c0cab8ed81d889c22c5c6f8380e0fc381c46793cecd33eb1174d7"
+      },
+      {
+        "file": "0004-separate-pc-cache-budget-and-process-cap.patch",
+        "sha256": "2cfa02909118038f268e9f8f6532e74e9bac79f3a039099feeb7a436d961ccb6"
+      },
+      {
+        "file": "0005-split-and-reuse-image-descriptor-tables.patch",
+        "sha256": "e177894b5de784a2f83860e50c265697af30f36595e24a0fbc1f6eb35d635a50"
+      },
+      {
+        "file": "0006-jit-page-reuse-and-fp-compare.patch",
+        "sha256": "dacd9cbb9a163bc8a3ce52ddd665be72fba07a5e831a1ab489361c404ce7b092"
+      },
+      {
+        "file": "0007-persistent-resources-and-buffer-heaps.patch",
+        "sha256": "46224c00180c2f06c57f7788a85bbcd775f100ea1eafa838cc4ed5ee8d5f881f"
+      },
+      {
+        "file": "0008-persistent-cache-lifetimes.patch",
+        "sha256": "29b77ec27ae5edd5da804ce85e8e8d64802174171a7a00d43bd1fbd89d84350b"
+      },
+      {
+        "file": "0009-upstream-graphics-copy-fixes.patch",
+        "sha256": "e9d2b15268cbdfbb616619b22c8fb9ffd1d757f0cbbb675dbc9ce434584f0ff8"
+      },
+      {
+        "file": "0010-ordered-copy-and-coherent-uniforms.patch",
+        "sha256": "0deda434151a48865de3a42846e4600878103ce245e6ce6dfbcc99ab6973923a"
+      }
+    ],
+    "source_paths": [
+      "CMakeModules/SeriesXHostOptimization.cmake",
+      "src/CMakeLists.txt",
+      "src/jadyx/app/uwp_boot.cpp",
+      "src/video_core/buffer_cache/buffer_cache.h",
+      "src/video_core/renderer_d3d12/d3d12_transfer_buffer_pool.cpp",
+      "src/video_core/renderer_d3d12/d3d12_transfer_buffer_pool.h",
+      "src/video_core/renderer_d3d12/d3d12_texture_cache.cpp",
+      "src/video_core/renderer_d3d12/d3d12_texture_cache.h",
+      "src/video_core/renderer_d3d12/d3d12_image_transfer.cpp",
+      "src/video_core/renderer_d3d12/d3d12_image_copy_blit.cpp",
+      "src/video_core/renderer_d3d12/d3d12_buffer_cache.h",
+      "src/video_core/renderer_d3d12/d3d12_buffer_cache.cpp",
+      "src/video_core/renderer_d3d12/d3d12_copy_plan.h",
+      "src/video_core/renderer_d3d12/d3d12_uniform_cache_policy.h"
+    ]
+  },
+  "build": {
+    "toolset": "MSVC 14.44.35207",
+    "target": "WindowsStore x64 / Store CRT / AppContainer",
+    "host_lto_targets": [
+      "video_core",
+      "jadyx"
+    ],
+    "pgo_mode": "OFF",
+    "mesa_abi": 4,
+    "persistent_renderer_enabled": false,
+    "private_log_hashes": {
+      "lto-build.log": {
+        "bytes": 25388,
+        "sha256": "6981441a48a2949db87e8aaa0fb3795e4fae53eea45ce7dc40a442aa6709699f"
+      },
+      "lto-final-build.log": {
+        "bytes": 1147,
+        "sha256": "e8018ea932e63c5ba4d9ab46d787569698d016afacf1a19fda72d4dd1729ae74"
+      },
+      "pgo-build-fixed.log": {
+        "bytes": 1147,
+        "sha256": "e8018ea932e63c5ba4d9ab46d787569698d016afacf1a19fda72d4dd1729ae74"
+      },
+      "lto-pool-gate.log": {
+        "bytes": 1996,
+        "sha256": "1143ab43318414de78e1d3d799357b1fb67e128b95ac64bb22fb3bc5167a7ba4"
+      },
+      "lto-depth-gate.log": {
+        "bytes": 170,
+        "sha256": "82bf247a02d1f5e780e7f63837c6166f81a28b1d25b660b23eac3bcd01ce2c6e"
+      }
+    }
+  },
+  "package": {
+    "zip_crc": "pass",
+    "block_hashes": "pass",
+    "layout_payload": "pass",
+    "files": 25,
+    "blocks": 724,
+    "version": "1.0.0.13",
+    "exe_sha256": "dabdeacb14c7831eb779aac41f56e2530be5c45ec0c2bbbedf3e982f4d7bf9cf",
+    "pdb_sha256": "37e4e5fcae93c343c1eb85a232ff527b835cd9624180e8c8bb2b345f15f855b5",
+    "appx_sha256": "96c813e52b66f3eb64dddc7646dec9bd21d3188f4a9d8ee85dfb35d056ac1662",
+    "mesa_sha256": "71b99d96379f27010550642218f86497859736d9bf1c3a4493146a1b7a4353a3",
+    "canonical_memory_mib": 5120,
+    "host_lto": true,
+    "pgo": false
+  },
+  "signature": {
+    "accepted": true,
+    "native_hresult": "0x800B0109",
+    "signature_status": "UntrustedRoot",
+    "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+    "signer_matches_expected": true,
+    "signer_time_valid": true,
+    "chain_error_status": "0x00000020",
+    "integrity_verified": true,
+    "integrity_verification": "WinVerifyTrust/WINTRUST_ACTION_GENERIC_VERIFY_V2",
+    "system_trusted": false,
+    "revocation_checked": false,
+    "trust_policy": "PinnedSignerAllowUntrustedRoot"
+  },
+  "runtime": {
+    "registered": true,
+    "version": "1.0.0.13",
+    "local_state_files_verified": 55,
+    "payload_files_verified": 25,
+    "activation_requested": true,
+    "process_id": 28432,
+    "activated_at_utc": "2026-10-18T23:48:53.4807379Z",
+    "pc_hard_cap_mib": 8192,
+    "logical_cache_budget_mib": 5120,
+    "persistent_resources": false,
+    "ordered_copy_reuse": true,
+    "copy_plan_cache": true,
+    "coherent_uniform_cache": true
+  },
+  "component_gates": {
+    "inline_and_worker": "pass",
+    "pool_cases_per_mode": 8,
+    "pool_repeated_copies_per_case": 96,
+    "pool_control_creates": 96,
+    "pool_candidate_creates": 1,
+    "pool_candidate_ordered_reuses": 95,
+    "pool_bytes_compared_per_case": 102400,
+    "footprint_plans_compared_per_mode": 21,
+    "uniform_bytes_verified_per_variant_and_mode": 153600,
+    "uniform_control_copied_bytes": 153600,
+    "uniform_candidate_host_upload_bytes": 16384,
+    "uniform_candidate_stream_bytes": 68608,
+    "uniform_candidate_total_copied_bytes": 84992,
+    "depth_region_and_reinterpretation": "pass",
+    "debug_errors": 0,
+    "scope": "Synthetic GPU components plus production dirty-page tracker adapter; not a full emulated-game coherence proof."
+  },
+  "gameplay": {
+    "private_prefix_name": "fixed-view-20261018T235215Z",
+    "prefixes": {
+      "jadyx_log.txt": {
+        "bytes": 980460,
+        "sha256": "c4a0b10b8fb845a89dff783bf65ed08bbbbfded1917b206d80775727e68d3140"
+      },
+      "jadyx_diag.txt": {
+        "bytes": 594611,
+        "sha256": "ad5f1c9209a1478c477b80bf1653179055cff3a33ba4b57ba4d90334f7af4961"
+      }
+    },
+    "mark": {
+      "utc": "2026-10-18T23:50:49.0251765Z",
+      "process_id": 28432,
+      "process_started_utc": "2026-10-18T23:48:53.2580643Z",
+      "owner_confirmed_same_save_and_fixed_camera": true,
+      "controls_sent": false,
+      "builds_finished_before_activation": true
+    },
+    "log_time_selection_lower_bound": 116.767112,
+    "selection": "First four complete 300-present windows starting after conservative process-elapsed acknowledgement bound.",
+    "frames": 1200,
+    "wall_ms": 49353.0,
+    "aggregate_fps": 24.314631329402467,
+    "mean_ms": 41.1275,
+    "windows": [
+      {
+        "start_log_seconds": 124.290773,
+        "end_log_seconds": 136.745316,
+        "fps": 24.09,
+        "p50_ms": 38.52,
+        "p95_ms": 55.78,
+        "p99_ms": 61.77,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 12455.0,
+          "gpu_thread_idle_ms": 4709.2,
+          "fence_waits": 11,
+          "fence_wait_ms": 161.4,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 156,
+          "resource_creation_ms": 30.6,
+          "gpu_busy_ms": 4571.6,
+          "submits": 901,
+          "draws": 819830,
+          "dispatches": 5229
+        }
+      },
+      {
+        "start_log_seconds": 136.745316,
+        "end_log_seconds": 149.638269,
+        "fps": 23.27,
+        "p50_ms": 39.39,
+        "p95_ms": 58.38,
+        "p99_ms": 68.3,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 12893.0,
+          "gpu_thread_idle_ms": 4864.5,
+          "fence_waits": 10,
+          "fence_wait_ms": 161.5,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 154,
+          "resource_creation_ms": 29.2,
+          "gpu_busy_ms": 4467.7,
+          "submits": 901,
+          "draws": 820160,
+          "dispatches": 5436
+        }
+      },
+      {
+        "start_log_seconds": 149.638269,
+        "end_log_seconds": 161.454807,
+        "fps": 25.39,
+        "p50_ms": 37.42,
+        "p95_ms": 53.13,
+        "p99_ms": 59.23,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 11816.0,
+          "gpu_thread_idle_ms": 4099.1,
+          "fence_waits": 10,
+          "fence_wait_ms": 129.0,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 141,
+          "resource_creation_ms": 24.4,
+          "gpu_busy_ms": 3911.3,
+          "submits": 901,
+          "draws": 819947,
+          "dispatches": 5446
+        }
+      },
+      {
+        "start_log_seconds": 161.454807,
+        "end_log_seconds": 173.643987,
+        "fps": 24.61,
+        "p50_ms": 38.06,
+        "p95_ms": 56.13,
+        "p99_ms": 66.47,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 12189.0,
+          "gpu_thread_idle_ms": 4477.3,
+          "fence_waits": 11,
+          "fence_wait_ms": 161.2,
+          "pipeline_stalls": 4,
+          "pipeline_stall_ms": 0.8,
+          "resources_created": 140,
+          "resource_creation_ms": 23.5,
+          "gpu_busy_ms": 4315.8,
+          "submits": 901,
+          "draws": 820158,
+          "dispatches": 5468
+        }
+      }
+    ],
+    "fallback_translation_count_in_prefix": 0,
+    "fallback_pso_count_in_prefix": 0,
+    "render_error_count_in_prefix": 0,
+    "scope": "Single manual candidate run, same save/view confirmed, uncontrolled weather/time/host activity. Not a simultaneous control or Xbox result.",
+    "new_counters": {
+      "transfer": {
+        "start": {
+          "seconds": 124.251966,
+          "requests": 10506,
+          "completed_reuses": 1958,
+          "ordered_reuses": 8020,
+          "creates": 528,
+          "busy_skips": 0,
+          "pressure_trims": 895,
+          "full_trims": 256,
+          "trimmed_kib": 789888,
+          "pooled_kib": 3072,
+          "peak_pooled_kib": 3968
+        },
+        "end": {
+          "seconds": 173.606938,
+          "requests": 23306,
+          "completed_reuses": 4358,
+          "ordered_reuses": 18420,
+          "creates": 528,
+          "busy_skips": 0,
+          "pressure_trims": 2095,
+          "full_trims": 256,
+          "trimmed_kib": 789888,
+          "pooled_kib": 3072,
+          "peak_pooled_kib": 3968
+        },
+        "delta": {
+          "requests": 12800,
+          "completed_reuses": 2400,
+          "ordered_reuses": 10400,
+          "creates": 0,
+          "busy_skips": 0,
+          "pressure_trims": 1200,
+          "full_trims": 0,
+          "trimmed_kib": 0
+        },
+        "boundary_note": "Counters from texture-cache ticks nearest each present-window boundary, within 0.2s; not exact per-present intervals."
+      },
+      "uniform": {
+        "start": {
+          "seconds": 124.252042,
+          "clean": 7527520,
+          "streamed": 2491204,
+          "probes": 18763,
+          "backoffs": 3867
+        },
+        "end": {
+          "seconds": 173.607019,
+          "clean": 17881493,
+          "streamed": 5773419,
+          "probes": 44451,
+          "backoffs": 8432
+        },
+        "delta": {
+          "clean": 10353973,
+          "streamed": 3282215,
+          "probes": 25688,
+          "backoffs": 4565
+        },
+        "boundary_note": "Counters from texture-cache ticks nearest each present-window boundary, within 0.2s; not exact per-present intervals."
+      }
+    },
+    "totals": {
+      "frames": 1200,
+      "wall_ms": 49353.0,
+      "gpu_thread_idle_ms": 18150.100000000002,
+      "fence_waits": 42,
+      "fence_wait_ms": 613.0999999999999,
+      "pipeline_stalls": 4,
+      "pipeline_stall_ms": 0.8,
+      "resources_created": 591,
+      "resource_creation_ms": 107.69999999999999,
+      "gpu_busy_ms": 17266.399999999998,
+      "submits": 3604,
+      "draws": 3280095,
+      "dispatches": 21579
+    },
+    "mean_resource_creation_ms": 0.08975,
+    "historical_comparison": {
+      "reference": "1.0.0.8",
+      "old_mean_ms": 48.61416666666667,
+      "old_fps": 20.570135591477108,
+      "ms_saved": 7.486666666666672,
+      "frame_time_reduction_percent": 15.400174846152538,
+      "fps_increase_percent": 18.20355398861264,
+      "scope": "Different sessions; owner confirmed same save/view, weather/time/host background load not controlled. Combined changes, not isolated attribution.",
+      "baseline_last_launch_memory_mib": {
+        "max_sampled": 5229,
+        "last": 5029,
+        "scope": "Same prefix boundary as historical benchmark; loading scenarios not controlled."
+      }
+    },
+    "diag_memory_current_launch": {
+      "scope": "Only the last process launch in the append-only diag prefix, selected by elapsed-clock reset; includes loading, not Xbox residency or a synchronized GPU total.",
+      "count": 26,
+      "last": {
+        "diag_elapsed_ms": 202031,
+        "app_usage_mib": 5035,
+        "logical_budget_mib": 5120,
+        "headroom_mib": 84,
+        "working_set_mib": 3139,
+        "private_commit_mib": 4960
+      },
+      "max_sampled_app_usage_mib": 5144,
+      "peak_sample": {
+        "diag_elapsed_ms": 82031,
+        "app_usage_mib": 5144,
+        "logical_budget_mib": 5120,
+        "headroom_mib": 0,
+        "working_set_mib": 3208,
+        "private_commit_mib": 5069
+      },
+      "max_sampled_app_usage_through_Q_mib": 5387
+    }
+  },
+  "functional": {
+    "owner_report": {
+      "inventory_then_B": true,
+      "scope_zoom": true,
+      "saved_and_closed_with_Q": true
+    },
+    "assistant_sent_gameplay_controls": false,
+    "sampler_stopped": 26168,
+    "log_hashes": {
+      "jadyx_log.txt": {
+        "bytes": 1746408,
+        "sha256": "892ab4012a75bee4f86cd78729b9c68db23b1ca310181483871b1b6ac5a5b056"
+      },
+      "jadyx_diag.txt": {
+        "bytes": 609227,
+        "sha256": "a38998d828de090d3c5bb575adfc93f6ee978e6e3f89350d04193a7087e58d3c"
+      }
+    },
+    "render_error_count_after_Q": 0,
+    "diag_return_codes_current_launch": [
+      "10"
+    ],
+    "return_to_library_observed": true
+  },
+  "pgo_training_package": {
+    "zip_crc": "pass",
+    "block_hashes": "pass",
+    "layout_payload": "pass",
+    "files": 26,
+    "blocks": 821,
+    "version": "1.0.0.14",
+    "trained": false,
+    "pgort_sha256": "3a620df77fc0eb13003ee0da1728ed22e424b12997a95678de2ab8c9c742fc3c",
+    "appx_sha256": "e9b9d37c347af4e23ebcce53791bd83b15986e8a3eb1c41de842b2a32faa4d3a"
+  },
+  "limitations": [
+    "Historical comparison uses different sessions; no controlled weather/time/background load and no attribution between the combined changes.",
+    "Native LTO is enabled; PGO training executable exists but has no representative gameplay training and is not active.",
+    "The Xbox BC-array memory workaround is unchanged; total memory reduction is not demonstrated.",
+    "Diagnostic Windows hard cap 8192 MiB and logical cache budget 5120 MiB; canonical package 5120 MiB. Not an Xbox memory simulation.",
+    "Append-only diag contains old launches: memory and return codes were isolated to the current elapsed-clock session.",
+    "No Xbox deployment or runtime performance claim; no games, keys, raw logs or generated builds committed."
+  ]
+}

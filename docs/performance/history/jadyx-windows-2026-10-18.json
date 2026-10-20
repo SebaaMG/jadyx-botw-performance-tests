@@ -1,0 +1,483 @@
+{
+  "validation_date": "2026-10-18",
+  "status": "uwp-build-package-and-windows-execution-observed-botw-outdoor-load-staging-oom-controlled-recovery",
+  "host": {
+    "os": "Microsoft Windows 10 Pro 10.0.19045 x64",
+    "cpu": "Intel Xeon E5-2696 v3",
+    "ram_gib": 32,
+    "gpu": "Radeon RX 580 Series",
+    "gpu_driver": "31.0.21924.61",
+    "clock_correction": "Owner corrected the host clock backward by approximately three hours during the session. Final Jadyx certificate and timestamp were created after that correction; earlier build file times can be in the future."
+  },
+  "source": {
+    "repository": "https://github.com/JulianDr14/jadyx",
+    "commit": "0e5b8533b3d6980b695f57a5edc4edd1f11e339b",
+    "version": "0.2.93.3",
+    "checkout_clean_after_build": true,
+    "optimization_changes_applied": false,
+    "source_inputs_sha256": {
+      "cpmfile.json": "9fb155255e3622a8a65a0080b586bf569f9d8a5314577ce1753c2507ca1d1091",
+      "CMakePresets.json": "e949b4c800dfa3778ddd9e05366ee353ac7f66c2ccca4adc90c52d432392ed5f"
+    }
+  },
+  "toolchain": {
+    "visual_studio": "Visual Studio Build Tools 2022",
+    "msvc": "14.44.35207",
+    "compiler": "19.44.35229",
+    "sdk": "10.0.26100.0",
+    "cmake": "3.31.6-msvc6",
+    "generator": "Ninja",
+    "python": "3.11.9",
+    "powershell": "Windows PowerShell 5.1",
+    "nasm": "3.02",
+    "perl": "Strawberry Perl 5.42.3.1",
+    "glslang_sdk_directory": "1.4.309.0"
+  },
+  "downloads": [
+    {
+      "name": "Strawberry Perl portable",
+      "url": "https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54231_64bit/strawberry-perl-5.42.3.1-64bit-portable.zip",
+      "sha256": "6a081a811781c30aca51dbc036afd93092af91e3297901f02c17043795a10690",
+      "github_asset_digest_matched": true
+    },
+    {
+      "name": "NASM",
+      "url": "https://www.nasm.us/pub/nasm/releasebuilds/3.02/win64/nasm-3.02-win64.zip",
+      "sha256": "161d0bfaff53c2f9e9f3e69fd0672323ebabafd1268976a5cec11be92a19aee7",
+      "hash_scope": "identifies the downloaded archive"
+    },
+    {
+      "name": "Mesa",
+      "url": "https://archive.mesa3d.org/mesa-26.2.3.tar.xz",
+      "sha256": "1628058a8d2c0615975de5a15ab7bbb9638c50000b5bed9456ff423ea034a81f",
+      "hash_scope": "identifies the downloaded archive"
+    },
+    {
+      "name": "hactool",
+      "url": "https://github.com/SciresM/hactool/releases/download/1.4.0/hactool-1.4.0-win.zip",
+      "sha256": "36e9a221c8a7949c86ada9388eb703c90663aedfe9f65b6032429614c5e1abe8",
+      "hash_scope": "identifies the downloaded archive; no independent asset digest was available"
+    }
+  ],
+  "build": {
+    "preset": "uwp-x64",
+    "target": "jadyx",
+    "parallel_jobs": 8,
+    "exit_code": 0,
+    "exe_bytes": 34500608,
+    "exe_sha256": "a4b717767b6c539f7128d8bc96e91620de2f5f212b80e68b1ae3e3052e3ceab2",
+    "pe_machine": "x64",
+    "pe_app_container_flag": true,
+    "store_crt_imports_verified": true,
+    "configuration_corrections": [
+      "Installed the English compiler resources and reconfigured with --fresh to detect the English showIncludes prefix",
+      "Used a minimal process-local PATH and separate cmd processes for configuration and build to avoid accumulated vcvarsall environment length"
+    ],
+    "stdout_sha256": "ba41c0495a987193b4e2b11647912333c65cad40b1363760cfcfa84fce64a1b7",
+    "stderr_sha256": "405290d4e4d2fe9894587d629a5ce4c0e01827477bb9dd05caf7b2fc2d1e1752"
+  },
+  "mesa": {
+    "version": "26.2.3",
+    "build_exit_code": 0,
+    "upstream_jadyx_patches_applied": true,
+    "dll": "spirv_to_dxil.dll",
+    "dll_bytes": 9751552,
+    "dll_sha256": "e27665d5fa482a9593859d563e520fb085f0d34ff1a63a13a6ad110495a53883",
+    "store_crt_imports_verified": true,
+    "stdout_sha256": "9595464b881bc45c8b5dd934ecaffd190cb50cea04091478f263eaa51b29c32c",
+    "archive_extraction_adjustment": "Windows tar could not open XZ; Python 3.11 tarfile with data filter populated the script's expected source directory"
+  },
+  "package": {
+    "name": "jadyx.appx",
+    "version": "0.2.93.3",
+    "architecture": "x64",
+    "bytes": 15020197,
+    "sha256": "1607d8b41de50b4b51e959928c6ee72fa765d9bf9a31a12fdd6b3c3f0432fad2",
+    "zip_crc_verified": true,
+    "manifest_identity_and_code_generation_verified": true,
+    "packaged_exe_matches_build": true,
+    "packaged_mesa_matches_build": true,
+    "layout_payload_matches_appx": true,
+    "layout_members_verified": 25,
+    "vclibs_dependency_present": true,
+    "no_games_keys_or_firmware_bundled": true,
+    "boot_cfg": [
+      "memory_limit_mib=5120",
+      "library=1",
+      "play=1"
+    ],
+    "memory_cap_scope": "Existing Job Object process-memory limit configured at game launch, logged as 5120 MiB. The frontend also uses 5120 MiB as its test budget. Windows AppMemoryReport total commit reached 5184 MiB before recovery; these counters are not interchangeable and this is not a complete simulation of Xbox shared CPU/GPU memory accounting.",
+    "timestamp_applied": true,
+    "timestamp_correction": "The host clock was three hours ahead, causing the initial signer/timestamp validity mismatch. After the owner corrected the clock, created a new nonexportable local certificate and signed the same original layout with a timestamp. Verification policy unchanged; final chain error is only untrusted root (0x20).",
+    "signature_verification": {
+      "accepted": true,
+      "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+      "native_hresult": "0x800B0109",
+      "signature_status": "UntrustedRoot",
+      "signer_matches_expected": true,
+      "signer_time_valid": true,
+      "chain_error_status": "0x00000020",
+      "integrity_verified": true,
+      "system_trusted": false,
+      "revocation_checked": false,
+      "trust_policy": "PinnedSignerAllowUntrustedRoot"
+    },
+    "certificate_private_key_exported": false,
+    "root_trust_installed": false
+  },
+  "component_tests": [
+    {
+      "name": "upstream draw-sampler-cache",
+      "passed": true,
+      "requests": 2560000,
+      "reused": 619902,
+      "coverage": "Full-key collisions, repeated/unique/invalid indices, guest writes, table changes and disabled path",
+      "scope": "Host CPU component test; not GPU, AppContainer, gameplay or FPS",
+      "log_sha256": "a4941a1d1a8152496f8cb7a4af887a63010c81167ca355b4f93e0bafe8bf0f33"
+    },
+    {
+      "name": "upstream memory-guard",
+      "passed": true,
+      "assertions_enabled": true,
+      "coverage": "Ring thresholds and staged growth, retire/drain/backoff, allocation headroom, dedicated sizes, cache gate and bounded reclaim",
+      "scope": "Host CPU component test compiled with MSVC desktop; not Xbox memory accounting",
+      "log_sha256": "6fa718b4a9f3fd49f36949032ff5dbc1df5e1037b2f7892d3b93951394baccf8"
+    }
+  ],
+  "botw_input_inspection": {
+    "format": "Four NSP files, despite the containing directory's NSZ label",
+    "base_title_id": "01007EF00011E000",
+    "base_nacp_version": "1.0.0",
+    "base_main_build_id": "2094F152836683A3632C6153FD84AB8000000000000000000000000000000000",
+    "update_title_id": "01007EF00011E800",
+    "update_nacp_version": "1.9.0",
+    "update_cnmt_version": 1114112,
+    "update_main_build_id": "CD57B23FA4BBAD65803D9788C01821EE00000000000000000000000000000000",
+    "dlc": [
+      {
+        "title_id": "01007EF00011F001",
+        "cnmt_version": 196608
+      },
+      {
+        "title_id": "01007EF00011F002",
+        "cnmt_version": 196608
+      }
+    ],
+    "metadata_read_with_owner_provided_keys": true,
+    "exefs_reads_bytes": [
+      26394624,
+      28409856
+    ],
+    "fs_header_and_hash_table_root_verified": true,
+    "all_game_payload_hashes_verified": false,
+    "original_authorship_signature_verified": false,
+    "firmware_provided": false,
+    "fps_mod_enabled": false,
+    "nx_optimizer_readme_version_listed": "1.6; compatibility with the provided 1.9.0 executable has not been verified"
+  },
+  "runtime": {
+    "windows_registration_attempted": true,
+    "developer_mode_enabled_by_owner": true,
+    "windows_registered": true,
+    "original_identity_activation_hresult": "0x80270254",
+    "original_identity_entered_boot_view": false,
+    "explicit_out_of_process_activation_experiment": "Did not resolve activation; reverted. Canonical manifest remains original.",
+    "minimal_uwp_activation_probe": {
+      "activation_hresult": "0x00000000",
+      "entered_framework_view_run": true
+    },
+    "windows_app_launched": true,
+    "windows_library_ui_observed": true,
+    "windows_diagnostic_registration": {
+      "identity": "SeriesX.JadyxBinaryProbe",
+      "package_version": "1.0.0.0",
+      "activation_hresult": "0x00000000",
+      "exe_sha256": "a4b717767b6c539f7128d8bc96e91620de2f5f212b80e68b1ae3e3052e3ceab2",
+      "payload_matches_canonical_layout": true,
+      "only_manifest_identity_and_version_changed": true,
+      "separate_local_state": true,
+      "observed_library_app_memory_limit_mib": 35296,
+      "scope": "Native UWP Xbox-targeted executable and original frontend, not desktop Qt. Successful new-identity activation does not identify the internal cause of the old-identity failure or prove Xbox installation."
+    },
+    "non_delayed_import_resolution": {
+      "symbols_examined": 797,
+      "host_resolution_issues": 0,
+      "scope": "Host DLL loading and symbol resolution only; not proof of AppContainer API availability"
+    },
+    "keys_recognized_by_ui": true,
+    "game_folder_authorized_through_original_picker": true,
+    "base_nsp_backend_observed": "FromApp",
+    "update_1_9_0_verified_and_active_in_content_manager": true,
+    "external_content_reference_without_copy": true,
+    "botw_launched": true,
+    "fps_measured": true,
+    "gamevault_integration_implemented": false,
+    "xbox_tested": false,
+    "both_dlc_verified_and_active_in_content_manager": true,
+    "system_load_status": 0,
+    "system_run_issued": true,
+    "mesa_dxil_path_and_guest_draws_observed": true,
+    "rendered_scene_observed": "Link standing in the Shrine of Resurrection; owner then tested movement and reported loading the exterior map and presentation",
+    "owner_reported_presentation_fps_minimum": 0.4,
+    "owner_report_fps_scope": "Manual overlay observation during presentation/loading, not a sustained rate or a measured frame-time distribution",
+    "controls_formally_verified": false,
+    "saves_verified": false,
+    "fps_measurement_scope": "Existing presented-interval log windows in an uncontrolled manual run; not unique simulation frames or a controlled A/B benchmark",
+    "controlled_benchmark_completed": false,
+    "experimental_optimization_flags_enabled": false,
+    "first_attempt_termination": "Intentionally closed by the assistant to relocate the runtime to SSD, interrupting the owner; not a crash",
+    "ssd_hdd_attempt_result": {
+      "game_ended": true,
+      "app_process_crashed": false,
+      "failure_log_seconds": 791.658774,
+      "failure": "D3D12 out of memory creating a 3932160-byte staging buffer; reclaim and retry also failed",
+      "requested_staging_bytes": 3932160,
+      "controlled_gpu_shutdown_requested": true,
+      "shutdown_complete_observed": true,
+      "run_headless_boot_return": 15,
+      "returned_to_original_library": true,
+      "post_recovery_app_report_commit_mib": 419,
+      "largest_pre_shutdown_app_report_commit_mib": 5184,
+      "last_periodic_commit_mib": 5133,
+      "last_periodic_dram_committed_mib": 1972,
+      "last_periodic_jit_mib": 308,
+      "last_periodic_staging_ring_mib": 32,
+      "last_periodic_shader_programs": 10074,
+      "last_periodic_pipelines": 19968,
+      "last_periodic_resident_psos": 1011,
+      "causal_limit": "The allocation failure is confirmed. Exact attribution of all commit, eviction/rebuild churn and the owner-reported 0.4 FPS event requires targeted profiling; Xbox equivalence is untested."
+    },
+    "storage": {
+      "runtime_layout": "[local path or personal identifier omitted for public archive]",
+      "runtime_and_local_state_drive": "J:",
+      "runtime_disk": "KINGSTON SKC3000D2048G NVMe SSD",
+      "game_drive": "H:",
+      "game_disk": "TOSHIBA EXTERNAL_USB USB HDD",
+      "relocated_payload_files_hash_matched": 25,
+      "local_state_and_private_keys_preserved_without_exporting": true,
+      "folder_permission_and_content_selection_survived_relocation": true,
+      "runtime_exe_sha256": "a4b717767b6c539f7128d8bc96e91620de2f5f212b80e68b1ae3e3052e3ceab2"
+    },
+    "private_log_snapshots": {
+      "attempt01": {
+        "jadyx_diag.txt": "9d231d347a2894f46b1f1d992d04719a3eafdbb90e399f53e3cdeec55571ace6",
+        "jadyx_log.txt": "51b0deb7457a5a68d244857d90ecdb8fc3931933777b3c4904c36d6bfe0211d1"
+      },
+      "attempt02_after_controlled_recovery": {
+        "jadyx_diag.txt": "2bf6f6138e4b79ff66f43a68f3a83cae053a7a0e9ab93ba8fb8e9520d462cc17",
+        "jadyx_log.txt": "d7f81eec4eeea468f3f94f07f1f1007a7d472341629567908d8745361f196960"
+      },
+      "raw_logs_committed": false
+    },
+    "normal_log_windows": {
+      "all_complete_windows": {
+        "windows": 36,
+        "frames": 10800,
+        "draws": 32625997,
+        "draw_profiled_windows": 0,
+        "draw_us_weighted": null,
+        "draw_ms_per_frame": null,
+        "draws_per_frame": 3020.925648148148,
+        "fps": 14.784657358720963
+      },
+      "dense_after_120s": {
+        "windows": 24,
+        "frames": 7200,
+        "draws": 28586247,
+        "draw_profiled_windows": 0,
+        "draw_us_weighted": null,
+        "draw_ms_per_frame": null,
+        "draws_per_frame": 3970.3120833333332,
+        "fps": 12.522980538940383
+      },
+      "filter_scope": "Density >=3000 draws/presented interval and window start >=120s; this is a workload filter, not scene identification. Both all-window and filtered totals are retained.",
+      "fine_draw_timers_enabled": false,
+      "last_six_complete_windows": [
+        {
+          "frames": 300,
+          "elapsed_ms": 30746,
+          "end_seconds": 574.297828,
+          "draws": 1454414,
+          "gpu_busy_ms": 7693.1,
+          "pipeline_wait_ms": 7846.7,
+          "idle_ms": 7317.9,
+          "draw_ms": null,
+          "draw_us": null,
+          "draws_per_frame": 4848.046666666667,
+          "draw_ms_per_frame": null,
+          "fps": 9.757366811943017
+        },
+        {
+          "frames": 300,
+          "elapsed_ms": 33981,
+          "end_seconds": 608.278857,
+          "draws": 1430164,
+          "gpu_busy_ms": 8650.7,
+          "pipeline_wait_ms": 1834.5,
+          "idle_ms": 8028.6,
+          "draw_ms": null,
+          "draw_us": null,
+          "draws_per_frame": 4767.213333333333,
+          "draw_ms_per_frame": null,
+          "fps": 8.828462964597863
+        },
+        {
+          "frames": 300,
+          "elapsed_ms": 18766,
+          "end_seconds": 627.04457,
+          "draws": 1252547,
+          "gpu_busy_ms": 6188.7,
+          "pipeline_wait_ms": 46.6,
+          "idle_ms": 5986.5,
+          "draw_ms": null,
+          "draw_us": null,
+          "draws_per_frame": 4175.156666666667,
+          "draw_ms_per_frame": null,
+          "fps": 15.986358307577534
+        },
+        {
+          "frames": 300,
+          "elapsed_ms": 29419,
+          "end_seconds": 656.463882,
+          "draws": 1332595,
+          "gpu_busy_ms": 7741.7,
+          "pipeline_wait_ms": 7954.6,
+          "idle_ms": 7457.7,
+          "draw_ms": null,
+          "draw_us": null,
+          "draws_per_frame": 4441.983333333334,
+          "draw_ms_per_frame": null,
+          "fps": 10.19749141711139
+        },
+        {
+          "frames": 300,
+          "elapsed_ms": 78314,
+          "end_seconds": 734.77797,
+          "draws": 1129601,
+          "gpu_busy_ms": 8799.8,
+          "pipeline_wait_ms": 55576.0,
+          "idle_ms": 6786.5,
+          "draw_ms": null,
+          "draw_us": null,
+          "draws_per_frame": 3765.3366666666666,
+          "draw_ms_per_frame": null,
+          "fps": 3.830732691472789
+        },
+        {
+          "frames": 300,
+          "elapsed_ms": 19603,
+          "end_seconds": 754.38068,
+          "draws": 1083588,
+          "gpu_busy_ms": 5877.2,
+          "pipeline_wait_ms": 387.3,
+          "idle_ms": 4688.8,
+          "draw_ms": null,
+          "draw_us": null,
+          "draws_per_frame": 3611.96,
+          "draw_ms_per_frame": null,
+          "fps": 15.303780033668316
+        }
+      ],
+      "scope": "Includes manual traversal, presentation and loading. No claim of steady gameplay FPS, reproducibility or causal improvement."
+    },
+    "passive_thread_observation": {
+      "captured_at": "2026-10-18T02:18:24.6304554-03:00",
+      "elapsed_ms": 10013.36,
+      "process_cpu_ms": 20140.625,
+      "threads_top12": [
+        {
+          "thread_id": 9184,
+          "name": "GPU",
+          "cpu_ms": 5687.5,
+          "fraction_of_one_core": 0.568
+        },
+        {
+          "thread_id": 20732,
+          "name": "CPUCore_2",
+          "cpu_ms": 4656.25,
+          "fraction_of_one_core": 0.465
+        },
+        {
+          "thread_id": 22252,
+          "name": "CPUCore_1",
+          "cpu_ms": 3968.75,
+          "fraction_of_one_core": 0.3963
+        },
+        {
+          "thread_id": 9348,
+          "name": "CPUCore_0",
+          "cpu_ms": 3281.25,
+          "fraction_of_one_core": 0.3277
+        },
+        {
+          "thread_id": 5344,
+          "name": "D3D12PipelineBuilder",
+          "cpu_ms": 328.125,
+          "fraction_of_one_core": 0.0328
+        },
+        {
+          "thread_id": 18988,
+          "name": "VSyncThread",
+          "cpu_ms": 296.875,
+          "fraction_of_one_core": 0.0296
+        },
+        {
+          "thread_id": 19700,
+          "name": "D3D12PipelineBuilder",
+          "cpu_ms": 281.25,
+          "fraction_of_one_core": 0.0281
+        },
+        {
+          "thread_id": 14312,
+          "name": "DSP_AudioRenderer_Main",
+          "cpu_ms": 265.625,
+          "fraction_of_one_core": 0.0265
+        },
+        {
+          "thread_id": 8512,
+          "name": "D3D12PipelineBuilder",
+          "cpu_ms": 265.625,
+          "fraction_of_one_core": 0.0265
+        },
+        {
+          "thread_id": 20340,
+          "name": "HostTiming",
+          "cpu_ms": 265.625,
+          "fraction_of_one_core": 0.0265
+        },
+        {
+          "thread_id": 19508,
+          "name": "audio",
+          "cpu_ms": 171.875,
+          "fraction_of_one_core": 0.0172
+        },
+        {
+          "thread_id": 25112,
+          "name": "D3D12PipelineBuilder",
+          "cpu_ms": 171.875,
+          "fraction_of_one_core": 0.0172
+        }
+      ],
+      "method": "Read-only ProcessThread CPU times and GetThreadDescription; no input, hooks, suspension or runtime setting changes",
+      "scope": "Windows host CPU consumed during an uncontrolled manual play interval; no call stacks, GPU timings or Xbox inference",
+      "report_sha256": "238a85b42e7a3af20c105a3a235c54fca8e696bebaf2a6842f4a398a6eeb147e"
+    }
+  },
+  "limits": [
+    "A UWP build and signed package do not prove successful Windows activation or Xbox installation",
+    "Comparing a candidate with this unchanged baseline detects regressions but can preserve existing emulator errors",
+    "Windows has different CPU, GPU, drivers and memory accounting; host performance cannot certify Series X FPS",
+    "Xbox validation is still required for graphics, gameplay, saves, suspension, USB permissions and return to Game Vault"
+  ],
+  "upstream_review_after_baseline_build": {
+    "commit": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+    "version": "0.2.93.14",
+    "committed_at_utc": "2026-10-18T05:17:43Z",
+    "ahead_by_commits": 2,
+    "compatibility_change": "Guard driver PSO faults and retry selected vertex shaders with flattened branches; new command validation and image-copy changes",
+    "new_mesa_export_for_retry": "eden_spirv_to_dxil_pipeline_v3",
+    "applied_to_running_baseline": false,
+    "new_version_built_or_tested_here": false,
+    "scope": "Source review and GitHub API comparison only; no FPS benefit assumed"
+  }
+}

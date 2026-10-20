@@ -1,0 +1,281 @@
+{
+  "date": "2026-10-20",
+  "candidate_version": "1.0.0.28",
+  "source": {
+    "previous_tree": "2368d551b423e1014461630ece07343ecb8ad489",
+    "tree": "19e501104f8aaec8e29a9c0561c0b4fef88ce24d",
+    "build_tree": "a6fc2114209dac63e8294411fc47da340670eace",
+    "post_build_changes_are_documentation_only": true,
+    "post_build_changed_paths": [
+      "docs/xbox/xbox_internal.md",
+      "docs/xbox/xbox_partial_submission.md"
+    ],
+    "patch": "0023-bounded-partial-native-submission.patch",
+    "patch_sha256": "a1853ee49eecfd74aa516b815c48e193533ee89a1ec5c11ae006672c810cef0e",
+    "clean_patch_sequence": "pass",
+    "patch_count": 19,
+    "patch_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "real_checkout_index_unchanged": true
+  },
+  "configuration": {
+    "partial_submit": true,
+    "default_in_source": false,
+    "latency_budget_us": 4000,
+    "minimum_completed_operations": 128,
+    "clock_check_interval_operations": 64,
+    "max_partial_submissions_per_frame": 3,
+    "max_previously_issued_uncompleted_ticks_before_deferral": 2,
+    "checks_only_completed_operations": true,
+    "skip_unwinding_and_already_submitted_ticks": true,
+    "boundary_scope_can_propagate_submission_errors": true,
+    "original_guest_fence_path_preserved": true,
+    "new_gpu_waits_in_policy": false,
+    "readback_recovery": true,
+    "host_trim": false,
+    "draw_plan_reuse": false,
+    "jit_experiments": false,
+    "detailed_profiles": false,
+    "frame_chain_trace_armed_not_automatic": true,
+    "canonical_memory_cap_mib": 5120
+  },
+  "tests": {
+    "native_policy": "pass",
+    "python_tests_passed": 48,
+    "powershell_parse": "pass",
+    "release_uwp_lto_pgo_use": "pass",
+    "final_incremental_build_operations": 17,
+    "initial_boot_declaration_and_diagnostic_call_errors": "corrected_and_rebuilt",
+    "gpu_modes": [
+      "inline",
+      "async"
+    ],
+    "gpu_result_each_mode": "pass",
+    "production_scheduler_and_descriptor_queue": true,
+    "draw_patterns_per_mode": 4,
+    "on_and_off_each_pattern": true,
+    "draws_per_case": 1024,
+    "byte_exact_pixels_each_case": true,
+    "occlusion_query_sum_each_case": 1023,
+    "native_tick_completed_before_producer_finished": "pass",
+    "future_tick_not_completed_by_partial_tick": "pass",
+    "blocked_queue_exact_partial_submission_count": 2,
+    "blocked_queue_backpressure_exercised": true,
+    "blocked_queue_copy_results_bytes": 2048,
+    "exception_unwind_does_not_submit": "pass",
+    "already_submitted_operation_not_counted_again": "pass",
+    "d3d12_debug_warnings_or_errors": 0,
+    "synthetic_delays_in_fixture_only": true,
+    "these_are_gameplay_performance_results": false
+  },
+  "artifacts": {
+    "exe_sha256": "aa779c23177ecdf48927fb1f2736dd11b1437d52a6bce5a385874db45c656990",
+    "pdb_sha256": "80954a748877b9c9deb4f59918c872d0485a6144d56be359a17a7bd8dd1deae9",
+    "appx_sha256": "8cddb9a649390feda07cb226d192a0163ca994011f627175792a54000491e09f",
+    "zip_crc": "pass",
+    "block_hashes": "pass",
+    "layout_payload": "pass",
+    "package_files": 25,
+    "package_blocks": 716,
+    "appearance_and_credit_assets_unchanged": 20,
+    "signature_integrity": "pass",
+    "pinned_signer_matches": true,
+    "system_root_trusted": false,
+    "references_17_26_27_preserved": true,
+    "canonical_appx": "build-uwp/package/jadyx.appx"
+  },
+  "deployment": {
+    "registered": true,
+    "version": "1.0.0.28",
+    "activation_utc": "2026-10-20T05:43:38.0209392Z",
+    "pid": 31616,
+    "runtime_exe_matches_verified_artifact": true,
+    "local_state_files_verified": 89,
+    "payload_files_verified": 25,
+    "private_state_backup_verified": true,
+    "previous_owner_Q_and_process_exit_verified": true,
+    "previous_game_closed_by_agent": false,
+    "package_prepared_while_separate_copied_runtime_was_active": true,
+    "pc_hard_cap_mib": 8192,
+    "logical_cache_budget_mib": 5120,
+    "restored_runtime": {
+      "utc": "2026-10-20T05:56:22.5475071Z",
+      "pid": 17948,
+      "partial_submit": true,
+      "exe_and_canonical_appx_hashes_unchanged": true,
+      "runtime_matches_canonical_except_pc_memory": true,
+      "library_waiting_for_owner_selection_observed": true
+    },
+    "controls_sent": false,
+    "builds_still_running": false
+  },
+  "botw_comparison": {
+    "status": "same_executable_on_off_complete_optimization_restored",
+    "view_confirmed_utc": "2026-10-20T05:46:41.0337265Z",
+    "on": {
+      "frames": 1200,
+      "wall_ms": 46540,
+      "mean_frame_ms": 38.78333333333333,
+      "fps": 25.78427159432746,
+      "profiler": false,
+      "trace_active_during_normal_measurement": false,
+      "log_sha256": "e6f471bc4e5176d7af8fe8d9c924226b1628864333da184c20355d45c186cffb",
+      "p50_ms_each_300_frame_window": [
+        35.65,
+        36.08,
+        37.52,
+        37.5
+      ],
+      "p95_ms_each_300_frame_window": [
+        50.34,
+        51.85,
+        53.4,
+        52.0
+      ],
+      "p99_ms_each_300_frame_window": [
+        56.07,
+        55.32,
+        59.31,
+        59.87
+      ],
+      "percentiles_are_not_pooled": true,
+      "inventory_B_owner_pass": true,
+      "scope_zoom_owner_pass": true,
+      "manual_Q_shutdown_return_code": 0,
+      "worker_joined_and_process_exited": true,
+      "game_closed_by_agent": false
+    },
+    "on_diagnostic_trace": {
+      "captured_after_normal_measurement": true,
+      "requested_vsyncs": 120,
+      "events": 66453,
+      "complete_dump": true,
+      "capacity_limit_reached": false,
+      "duration_ms": 1987.843,
+      "partial_submissions": 152,
+      "batches_over_5ms": 51,
+      "first_native_submit_lag_p50_ms": 4.287,
+      "batches_first_native_submit_after_98_percent": 0,
+      "software_queue_wait_sum_ms": 605.53,
+      "idle_native_sync_wait_overlap_ms": 549.61,
+      "log_sha256": "cab6590941b59a53119b888440c1aec2e49d7b14bf0a4a7553c8fe2e42ba8013",
+      "this_is_an_fps_benchmark": false
+    },
+    "control": {
+      "status": "normal_measurement_complete_owner_Q_exit_verified",
+      "pid": 16676,
+      "activation_utc": "2026-10-20T05:49:05.9300343Z",
+      "view_confirmed_utc": "2026-10-20T05:50:45.5289937Z",
+      "partial_submit": false,
+      "exe_matches_on": true,
+      "only_candidate_toggle_changed": true,
+      "frames": 1200,
+      "wall_ms": 51097,
+      "mean_frame_ms": 42.58083333333333,
+      "fps": 23.484744701254478,
+      "profiler": false,
+      "trace_active_during_normal_measurement": false,
+      "log_sha256": "e1bf47a51bed0dec18f279a727b0c3e654dc49756dc177cc0dbe5290d52dc2bc",
+      "p50_ms_each_300_frame_window": [
+        39.21,
+        39.5,
+        38.36,
+        40.59
+      ],
+      "p95_ms_each_300_frame_window": [
+        57.22,
+        56.78,
+        58.02,
+        57.21
+      ],
+      "p99_ms_each_300_frame_window": [
+        63.38,
+        64.3,
+        63.33,
+        63.94
+      ],
+      "percentiles_are_not_pooled": true,
+      "diagnostic_T_not_taken_owner_correction": true,
+      "trace_dump_markers_in_closed_log": 0,
+      "manual_Q_shutdown_return_code": 0,
+      "worker_joined_and_process_exited": true,
+      "game_closed_by_agent": false
+    },
+    "result": {
+      "saved_ms_per_frame": 3.7975,
+      "frame_time_reduction_percent": 8.918331800301383,
+      "fps_increase_percent": 9.79157713794585,
+      "gpu_thread_idle_ms_per_frame_off_on": [
+        14.5585,
+        11.677833333333332
+      ],
+      "recording_thread_fence_wait_ms_per_frame_off_on": [
+        2.053166666666667,
+        0.4424166666666666
+      ],
+      "gpu_busy_counter_ms_per_frame_off_on": [
+        15.62175,
+        15.668583333333332
+      ],
+      "native_submission_count_off_on": [
+        3877,
+        7448
+      ],
+      "staging_creations_off_on": [
+        305,
+        242
+      ],
+      "readback_pressure_wait_calls_off_on": [
+        119,
+        0
+      ],
+      "readback_pressure_wait_ms_off_on": [
+        1805.034,
+        0
+      ],
+      "scope_counters_may_overlap": true,
+      "one_sequential_same_view_comparison": true,
+      "universal_speedup_claimed": false,
+      "partial_submit_restored": true
+    },
+    "same_executable_switch": "partial_submit=1 versus 0",
+    "readback_options_remain_enabled_in_both": true,
+    "fps_improvement_claimed": true,
+    "claim_scope": "this_same_executable_same_view_1200_frame_per_variant_comparison"
+  },
+  "follow_up_analysis": {
+    "source": "same_on_diagnostic_trace",
+    "complete_long_batches_with_partial_submissions": 50,
+    "batches_with_exactly_three_partial_submissions": 50,
+    "mean_processing_tail_after_last_partial_ms": 13.439320000000015,
+    "mean_delay_from_last_partial_native_submit_to_next_submit_ms": 13.305619999999994,
+    "sorted_middle_delay_ms": 12.471000000000004,
+    "max_delay_ms": 21.944999999999936,
+    "batches_with_two_later_native_submissions": 50,
+    "intervals_are_not_measured_gpu_idle": true,
+    "proposed_continuous_bounded_submission": "not_implemented",
+    "proposed_duplicate_flush_audit": "not_implemented",
+    "additional_fps_gain_claimed": false
+  },
+  "included_in_owner_repository": true,
+  "upstream_publication": false
+}

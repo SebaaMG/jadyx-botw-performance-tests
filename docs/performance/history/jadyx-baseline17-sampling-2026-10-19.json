@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-19",
+  "type": "CPU sampling and source investigation; no new implementation or FPS comparison",
+  "baseline": {
+    "version": "1.0.0.17",
+    "source_tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+    "exe_sha256": "98b7e1f4b1c39fffafa7869aa2b40aefa5438c75f28e41f1dc8b5483da9e1efb",
+    "executable_unchanged": true,
+    "patches": "0001-0011; native PGO USE"
+  },
+  "capture": {
+    "owner_confirmed_same_save_and_view": true,
+    "owner_acknowledgement_utc": "2026-10-19T04:19:02.4038225Z",
+    "selection": "Skip window in progress at acknowledgement; select the next two complete windows",
+    "windows": [
+      6,
+      7
+    ],
+    "duration_seconds": 40,
+    "sampling_hz": 125,
+    "detailed_cpu_profile_enabled": false,
+    "detailed_gpu_profile_enabled": false,
+    "profiler_cpu_percent_of_one_core": 2.3,
+    "mean_sample_thread_suspension_us": 24.2,
+    "private_directory": "[local path or personal identifier omitted for public archive]",
+    "frozen_prefix": "fixed-view-20261019T042021Z",
+    "report": "profile-6-7.md",
+    "prefix_files": {
+      "jadyx_profile.txt": {
+        "bytes": 3905815,
+        "sha256": "f18bf2e4edfb2aa12e36ba1984b62b955ffd5da69cfc9fb5eae77e893cda44ea"
+      },
+      "jadyx_log.txt": {
+        "bytes": 863628,
+        "sha256": "3eef3cecadccf0ae76202f848192504dd004cfa659153bbab58dcbdffdaa997e"
+      },
+      "jadyx_diag.txt": {
+        "bytes": 1427332,
+        "sha256": "2e6a1748b157ba99fbe66078660366c75a5a6fb4f468bf1b0e2266075f1a1e79"
+      }
+    }
+  },
+  "threads": {
+    "CPUCore_2": {
+      "cpu_percent_of_one_core": 67.2,
+      "guest_jit_active_sample_percent": 82.3
+    },
+    "CPUCore_1": {
+      "cpu_percent_of_one_core": 57.0,
+      "guest_jit_active_sample_percent": 76.4
+    },
+    "CPUCore_0": {
+      "cpu_percent_of_one_core": 51.5,
+      "guest_jit_active_sample_percent": 76.2
+    },
+    "GPU": {
+      "cpu_percent_of_one_core": 56.5,
+      "active_sample_subsystems_percent": {
+        "draw_setup": 26.5,
+        "gpu_command_processing": 22.3,
+        "pipelines_and_shaders": 13.2,
+        "buffer_cache_and_uploads": 10.5,
+        "command_lists_and_barriers": 8.2,
+        "descriptors_and_samplers": 6.9,
+        "texture_cache": 6.9,
+        "presentation": 0.5
+      }
+    }
+  },
+  "interpretation_limits": [
+    "Active-sample shares are not exclusive frame-time costs or recoverable milliseconds",
+    "No thread consumed 85 percent of one core; dependencies and waits remain relevant",
+    "Guest JIT samples do not distinguish useful game work, spills, memory accesses or guest busy waits",
+    "Release public symbols and unwinding limit attribution of inlined functions and inclusive stacks",
+    "This diagnostic capture must not be used as an FPS control for runs with sampling disabled"
+  ],
+  "filter_review": {
+    "selected": "FSR 1",
+    "effective": "bilinear",
+    "source_pixels": [
+      1920,
+      1080
+    ],
+    "output_pixels": [
+      1781,
+      1002
+    ],
+    "reason": "Output does not enlarge the input; PlanFsr returns no EASU/RCAS plan",
+    "verified_logs": [
+      "baseline17-cpu-sampling/fixed-view-20261019T042021Z/jadyx_log.txt",
+      "packet-partial-bindings/previous-17/post-game-log.txt",
+      "packet-partial-bindings/candidate-all/post-game-log.txt",
+      "packet-partial-bindings/control-off/post-game-log.txt",
+      "pressure-recovery/gameplay/post-game-log.txt"
+    ],
+    "active_fsr_path_found_in_checked_logs": false,
+    "scope": "Only these checked sessions; no assertion about every historical run"
+  },
+  "next_candidate_not_implemented": {
+    "reference": "https://github.com/Swordpdf/ProsperoEden/blob/a26ba788222465ec7fb94dc813958fc749734e07/headless/dynarmic/reg_alloc.cmake",
+    "reference_commit": "a26ba788222465ec7fb94dc813958fc749734e07",
+    "opportunities": [
+      "Move live GPR values into a free permitted GPR before spilling to stack",
+      "Permit R13 allocation when fastmem is absent and the emitter mask permits it"
+    ],
+    "baseline_move_out_of_the_way_always_spills_live_register": true,
+    "baseline_selector_unconditionally_excludes_r13": true,
+    "a64_emitter_excludes_r13_when_fastmem_exists": true,
+    "windows_abi_preserves_r13": true,
+    "measured_fps_gain": null,
+    "required_checks": [
+      "Register pressure, live value aliases, fixed registers and host calls",
+      "R13 remains reserved with fastmem; respect the Windows ABI and other reserved registers",
+      "Generated code and compile-time spill counters before another gameplay comparison",
+      "Fresh JIT blocks for flag comparisons; sampling disabled for frame-time measurements"
+    ]
+  },
+  "restoration": {
+    "utc": "2026-10-19T04:26:29.5124078Z",
+    "owner_confirmed_q": true,
+    "game_return_code": 10,
+    "library_idle_verified": true,
+    "application_closed": true,
+    "sampling_removed": true,
+    "boot_restored_byte_for_byte": true,
+    "boot_sha256": "5adae9fd44022cfccf654806b6ddb99d0b54d146385b600cced35827851347b6",
+    "exe_sha256": "98b7e1f4b1c39fffafa7869aa2b40aefa5438c75f28e41f1dc8b5483da9e1efb",
+    "saved_upscaling_preference_modified": false
+  }
+}

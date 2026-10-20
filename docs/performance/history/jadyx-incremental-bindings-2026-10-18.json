@@ -1,0 +1,678 @@
+{
+  "recorded_at_utc": "2026-10-19T00:26:32.211278+00:00",
+  "status": "Implemented, built, GPU-correct, synthetic benchmark and both BOTW sessions completed; no net BOTW improvement observed",
+  "source": {
+    "previous_tree": "245545bbe13e1d535ae858b989012de588187405",
+    "tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+    "patch": "0011-incremental-uniform-bindings.patch",
+    "sha256": "725c502c7fa950dfef4b47c4cbc7903e7f7e91c395d4e0868d5e5db0ba384f06",
+    "clean_eleven_patch_sequence": "pass",
+    "source_paths": [
+      "src/jadyx/app/uwp_boot.cpp",
+      "src/video_core/buffer_cache/buffer_cache.h",
+      "src/video_core/renderer_d3d12/d3d12_buffer_cache.cpp",
+      "src/video_core/renderer_d3d12/d3d12_buffer_cache.h",
+      "src/video_core/renderer_d3d12/d3d12_descriptor_heap.cpp",
+      "src/video_core/renderer_d3d12/d3d12_descriptor_heap.h"
+    ],
+    "original_index_unchanged": true
+  },
+  "package": {
+    "zip_crc": "pass",
+    "block_hashes": "pass",
+    "layout_payload": "pass",
+    "files": 25,
+    "blocks": 724,
+    "version": "1.0.0.15",
+    "exe_sha256": "56fe17f98dee19142547939a6701f561634ba762239e108320b444d29e200859",
+    "pdb_sha256": "4c1a6915ef28d9e96416b2b745ac5571cbd5a3f64c879387cfd6b521de70b234",
+    "appx_sha256": "c48ed15cea5d775cc7a5dfc55ce35150e7d7e3ce0df18f1ca5bce575655ee272",
+    "mesa_sha256": "71b99d96379f27010550642218f86497859736d9bf1c3a4493146a1b7a4353a3",
+    "incremental_uniform_bindings": true,
+    "persistent_resources": false,
+    "host_lto": true,
+    "pgo": false,
+    "canonical_memory_mib": 5120
+  },
+  "signature": {
+    "accepted": true,
+    "native_hresult": "0x800B0109",
+    "signature_status": "UntrustedRoot",
+    "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+    "signer_matches_expected": true,
+    "signer_time_valid": true,
+    "chain_error_status": "0x00000020",
+    "integrity_verified": true,
+    "integrity_verification": "WinVerifyTrust/WINTRUST_ACTION_GENERIC_VERIFY_V2",
+    "system_trusted": false,
+    "revocation_checked": false,
+    "trust_policy": "PinnedSignerAllowUntrustedRoot"
+  },
+  "runtime": {
+    "registered": true,
+    "version": "1.0.0.15",
+    "local_state_files_verified": 55,
+    "payload_files_verified": 25,
+    "activation_requested": true,
+    "pc_hard_cap_mib": 8192,
+    "logical_cache_budget_mib": 5120,
+    "persistent_resources": false,
+    "ordered_copy_reuse": true,
+    "copy_plan_cache": true,
+    "coherent_uniform_cache": true,
+    "incremental_uniform_bindings": true,
+    "process_id": 8548,
+    "activated_at_utc": "2026-10-19T00:25:31.2488151Z",
+    "process_started_utc": "2026-10-19T00:25:14.6001150Z"
+  },
+  "build": {
+    "target": "WindowsStore x64, Store CRT, AppContainer",
+    "host_lto_targets": [
+      "video_core",
+      "jadyx"
+    ],
+    "pgo_mode": "OFF"
+  },
+  "component_gates": {
+    "debug": "clean",
+    "cases": [
+      {
+        "pattern": 0,
+        "enabled": false,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "inline"
+      },
+      {
+        "pattern": 0,
+        "enabled": true,
+        "creates": 81,
+        "hits": 4015,
+        "table_hits": 328,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "inline"
+      },
+      {
+        "pattern": 1,
+        "enabled": false,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "inline"
+      },
+      {
+        "pattern": 1,
+        "enabled": true,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "inline"
+      },
+      {
+        "pattern": 2,
+        "enabled": false,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "inline"
+      },
+      {
+        "pattern": 2,
+        "enabled": true,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 256,
+        "compared_bytes": 8192,
+        "mode": "inline"
+      },
+      {
+        "pattern": 3,
+        "enabled": false,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "inline"
+      },
+      {
+        "pattern": 3,
+        "enabled": true,
+        "creates": 2139,
+        "hits": 1957,
+        "table_hits": 157,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "inline"
+      },
+      {
+        "pattern": 0,
+        "enabled": false,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "worker"
+      },
+      {
+        "pattern": 0,
+        "enabled": true,
+        "creates": 81,
+        "hits": 4015,
+        "table_hits": 328,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "worker"
+      },
+      {
+        "pattern": 1,
+        "enabled": false,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "worker"
+      },
+      {
+        "pattern": 1,
+        "enabled": true,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "worker"
+      },
+      {
+        "pattern": 2,
+        "enabled": false,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "worker"
+      },
+      {
+        "pattern": 2,
+        "enabled": true,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 256,
+        "compared_bytes": 8192,
+        "mode": "worker"
+      },
+      {
+        "pattern": 3,
+        "enabled": false,
+        "creates": 4096,
+        "hits": 0,
+        "table_hits": 0,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "worker"
+      },
+      {
+        "pattern": 3,
+        "enabled": true,
+        "creates": 2139,
+        "hits": 1957,
+        "table_hits": 157,
+        "evictions": 0,
+        "compared_bytes": 8192,
+        "mode": "worker"
+      }
+    ],
+    "clean_sync_skips_per_mode": 328,
+    "coherent_uniform_bytes_compared_per_variant_and_mode": 153600,
+    "host_upload_bytes": 16384,
+    "stream_upload_bytes": 68608
+  },
+  "synthetic_benchmark": [
+    {
+      "pattern": 0,
+      "draws": 4096,
+      "samples_each": 7,
+      "control_ms": 30.5855,
+      "candidate_ms": 26.2381,
+      "mode": "inline",
+      "preparation_reduction_percent": 14.213924899053476
+    },
+    {
+      "pattern": 1,
+      "draws": 4096,
+      "samples_each": 7,
+      "control_ms": 32.8777,
+      "candidate_ms": 33.388,
+      "mode": "inline",
+      "preparation_reduction_percent": -1.5521158718523553
+    },
+    {
+      "pattern": 0,
+      "draws": 4096,
+      "samples_each": 7,
+      "control_ms": 14.622,
+      "candidate_ms": 6.2425,
+      "mode": "worker",
+      "preparation_reduction_percent": 57.307481876624266
+    },
+    {
+      "pattern": 1,
+      "draws": 4096,
+      "samples_each": 7,
+      "control_ms": 16.3923,
+      "candidate_ms": 16.1725,
+      "mode": "worker",
+      "preparation_reduction_percent": 1.3408734588800764
+    }
+  ],
+  "gameplay": {
+    "private_prefix_name": "fixed-view-20261019T002830Z",
+    "prefixes": {
+      "jadyx_log.txt": {
+        "bytes": 1096404,
+        "sha256": "24445f04dc175e910b0bd604ccf72936db46a20176653d94fb8c1ff06e7037c5"
+      },
+      "jadyx_diag.txt": {
+        "bytes": 629037,
+        "sha256": "5492fa04b8bb5c7049d512865bfa19a88192cebcae8ae4e00af5338132129133"
+      }
+    },
+    "mark": {
+      "utc": "2026-10-19T00:27:10.1803225Z",
+      "process_id": 8548,
+      "process_started_utc": "2026-10-19T00:25:14.6001150Z",
+      "owner_confirmed_same_save_and_fixed_camera": true,
+      "controls_sent": false,
+      "builds_finished_before_activation": true
+    },
+    "log_time_selection_lower_bound": 116.580207,
+    "selection": "First four complete 300-present windows starting after conservative process-elapsed acknowledgement bound.",
+    "frames": 1200,
+    "wall_ms": 56213.0,
+    "aggregate_fps": 21.347375162328998,
+    "mean_ms": 46.844166666666666,
+    "windows": [
+      {
+        "start_log_seconds": 125.708495,
+        "end_log_seconds": 141.392105,
+        "fps": 19.13,
+        "p50_ms": 47.4,
+        "p95_ms": 75.01,
+        "p99_ms": 85.61,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 15684.0,
+          "gpu_thread_idle_ms": 5815.6,
+          "fence_waits": 20,
+          "fence_wait_ms": 297.2,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 191,
+          "resource_creation_ms": 44.7,
+          "gpu_busy_ms": 5782.7,
+          "submits": 910,
+          "draws": 797050,
+          "dispatches": 5295
+        }
+      },
+      {
+        "start_log_seconds": 141.392105,
+        "end_log_seconds": 155.101189,
+        "fps": 21.88,
+        "p50_ms": 43.46,
+        "p95_ms": 58.7,
+        "p99_ms": 64.75,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 13709.0,
+          "gpu_thread_idle_ms": 4780.2,
+          "fence_waits": 17,
+          "fence_wait_ms": 160.6,
+          "pipeline_stalls": 4,
+          "pipeline_stall_ms": 0.7,
+          "resources_created": 198,
+          "resource_creation_ms": 36.0,
+          "gpu_busy_ms": 4650.1,
+          "submits": 910,
+          "draws": 797710,
+          "dispatches": 5350
+        }
+      },
+      {
+        "start_log_seconds": 155.101189,
+        "end_log_seconds": 168.435642,
+        "fps": 22.5,
+        "p50_ms": 41.48,
+        "p95_ms": 59.48,
+        "p99_ms": 66.35,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 13334.0,
+          "gpu_thread_idle_ms": 4669.2,
+          "fence_waits": 19,
+          "fence_wait_ms": 167.6,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 195,
+          "resource_creation_ms": 36.6,
+          "gpu_busy_ms": 4554.1,
+          "submits": 911,
+          "draws": 798350,
+          "dispatches": 5437
+        }
+      },
+      {
+        "start_log_seconds": 168.435642,
+        "end_log_seconds": 181.921921,
+        "fps": 22.24,
+        "p50_ms": 42.6,
+        "p95_ms": 58.89,
+        "p99_ms": 62.2,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 13486.0,
+          "gpu_thread_idle_ms": 4698.6,
+          "fence_waits": 19,
+          "fence_wait_ms": 153.4,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 185,
+          "resource_creation_ms": 32.4,
+          "gpu_busy_ms": 4542.7,
+          "submits": 909,
+          "draws": 798255,
+          "dispatches": 5561
+        }
+      }
+    ],
+    "fallback_translation_count_in_prefix": 0,
+    "fallback_pso_count_in_prefix": 0,
+    "render_error_count_in_prefix": 0,
+    "scope": "Single manual candidate run, same save/view confirmed, uncontrolled weather/time/host activity. Combined changes against a previous session; not isolated attribution.",
+    "totals": {
+      "frames": 1200,
+      "wall_ms": 56213.0,
+      "gpu_thread_idle_ms": 19963.6,
+      "fence_waits": 75,
+      "fence_wait_ms": 778.8,
+      "pipeline_stalls": 4,
+      "pipeline_stall_ms": 0.7,
+      "resources_created": 769,
+      "resource_creation_ms": 149.70000000000002,
+      "gpu_busy_ms": 19529.6,
+      "submits": 3640,
+      "draws": 3191365,
+      "dispatches": 21643
+    },
+    "mean_resource_creation_ms": 0.12475000000000001,
+    "incremental_counters": {
+      "start": {
+        "seconds": 125.630172,
+        "hits": 2186605,
+        "creates": 2980863,
+        "evictions": 3063,
+        "table_hits": 159268,
+        "table_misses": 217472,
+        "copy_calls": 268767,
+        "sync_skips": 3834122
+      },
+      "end": {
+        "seconds": 181.878117,
+        "hits": 8025238,
+        "creates": 10665210,
+        "evictions": 12185,
+        "table_hits": 592936,
+        "table_misses": 783454,
+        "copy_calls": 969935,
+        "sync_skips": 14123690
+      },
+      "delta": {
+        "hits": 5838633,
+        "creates": 7684347,
+        "evictions": 9122,
+        "table_hits": 433668,
+        "table_misses": 565982,
+        "copy_calls": 701168,
+        "sync_skips": 10289568
+      },
+      "boundary_note": "Nearest texture ticks to present-window boundaries; approximate interval."
+    },
+    "functional": {
+      "owner_saved_and_closed_Q": true,
+      "assistant_sent_controls": false,
+      "log_hashes": {
+        "jadyx_log.txt": {
+          "bytes": 1318706,
+          "sha256": "1dd0c76175f979c11c5ef757a72055b4395459d110f3627469cc2da6af01f4b4"
+        },
+        "jadyx_diag.txt": {
+          "bytes": 635413,
+          "sha256": "841f1fecbed64309b3b129bd1316852b103eb2eaee86f0ec38a72385e3ab277c"
+        }
+      },
+      "render_errors": 0,
+      "return_codes_current_launch": [
+        "10"
+      ]
+    },
+    "historical_comparison": {
+      "reference": "1.0.0.13",
+      "mean_ms": 41.1275,
+      "fps": 24.314631329402467,
+      "scope": "Separate sessions; same view reported, not isolated attribution."
+    }
+  },
+  "private_log_hashes": {
+    "adaptive-build.log": {
+      "bytes": 4746,
+      "sha256": "cca918e44df977ab1ff038bf53d17fa2f45055ecff0bdd5aa6fcb74a09cc9923"
+    },
+    "pool-gate.log": {
+      "bytes": 2356,
+      "sha256": "d527a0352c35b2baa12e5a73f0561e03b701fe4c2cb3b4bb624a490551c16fcf"
+    },
+    "binding-gate.log": {
+      "bytes": 1819,
+      "sha256": "65ba2330028ac620876e337e3b872e2c983252f06355621aa414c9818db8c3e1"
+    },
+    "unconditional-view-cache-gate.log": {
+      "bytes": 1489,
+      "sha256": "b6a2a7cc67026d032bffa1fdc739afa9e8cf490b9d00258514aac4299ff5aa2c"
+    },
+    "package.log": {
+      "bytes": 6423,
+      "sha256": "8d75c7e8e22467a4d9380eba05a7c5d815c86961121ebbc1d2cddf4389e31221"
+    },
+    "registration.log": {
+      "bytes": 173,
+      "sha256": "604f3c25e69f34de26860376042af6848966498efa041710aa3f91723c2380dd"
+    }
+  },
+  "limitations": [
+    "Synthetic preparation times include command recording for 4096 GPU draws; no BOTW FPS gain inferred.",
+    "Mixed inline case is 1.6 percent slower and worker 1.3 percent faster; no mixed-workload improvement established.",
+    "The first unconditional view cache regressed the worker mixed benchmark and was replaced by adaptive selection.",
+    "Root signature and shaders unchanged; the earlier persistent renderer remains disabled.",
+    "Generated artifacts, game collections, keys and raw runtime logs are excluded from Git."
+  ],
+  "control": {
+    "private_prefix_name": "fixed-view-20261019T003513Z",
+    "prefixes": {
+      "jadyx_log.txt": {
+        "bytes": 1356429,
+        "sha256": "451ed307607c8a9abf8051216ae1e98b42ca54ed11d4c282c0c21898feed4c96"
+      },
+      "jadyx_diag.txt": {
+        "bytes": 668023,
+        "sha256": "cd3055610ca20dfa73a8f5d888eaaff03a31a3ac4b1e3820ac0cf904b67cdead"
+      }
+    },
+    "mark": {
+      "utc": "2026-10-19T00:33:14.7396561Z",
+      "process_id": 2956,
+      "process_started_utc": "2026-10-19T00:29:52.7295172Z",
+      "owner_confirmed_same_save_and_fixed_camera": true,
+      "controls_sent": false,
+      "builds_finished_before_activation": true,
+      "incremental_uniform_bindings": false
+    },
+    "log_time_selection_lower_bound": 203.010139,
+    "selection": "First four complete 300-present windows starting after conservative process-elapsed acknowledgement bound.",
+    "frames": 1200,
+    "wall_ms": 56192.0,
+    "aggregate_fps": 21.355353075170843,
+    "mean_ms": 46.82666666666667,
+    "windows": [
+      {
+        "start_log_seconds": 208.765671,
+        "end_log_seconds": 224.230337,
+        "fps": 19.4,
+        "p50_ms": 46.8,
+        "p95_ms": 75.57,
+        "p99_ms": 88.09,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 15465.0,
+          "gpu_thread_idle_ms": 5863.9,
+          "fence_waits": 10,
+          "fence_wait_ms": 186.1,
+          "pipeline_stalls": 1,
+          "pipeline_stall_ms": 0.4,
+          "resources_created": 142,
+          "resource_creation_ms": 25.1,
+          "gpu_busy_ms": 5684.9,
+          "submits": 901,
+          "draws": 836042,
+          "dispatches": 5664
+        }
+      },
+      {
+        "start_log_seconds": 224.230337,
+        "end_log_seconds": 237.795204,
+        "fps": 22.12,
+        "p50_ms": 41.65,
+        "p95_ms": 59.58,
+        "p99_ms": 69.48,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 13565.0,
+          "gpu_thread_idle_ms": 4952.5,
+          "fence_waits": 11,
+          "fence_wait_ms": 197.2,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 130,
+          "resource_creation_ms": 17.9,
+          "gpu_busy_ms": 4762.7,
+          "submits": 901,
+          "draws": 836113,
+          "dispatches": 5420
+        }
+      },
+      {
+        "start_log_seconds": 237.795204,
+        "end_log_seconds": 251.322568,
+        "fps": 22.18,
+        "p50_ms": 41.9,
+        "p95_ms": 59.33,
+        "p99_ms": 68.46,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 13527.0,
+          "gpu_thread_idle_ms": 4949.2,
+          "fence_waits": 10,
+          "fence_wait_ms": 169.2,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 132,
+          "resource_creation_ms": 19.1,
+          "gpu_busy_ms": 4745.9,
+          "submits": 901,
+          "draws": 836048,
+          "dispatches": 5564
+        }
+      },
+      {
+        "start_log_seconds": 251.322568,
+        "end_log_seconds": 264.957526,
+        "fps": 22.0,
+        "p50_ms": 41.87,
+        "p95_ms": 60.31,
+        "p99_ms": 69.97,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 13635.0,
+          "gpu_thread_idle_ms": 5037.1,
+          "fence_waits": 10,
+          "fence_wait_ms": 169.6,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 131,
+          "resource_creation_ms": 18.6,
+          "gpu_busy_ms": 4832.8,
+          "submits": 901,
+          "draws": 836181,
+          "dispatches": 5452
+        }
+      }
+    ],
+    "fallback_translation_count_in_prefix": 0,
+    "fallback_pso_count_in_prefix": 0,
+    "render_error_count_in_prefix": 0,
+    "scope": "Single manual candidate run, same save/view confirmed, uncontrolled weather/time/host activity. Combined changes against a previous session; not isolated attribution.",
+    "functional": {
+      "owner_closed_Q": true,
+      "return_codes_current_launch": [
+        "10"
+      ],
+      "log_hashes": {
+        "jadyx_log.txt": {
+          "bytes": 1392004,
+          "sha256": "2b577fc43865c87334715e813b2aef22c545262d4241f4428e6c5788fc3effad"
+        },
+        "jadyx_diag.txt": {
+          "bytes": 673568,
+          "sha256": "a998992d806a6f6d3e7372b610b0e9a90309e38cab93ce84bbfae819ec8c5140"
+        }
+      }
+    },
+    "activation": {
+      "process_id": 2956,
+      "process_started_utc": "2026-10-19T00:29:52.7295172Z",
+      "activated_at_utc": "2026-10-19T00:29:52.9925411Z",
+      "version": "1.0.0.15",
+      "incremental_uniform_bindings": false,
+      "exe_sha256": "56fe17f98dee19142547939a6701f561634ba762239e108320b444d29e200859"
+    }
+  },
+  "selection": "Retain as an optional path; runtime off. Proceed to representative PGO training.",
+  "same_executable_comparison": {
+    "candidate_mean_ms": 46.844166666666666,
+    "control_mean_ms": 46.82666666666667,
+    "candidate_minus_control_ms": 0.017499999999998295,
+    "scope": "Two manual same-view sessions, same executable and other settings; no useful difference observed."
+  }
+}

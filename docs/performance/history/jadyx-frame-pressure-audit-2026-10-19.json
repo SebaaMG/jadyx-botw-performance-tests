@@ -1,0 +1,1172 @@
+{
+  "scope": "Retrospective audit; no runtime changes or new gameplay measurement",
+  "captures": {
+    "17_best": {
+      "selection_sha256": "3fd0e3b9d3f12d0509e4ab131908cfd203e30ffd6fc1d7bd9f1246c452caf4dc",
+      "log_sha256": "2924e2a2e3bb802aca4af13e3b54ff5607da440d79638c294136d67c9bb0b8c4",
+      "frames": 1200,
+      "wall_ms": 43701.0,
+      "mean_ms": 36.4175,
+      "fps": 27.459325873549805,
+      "resource_ms_per_frame": 0.2656666666666666,
+      "gpu_busy_ms_per_frame": 14.678833333333335,
+      "idle_ms_per_frame": 14.815833333333334,
+      "staging_wait_count_combined": 17.0,
+      "pool_delta": {
+        "requests": 12896,
+        "completed_reuse": 2166,
+        "ordered_reuse": 10400,
+        "creates": 330,
+        "busy_skips": 0,
+        "pressure_trims": 1200,
+        "full_trims": 164,
+        "trimmed_kib": 503808
+      },
+      "windows": [
+        {
+          "end_seconds": 148.697932,
+          "frames": 300,
+          "wall_ms": 11100.0,
+          "pool_end": {
+            "requests": 14699,
+            "completed_reuse": 1471,
+            "ordered_reuse": 11089,
+            "creates": 2139,
+            "busy_skips": 0,
+            "pressure_trims": 1238,
+            "full_trims": 1064,
+            "trimmed_kib": 3277568,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 4608
+          },
+          "idle_ms": 4167.3,
+          "fence_ms": 452.8,
+          "resource_count": 585.0,
+          "resource_ms": 245.1,
+          "gpu_busy_ms": 4386.6,
+          "draws": 819719.0,
+          "staging_wait_count_combined": 17.0,
+          "pool_delta": {
+            "requests": 3296,
+            "completed_reuse": 366,
+            "ordered_reuse": 2600,
+            "creates": 330,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 164,
+            "trimmed_kib": 503808
+          },
+          "p99_ms": 56.87,
+          "memory_mib": {
+            "gpu_used": 1710,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7292
+          }
+        },
+        {
+          "end_seconds": 159.511964,
+          "frames": 300,
+          "wall_ms": 10814.0,
+          "pool_end": {
+            "requests": 17899,
+            "completed_reuse": 2071,
+            "ordered_reuse": 13689,
+            "creates": 2139,
+            "busy_skips": 0,
+            "pressure_trims": 1538,
+            "full_trims": 1064,
+            "trimmed_kib": 3277568,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 4608
+          },
+          "idle_ms": 4526.2,
+          "fence_ms": 118.9,
+          "resource_count": 142.0,
+          "resource_ms": 22.8,
+          "gpu_busy_ms": 4387.8,
+          "draws": 820185.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 53.87,
+          "memory_mib": {
+            "gpu_used": 1710,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7288
+          }
+        },
+        {
+          "end_seconds": 170.435809,
+          "frames": 300,
+          "wall_ms": 10924.0,
+          "pool_end": {
+            "requests": 21099,
+            "completed_reuse": 2671,
+            "ordered_reuse": 16289,
+            "creates": 2139,
+            "busy_skips": 0,
+            "pressure_trims": 1838,
+            "full_trims": 1064,
+            "trimmed_kib": 3277568,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 4608
+          },
+          "idle_ms": 4575.8,
+          "fence_ms": 145.1,
+          "resource_count": 142.0,
+          "resource_ms": 24.7,
+          "gpu_busy_ms": 4454.7,
+          "draws": 820059.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 60.72,
+          "memory_mib": {
+            "gpu_used": 1710,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7289
+          }
+        },
+        {
+          "end_seconds": 181.298489,
+          "frames": 300,
+          "wall_ms": 10863.0,
+          "pool_end": {
+            "requests": 24299,
+            "completed_reuse": 3271,
+            "ordered_reuse": 18889,
+            "creates": 2139,
+            "busy_skips": 0,
+            "pressure_trims": 2138,
+            "full_trims": 1064,
+            "trimmed_kib": 3277568,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 4608
+          },
+          "idle_ms": 4509.7,
+          "fence_ms": 151.7,
+          "resource_count": 144.0,
+          "resource_ms": 26.2,
+          "gpu_busy_ms": 4385.5,
+          "draws": 820155.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 56.31,
+          "memory_mib": {
+            "gpu_used": 1710,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7290
+          }
+        }
+      ]
+    },
+    "17_repeat": {
+      "selection_sha256": "16efc6588fe128ce300e21b515dbcbbb89249c775a26a8ea753f41a7534ba15f",
+      "log_sha256": "571e1a1b89cab4432c0dd127912bbbd6561bff314898474ba498cf345b0a6854",
+      "frames": 1200,
+      "wall_ms": 47821.0,
+      "mean_ms": 39.850833333333334,
+      "fps": 25.09357813512892,
+      "resource_ms_per_frame": 0.08249999999999999,
+      "gpu_busy_ms_per_frame": 15.502583333333332,
+      "idle_ms_per_frame": 16.254083333333334,
+      "staging_wait_count_combined": 0.0,
+      "pool_delta": {
+        "requests": 12800,
+        "completed_reuse": 2400,
+        "ordered_reuse": 10400,
+        "creates": 0,
+        "busy_skips": 0,
+        "pressure_trims": 1200,
+        "full_trims": 0,
+        "trimmed_kib": 0
+      },
+      "windows": [
+        {
+          "end_seconds": 123.600246,
+          "frames": 300,
+          "wall_ms": 13203.0,
+          "pool_end": {
+            "requests": 12349,
+            "completed_reuse": 2259,
+            "ordered_reuse": 9591,
+            "creates": 499,
+            "busy_skips": 0,
+            "pressure_trims": 1084,
+            "full_trims": 242,
+            "trimmed_kib": 746752,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 5892.9,
+          "fence_ms": 131.4,
+          "resource_count": 149.0,
+          "resource_ms": 27.9,
+          "gpu_busy_ms": 5512.0,
+          "draws": 819419.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 69.65,
+          "memory_mib": {
+            "gpu_used": 1711,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7294
+          }
+        },
+        {
+          "end_seconds": 134.615882,
+          "frames": 300,
+          "wall_ms": 11016.0,
+          "pool_end": {
+            "requests": 15549,
+            "completed_reuse": 2859,
+            "ordered_reuse": 12191,
+            "creates": 499,
+            "busy_skips": 0,
+            "pressure_trims": 1384,
+            "full_trims": 242,
+            "trimmed_kib": 746752,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4084.3,
+          "fence_ms": 120.4,
+          "resource_count": 147.0,
+          "resource_ms": 27.7,
+          "gpu_busy_ms": 3917.6,
+          "draws": 820180.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 62.47,
+          "memory_mib": {
+            "gpu_used": 1711,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7294
+          }
+        },
+        {
+          "end_seconds": 146.561226,
+          "frames": 300,
+          "wall_ms": 11945.0,
+          "pool_end": {
+            "requests": 18749,
+            "completed_reuse": 3459,
+            "ordered_reuse": 14791,
+            "creates": 499,
+            "busy_skips": 0,
+            "pressure_trims": 1684,
+            "full_trims": 242,
+            "trimmed_kib": 746752,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4812.5,
+          "fence_ms": 146.5,
+          "resource_count": 136.0,
+          "resource_ms": 21.1,
+          "gpu_busy_ms": 4647.1,
+          "draws": 820110.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 61.62,
+          "memory_mib": {
+            "gpu_used": 1711,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7294
+          }
+        },
+        {
+          "end_seconds": 158.218692,
+          "frames": 300,
+          "wall_ms": 11657.0,
+          "pool_end": {
+            "requests": 21949,
+            "completed_reuse": 4059,
+            "ordered_reuse": 17391,
+            "creates": 499,
+            "busy_skips": 0,
+            "pressure_trims": 1984,
+            "full_trims": 242,
+            "trimmed_kib": 746752,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4715.2,
+          "fence_ms": 108.1,
+          "resource_count": 139.0,
+          "resource_ms": 22.3,
+          "gpu_busy_ms": 4526.4,
+          "draws": 820156.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 58.78,
+          "memory_mib": {
+            "gpu_used": 1711,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7294
+          }
+        }
+      ]
+    },
+    "19": {
+      "selection_sha256": "22a6326962910a6b38748a41dbd8c6019f391c4b5fdeb928bd202f67698c08cf",
+      "log_sha256": "57804190cad50e4fcd0605cae3a8ee6da63bc0dcdb4ef5b7da7741224aff2fc5",
+      "frames": 1200,
+      "wall_ms": 50448.0,
+      "mean_ms": 42.04,
+      "fps": 23.78686964795433,
+      "resource_ms_per_frame": 0.09191666666666666,
+      "gpu_busy_ms_per_frame": 15.743083333333335,
+      "idle_ms_per_frame": 16.347583333333333,
+      "staging_wait_count_combined": 0.0,
+      "pool_delta": {
+        "requests": 12805,
+        "completed_reuse": 2405,
+        "ordered_reuse": 10400,
+        "creates": 0,
+        "busy_skips": 0,
+        "pressure_trims": 1200,
+        "full_trims": 0,
+        "trimmed_kib": 0
+      },
+      "windows": [
+        {
+          "end_seconds": 154.93459,
+          "frames": 300,
+          "wall_ms": 12691.0,
+          "pool_end": {
+            "requests": 14248,
+            "completed_reuse": 2846,
+            "ordered_reuse": 11064,
+            "creates": 338,
+            "busy_skips": 0,
+            "pressure_trims": 1246,
+            "full_trims": 160,
+            "trimmed_kib": 509504,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4911.2,
+          "fence_ms": 177.8,
+          "resource_count": 174.0,
+          "resource_ms": 36.4,
+          "gpu_busy_ms": 4750.8,
+          "draws": 835824.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3205,
+            "completed_reuse": 605,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 65.18,
+          "memory_mib": {
+            "gpu_used": 1711,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7295
+          }
+        },
+        {
+          "end_seconds": 167.624311,
+          "frames": 300,
+          "wall_ms": 12690.0,
+          "pool_end": {
+            "requests": 17448,
+            "completed_reuse": 3446,
+            "ordered_reuse": 13664,
+            "creates": 338,
+            "busy_skips": 0,
+            "pressure_trims": 1546,
+            "full_trims": 160,
+            "trimmed_kib": 509504,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4926.9,
+          "fence_ms": 175.2,
+          "resource_count": 137.0,
+          "resource_ms": 22.9,
+          "gpu_busy_ms": 4761.4,
+          "draws": 835781.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 64.71,
+          "memory_mib": {
+            "gpu_used": 1711,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7294
+          }
+        },
+        {
+          "end_seconds": 180.171263,
+          "frames": 300,
+          "wall_ms": 12547.0,
+          "pool_end": {
+            "requests": 20648,
+            "completed_reuse": 4046,
+            "ordered_reuse": 16264,
+            "creates": 338,
+            "busy_skips": 0,
+            "pressure_trims": 1846,
+            "full_trims": 160,
+            "trimmed_kib": 509504,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4875.2,
+          "fence_ms": 119.7,
+          "resource_count": 148.0,
+          "resource_ms": 28.0,
+          "gpu_busy_ms": 4661.9,
+          "draws": 835797.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 63.12,
+          "memory_mib": {
+            "gpu_used": 1711,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7294
+          }
+        },
+        {
+          "end_seconds": 192.691554,
+          "frames": 300,
+          "wall_ms": 12520.0,
+          "pool_end": {
+            "requests": 23848,
+            "completed_reuse": 4646,
+            "ordered_reuse": 18864,
+            "creates": 338,
+            "busy_skips": 0,
+            "pressure_trims": 2146,
+            "full_trims": 160,
+            "trimmed_kib": 509504,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4903.8,
+          "fence_ms": 153.6,
+          "resource_count": 139.0,
+          "resource_ms": 23.0,
+          "gpu_busy_ms": 4717.6,
+          "draws": 835745.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 62.28,
+          "memory_mib": {
+            "gpu_used": 1711,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7294
+          }
+        }
+      ]
+    },
+    "24_first_on": {
+      "selection_sha256": "ea0e1ea5b06e057a61e20156deaf4896ebdb532811313b325822c7c71c6df28e",
+      "log_sha256": "589581aa923aeeeea5adb6b74b1731b40cdeaa0b13a3b749b97488ca6a14905d",
+      "frames": 1200,
+      "wall_ms": 57242.0,
+      "mean_ms": 47.70166666666667,
+      "fps": 20.96362810523741,
+      "resource_ms_per_frame": 0.07433333333333333,
+      "gpu_busy_ms_per_frame": 15.512833333333335,
+      "idle_ms_per_frame": 15.85225,
+      "staging_wait_count_combined": 0.0,
+      "pool_delta": {
+        "requests": 12824,
+        "completed_reuse": 2418,
+        "ordered_reuse": 10406,
+        "creates": 0,
+        "busy_skips": 0,
+        "pressure_trims": 1200,
+        "full_trims": 0,
+        "trimmed_kib": 0
+      },
+      "windows": [
+        {
+          "end_seconds": 203.734252,
+          "frames": 300,
+          "wall_ms": 14006.0,
+          "pool_end": {
+            "requests": 15161,
+            "completed_reuse": 3249,
+            "ordered_reuse": 11824,
+            "creates": 88,
+            "busy_skips": 0,
+            "pressure_trims": 1327,
+            "full_trims": 39,
+            "trimmed_kib": 131392,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 5440
+          },
+          "idle_ms": 4342.2,
+          "fence_ms": 183.1,
+          "resource_count": 180.0,
+          "resource_ms": 30.6,
+          "gpu_busy_ms": 4269.0,
+          "draws": 858939.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3218,
+            "completed_reuse": 612,
+            "ordered_reuse": 2606,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 62.58,
+          "memory_mib": {
+            "gpu_used": 1542,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7160
+          }
+        },
+        {
+          "end_seconds": 218.230222,
+          "frames": 300,
+          "wall_ms": 14496.0,
+          "pool_end": {
+            "requests": 18367,
+            "completed_reuse": 3855,
+            "ordered_reuse": 14424,
+            "creates": 88,
+            "busy_skips": 0,
+            "pressure_trims": 1627,
+            "full_trims": 39,
+            "trimmed_kib": 131392,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 5440
+          },
+          "idle_ms": 4895.0,
+          "fence_ms": 163.6,
+          "resource_count": 158.0,
+          "resource_ms": 24.5,
+          "gpu_busy_ms": 4807.5,
+          "draws": 858523.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3206,
+            "completed_reuse": 606,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 73.0,
+          "memory_mib": {
+            "gpu_used": 1542,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7158
+          }
+        },
+        {
+          "end_seconds": 232.682256,
+          "frames": 300,
+          "wall_ms": 14452.0,
+          "pool_end": {
+            "requests": 21567,
+            "completed_reuse": 4455,
+            "ordered_reuse": 17024,
+            "creates": 88,
+            "busy_skips": 0,
+            "pressure_trims": 1927,
+            "full_trims": 39,
+            "trimmed_kib": 131392,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 5440
+          },
+          "idle_ms": 4923.6,
+          "fence_ms": 159.6,
+          "resource_count": 121.0,
+          "resource_ms": 13.9,
+          "gpu_busy_ms": 4805.9,
+          "draws": 858549.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 70.45,
+          "memory_mib": {
+            "gpu_used": 1542,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7158
+          }
+        },
+        {
+          "end_seconds": 246.970525,
+          "frames": 300,
+          "wall_ms": 14288.0,
+          "pool_end": {
+            "requests": 24767,
+            "completed_reuse": 5055,
+            "ordered_reuse": 19624,
+            "creates": 88,
+            "busy_skips": 0,
+            "pressure_trims": 2227,
+            "full_trims": 39,
+            "trimmed_kib": 131392,
+            "pooled_kib": 3072,
+            "peak_pooled_kib": 5440
+          },
+          "idle_ms": 4861.9,
+          "fence_ms": 147.4,
+          "resource_count": 129.0,
+          "resource_ms": 20.2,
+          "gpu_busy_ms": 4733.0,
+          "draws": 858441.0,
+          "staging_wait_count_combined": 0.0,
+          "pool_delta": {
+            "requests": 3200,
+            "completed_reuse": 600,
+            "ordered_reuse": 2600,
+            "creates": 0,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 0,
+            "trimmed_kib": 0
+          },
+          "p99_ms": 63.81,
+          "memory_mib": {
+            "gpu_used": 1542,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7159
+          }
+        }
+      ]
+    },
+    "24_repeat_on": {
+      "selection_sha256": "9c2fb659b83759278dfccfe82e4101af4c9d5e4acd2850aabc32e74b72fcdbfa",
+      "log_sha256": "33507fc84b3ec69636fb3998eba6d55b3ca0b25e5b8300dcec599224b16e361d",
+      "frames": 1200,
+      "wall_ms": 53283.0,
+      "mean_ms": 44.4025,
+      "fps": 22.521254433871967,
+      "resource_ms_per_frame": 1.3420833333333333,
+      "gpu_busy_ms_per_frame": 15.974166666666667,
+      "idle_ms_per_frame": 14.550333333333334,
+      "staging_wait_count_combined": 119.0,
+      "pool_delta": {
+        "requests": 13520,
+        "completed_reuse": 720,
+        "ordered_reuse": 10400,
+        "creates": 2400,
+        "busy_skips": 0,
+        "pressure_trims": 1200,
+        "full_trims": 1200,
+        "trimmed_kib": 3686400
+      },
+      "windows": [
+        {
+          "end_seconds": 131.628274,
+          "frames": 300,
+          "wall_ms": 14407.0,
+          "pool_end": {
+            "requests": 10911,
+            "completed_reuse": 1060,
+            "ordered_reuse": 8058,
+            "creates": 1793,
+            "busy_skips": 0,
+            "pressure_trims": 896,
+            "full_trims": 893,
+            "trimmed_kib": 2740416,
+            "pooled_kib": 0,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 5212.0,
+          "fence_ms": 892.0,
+          "resource_count": 908.0,
+          "resource_ms": 440.4,
+          "gpu_busy_ms": 5865.8,
+          "draws": 818930.0,
+          "staging_wait_count_combined": 29.0,
+          "pool_delta": {
+            "requests": 3380,
+            "completed_reuse": 180,
+            "ordered_reuse": 2600,
+            "creates": 600,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 300,
+            "trimmed_kib": 921600
+          },
+          "p99_ms": 69.45,
+          "memory_mib": {
+            "gpu_used": 1709,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7308
+          }
+        },
+        {
+          "end_seconds": 144.046054,
+          "frames": 300,
+          "wall_ms": 12418.0,
+          "pool_end": {
+            "requests": 14291,
+            "completed_reuse": 1240,
+            "ordered_reuse": 10658,
+            "creates": 2393,
+            "busy_skips": 0,
+            "pressure_trims": 1196,
+            "full_trims": 1193,
+            "trimmed_kib": 3662016,
+            "pooled_kib": 0,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 3735.1,
+          "fence_ms": 502.8,
+          "resource_count": 911.0,
+          "resource_ms": 391.6,
+          "gpu_busy_ms": 4009.9,
+          "draws": 819923.0,
+          "staging_wait_count_combined": 30.0,
+          "pool_delta": {
+            "requests": 3380,
+            "completed_reuse": 180,
+            "ordered_reuse": 2600,
+            "creates": 600,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 300,
+            "trimmed_kib": 921600
+          },
+          "p99_ms": 58.69,
+          "memory_mib": {
+            "gpu_used": 1709,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7305
+          }
+        },
+        {
+          "end_seconds": 157.074537,
+          "frames": 300,
+          "wall_ms": 13028.0,
+          "pool_end": {
+            "requests": 17671,
+            "completed_reuse": 1420,
+            "ordered_reuse": 13258,
+            "creates": 2993,
+            "busy_skips": 0,
+            "pressure_trims": 1496,
+            "full_trims": 1493,
+            "trimmed_kib": 4583616,
+            "pooled_kib": 0,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4217.6,
+          "fence_ms": 635.4,
+          "resource_count": 900.0,
+          "resource_ms": 393.3,
+          "gpu_busy_ms": 4608.6,
+          "draws": 820202.0,
+          "staging_wait_count_combined": 30.0,
+          "pool_delta": {
+            "requests": 3380,
+            "completed_reuse": 180,
+            "ordered_reuse": 2600,
+            "creates": 600,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 300,
+            "trimmed_kib": 921600
+          },
+          "p99_ms": 61.34,
+          "memory_mib": {
+            "gpu_used": 1709,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7305
+          }
+        },
+        {
+          "end_seconds": 170.504696,
+          "frames": 300,
+          "wall_ms": 13430.0,
+          "pool_end": {
+            "requests": 21051,
+            "completed_reuse": 1600,
+            "ordered_reuse": 15858,
+            "creates": 3593,
+            "busy_skips": 0,
+            "pressure_trims": 1796,
+            "full_trims": 1793,
+            "trimmed_kib": 5505216,
+            "pooled_kib": 0,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4295.7,
+          "fence_ms": 614.9,
+          "resource_count": 904.0,
+          "resource_ms": 385.2,
+          "gpu_busy_ms": 4684.7,
+          "draws": 820266.0,
+          "staging_wait_count_combined": 30.0,
+          "pool_delta": {
+            "requests": 3380,
+            "completed_reuse": 180,
+            "ordered_reuse": 2600,
+            "creates": 600,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 300,
+            "trimmed_kib": 921600
+          },
+          "p99_ms": 69.6,
+          "memory_mib": {
+            "gpu_used": 1709,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7305
+          }
+        }
+      ]
+    },
+    "24_repeat_off": {
+      "selection_sha256": "20e6d55b68ef0283d0e849151458f40d7cb14aed1a7ba32eb780c546ebe9878b",
+      "log_sha256": "40071b17c52bb18b5b75c81e743c332590101156271d3c350d5239ee11463bdb",
+      "frames": 1200,
+      "wall_ms": 52385.0,
+      "mean_ms": 43.65416666666667,
+      "fps": 22.90732079793834,
+      "resource_ms_per_frame": 1.4936666666666667,
+      "gpu_busy_ms_per_frame": 15.733166666666666,
+      "idle_ms_per_frame": 14.405750000000001,
+      "staging_wait_count_combined": 126.0,
+      "pool_delta": {
+        "requests": 13529,
+        "completed_reuse": 729,
+        "ordered_reuse": 10400,
+        "creates": 2400,
+        "busy_skips": 0,
+        "pressure_trims": 1200,
+        "full_trims": 1200,
+        "trimmed_kib": 3686400
+      },
+      "windows": [
+        {
+          "end_seconds": 113.030286,
+          "frames": 300,
+          "wall_ms": 12803.0,
+          "pool_end": {
+            "requests": 9187,
+            "completed_reuse": 976,
+            "ordered_reuse": 6787,
+            "creates": 1424,
+            "busy_skips": 0,
+            "pressure_trims": 762,
+            "full_trims": 705,
+            "trimmed_kib": 2169216,
+            "pooled_kib": 0,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4045.8,
+          "fence_ms": 771.5,
+          "resource_count": 977.0,
+          "resource_ms": 444.4,
+          "gpu_busy_ms": 4597.6,
+          "draws": 818595.0,
+          "staging_wait_count_combined": 36.0,
+          "pool_delta": {
+            "requests": 3389,
+            "completed_reuse": 189,
+            "ordered_reuse": 2600,
+            "creates": 600,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 300,
+            "trimmed_kib": 921600
+          },
+          "p99_ms": 59.47,
+          "memory_mib": {
+            "gpu_used": 1710,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7346
+          }
+        },
+        {
+          "end_seconds": 127.219179,
+          "frames": 300,
+          "wall_ms": 14189.0,
+          "pool_end": {
+            "requests": 12567,
+            "completed_reuse": 1156,
+            "ordered_reuse": 9387,
+            "creates": 2024,
+            "busy_skips": 0,
+            "pressure_trims": 1062,
+            "full_trims": 1005,
+            "trimmed_kib": 3090816,
+            "pooled_kib": 0,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 5278.1,
+          "fence_ms": 731.5,
+          "resource_count": 930.0,
+          "resource_ms": 469.5,
+          "gpu_busy_ms": 5595.4,
+          "draws": 819590.0,
+          "staging_wait_count_combined": 30.0,
+          "pool_delta": {
+            "requests": 3380,
+            "completed_reuse": 180,
+            "ordered_reuse": 2600,
+            "creates": 600,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 300,
+            "trimmed_kib": 921600
+          },
+          "p99_ms": 69.51,
+          "memory_mib": {
+            "gpu_used": 1710,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7349
+          }
+        },
+        {
+          "end_seconds": 140.098545,
+          "frames": 300,
+          "wall_ms": 12879.0,
+          "pool_end": {
+            "requests": 15947,
+            "completed_reuse": 1336,
+            "ordered_reuse": 11987,
+            "creates": 2624,
+            "busy_skips": 0,
+            "pressure_trims": 1362,
+            "full_trims": 1305,
+            "trimmed_kib": 4012416,
+            "pooled_kib": 0,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 4194.4,
+          "fence_ms": 632.2,
+          "resource_count": 947.0,
+          "resource_ms": 440.5,
+          "gpu_busy_ms": 4606.3,
+          "draws": 819986.0,
+          "staging_wait_count_combined": 30.0,
+          "pool_delta": {
+            "requests": 3380,
+            "completed_reuse": 180,
+            "ordered_reuse": 2600,
+            "creates": 600,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 300,
+            "trimmed_kib": 921600
+          },
+          "p99_ms": 63.14,
+          "memory_mib": {
+            "gpu_used": 1710,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7340
+          }
+        },
+        {
+          "end_seconds": 152.612488,
+          "frames": 300,
+          "wall_ms": 12514.0,
+          "pool_end": {
+            "requests": 19327,
+            "completed_reuse": 1516,
+            "ordered_reuse": 14587,
+            "creates": 3224,
+            "busy_skips": 0,
+            "pressure_trims": 1662,
+            "full_trims": 1605,
+            "trimmed_kib": 4934016,
+            "pooled_kib": 0,
+            "peak_pooled_kib": 3968
+          },
+          "idle_ms": 3768.6,
+          "fence_ms": 535.7,
+          "resource_count": 924.0,
+          "resource_ms": 438.0,
+          "gpu_busy_ms": 4080.5,
+          "draws": 820202.0,
+          "staging_wait_count_combined": 30.0,
+          "pool_delta": {
+            "requests": 3380,
+            "completed_reuse": 180,
+            "ordered_reuse": 2600,
+            "creates": 600,
+            "busy_skips": 0,
+            "pressure_trims": 300,
+            "full_trims": 300,
+            "trimmed_kib": 921600
+          },
+          "p99_ms": 57.93,
+          "memory_mib": {
+            "gpu_used": 1710,
+            "gpu_budget": 7367,
+            "cache_budget": 3584,
+            "synthetic_cache_usage": 7340
+          }
+        }
+      ]
+    }
+  },
+  "source_sha256": {
+    "src/video_core/renderer_d3d12/d3d12_device.cpp": "df0d5883a1e2228d24e41494bb13b086c6ef2d998178661361fd23d7bb840e5d",
+    "src/video_core/renderer_d3d12/d3d12_cache_policy.h": "2d0c75f27360cc4c7fa6188d8c4817f02e8ae9badce002ac37f4e965b01a0858",
+    "src/video_core/renderer_d3d12/d3d12_texture_cache.cpp": "73c55bf16f9b7a08dbc80752d8f59ef03602b170af384ad63a997adc0f55c685",
+    "src/video_core/renderer_d3d12/d3d12_staging_buffer_pool.cpp": "d4f1c8a73c0a72119aa09c15e2a12975a00e0889677f0982e2f939beb854c8a7",
+    "src/video_core/buffer_cache/buffer_cache.h": "7a77335aad68409af531274b75b9166b29e1d816ed47fc3e9720bdb8361f8ea3",
+    "src/video_core/buffer_cache/buffer_cache_base.h": "53f4ba6ecb9f6a868b824b0f1f0509abda8fd9c8316a0fd8a786778a20bbf79a",
+    "src/jadyx/app/uwp_boot.cpp": "b3855d84a21c75b608be6c4125a109b0d1c1caae881e31d06163c2b45e74d8c8"
+  },
+  "buffer_policy_arithmetic": {
+    "synthetic_low_pressure_case_not_a_runtime_measurement": {
+      "cache_budget_mib": 3584.0,
+      "synthetic_usage_mib": 3271.0,
+      "minimum_mib": 1433.6000003814697,
+      "critical_mib": 2867.2000007629395,
+      "app_free_mib": 4096.0,
+      "gpu_used_mib": 1536.0,
+      "aggressive_buffer_gc_selected": true
+    },
+    "rounded_snapshot_24_off_last_window": {
+      "cache_budget_mib": 3584.0,
+      "synthetic_usage_mib": 7340.0,
+      "minimum_mib": 1433.6000003814697,
+      "critical_mib": 2867.2000007629395,
+      "app_free_mib": 27.0,
+      "gpu_used_mib": 1710.0,
+      "aggressive_buffer_gc_selected": true
+    }
+  },
+  "interpretation_limits": [
+    "Historical captures are not a randomized cross-version A/B experiment.",
+    "Full trims count policy calls; trimmed bytes and creates establish actual pool churn here.",
+    "Ring waits combine upload-ring waits and staging pressure-recovery waits.",
+    "GPU busy, resource timers and thread times are not an additive critical-path decomposition.",
+    "The buffer-policy arithmetic reproduces source formulas, not observed buffer evictions or their cost.",
+    "Memory snapshot values are rounded to MiB in the log.",
+    "Per-window p99 values are not a combined p99.",
+    "No raw logs, keys, game paths, guest addresses or machine code exported."
+  ]
+}

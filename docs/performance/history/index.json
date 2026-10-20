@@ -1,0 +1,1179 @@
+{
+  "upstream_base": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+  "latest_verified_source_tree": "60fd40a63ec2b103e0ac89a201de98bd5466ae0d",
+  "archive_scope": "All 25 retained source patches, including discarded candidates; diagnostic labels 0 through 30 are indexed.",
+  "source_checkpoint_tags": [
+    {
+      "version": "1.0.0.0",
+      "tag": "botw-test-1.0.0.0",
+      "commit": "0e5b8533b3d6980b695f57a5edc4edd1f11e339b",
+      "tree": "8768e054f786d3bf0976475d3c14e2883c99c17e",
+      "patch_id": null
+    },
+    {
+      "version": "1.0.0.1",
+      "tag": "botw-test-1.0.0.1",
+      "commit": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+      "tree": "e0591f3404b231d40c3a23a05b3714b16b205199",
+      "patch_id": null
+    },
+    {
+      "version": "1.0.0.2",
+      "tag": "botw-test-1.0.0.2",
+      "commit": "783eb5b4e6c12d010a634c76ba186989c12fa695",
+      "tree": "e537ff49286ccbfd381b6bc54c9385e7c5e1491d",
+      "patch_id": 1
+    },
+    {
+      "version": "1.0.0.3",
+      "tag": "botw-test-1.0.0.3",
+      "commit": "939127358e6a394aef35fedc42f13ee2b11a6677",
+      "tree": "4811308045a633a372b7b37ae42e310bc494d41a",
+      "patch_id": 2
+    },
+    {
+      "version": "1.0.0.4",
+      "tag": "botw-test-1.0.0.4",
+      "commit": "650a48d9418a8c133ca530c3102a16c4e4acf2ca",
+      "tree": "21204dcf541e07ab05b54c0ee417b1cff63be5e6",
+      "patch_id": 3
+    },
+    {
+      "version": "1.0.0.5",
+      "tag": "botw-test-1.0.0.5",
+      "commit": "7dd13537eec4cd2ba4eb067711795ecd2604075f",
+      "tree": "8ad709d2e45f37efae3c32545c0ad8b8eea045a2",
+      "patch_id": 4
+    },
+    {
+      "version": "1.0.0.6",
+      "tag": "botw-test-1.0.0.6",
+      "commit": "91c03f62a8418941664b8a7d86c2f48020e48aee",
+      "tree": "76eaa1ac0bbcc4d36e2293826dec8a72ab570cce",
+      "patch_id": 6
+    },
+    {
+      "version": "1.0.0.7",
+      "tag": "botw-test-1.0.0.7",
+      "commit": "91c03f62a8418941664b8a7d86c2f48020e48aee",
+      "tree": "76eaa1ac0bbcc4d36e2293826dec8a72ab570cce",
+      "patch_id": 6
+    },
+    {
+      "version": "1.0.0.8",
+      "tag": "botw-test-1.0.0.8",
+      "commit": "91c03f62a8418941664b8a7d86c2f48020e48aee",
+      "tree": "76eaa1ac0bbcc4d36e2293826dec8a72ab570cce",
+      "patch_id": 6
+    },
+    {
+      "version": "1.0.0.9",
+      "tag": "botw-test-1.0.0.9",
+      "commit": "91c03f62a8418941664b8a7d86c2f48020e48aee",
+      "tree": "76eaa1ac0bbcc4d36e2293826dec8a72ab570cce",
+      "patch_id": 6
+    },
+    {
+      "version": "1.0.0.10",
+      "tag": "botw-test-1.0.0.10",
+      "commit": "e7fc55a55cf8f73b1ee449cd11723cdc985083f8",
+      "tree": "d5cd8cc6cf7a050d435303cfe8a3230b0fc719ba",
+      "patch_id": 7
+    },
+    {
+      "version": "1.0.0.11",
+      "tag": "botw-test-1.0.0.11",
+      "commit": "4a2dec384d6e3f06d793179432be7683ab795f0f",
+      "tree": "638fa2659a3b6760222ab6c919b2ff3c7fb4e66b",
+      "patch_id": 9
+    },
+    {
+      "version": "1.0.0.12",
+      "tag": null,
+      "status": "No separately verified source/measurement record retained for this label."
+    },
+    {
+      "version": "1.0.0.13",
+      "tag": "botw-test-1.0.0.13",
+      "commit": "059e6e996496aa0e32ebbaf50a394fe0bb3cf84a",
+      "tree": "245545bbe13e1d535ae858b989012de588187405",
+      "patch_id": 10
+    },
+    {
+      "version": "1.0.0.14",
+      "tag": "botw-test-1.0.0.14",
+      "commit": "059e6e996496aa0e32ebbaf50a394fe0bb3cf84a",
+      "tree": "245545bbe13e1d535ae858b989012de588187405",
+      "patch_id": 10
+    },
+    {
+      "version": "1.0.0.15",
+      "tag": "botw-test-1.0.0.15",
+      "commit": "326b54ef80f9816d158c4b83cc03b08665fe48ea",
+      "tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+      "patch_id": 11
+    },
+    {
+      "version": "1.0.0.16",
+      "tag": "botw-test-1.0.0.16",
+      "commit": "326b54ef80f9816d158c4b83cc03b08665fe48ea",
+      "tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+      "patch_id": 11
+    },
+    {
+      "version": "1.0.0.17",
+      "tag": "botw-test-1.0.0.17",
+      "commit": "326b54ef80f9816d158c4b83cc03b08665fe48ea",
+      "tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+      "patch_id": 11
+    },
+    {
+      "version": "1.0.0.18",
+      "tag": "botw-test-1.0.0.18",
+      "commit": "303b11475fd197ec7eb59c67bb7a7ba4d5c5a4ee",
+      "tree": "19b18d9f01a76881c00b051d34b02b088dc80f5c",
+      "patch_id": 12
+    },
+    {
+      "version": "1.0.0.19",
+      "tag": "botw-test-1.0.0.19",
+      "commit": "c2592d24497b8d8d0d64a20863e8889577cdb9c8",
+      "tree": "f3df38ab9ac3173698dc2569304e8c30af158d2c",
+      "patch_id": 13
+    },
+    {
+      "version": "1.0.0.20",
+      "tag": "botw-test-1.0.0.20",
+      "commit": "47225435d0ab14f41a6c229a6d8f2690c70cc600",
+      "tree": "6cb4f02d69975d8e0b66df2708c85c8815b156c2",
+      "patch_id": 14
+    },
+    {
+      "version": "1.0.0.21",
+      "tag": "botw-test-1.0.0.21",
+      "commit": "691b9e4584ac9a771887fac7df2f2530d801f451",
+      "tree": "a923c7344bbfddb1e7ce702215bebe27ca8de12d",
+      "patch_id": 15
+    },
+    {
+      "version": "1.0.0.22",
+      "tag": "botw-test-1.0.0.22",
+      "commit": "82585004d2743378f416b76cff740fce2e7de3f3",
+      "tree": "bd1dba5023d6b1d57e53b86727fef6e77a81a03c",
+      "patch_id": 17
+    },
+    {
+      "version": "1.0.0.23",
+      "tag": "botw-test-1.0.0.23",
+      "commit": "de335c41fdf09f83145b82f0b9a0c00b7256edd2",
+      "tree": "a928c032ce44a38245702617aea96cc621f7c01e",
+      "patch_id": 18
+    },
+    {
+      "version": "1.0.0.24",
+      "tag": "botw-test-1.0.0.24",
+      "commit": "42354163f56048582e6787e8f74fc9f4e6547ea7",
+      "tree": "7d53be222b3b367f5448f668bd34982179a42f67",
+      "patch_id": 19
+    },
+    {
+      "version": "1.0.0.25",
+      "tag": "botw-test-1.0.0.25",
+      "commit": "f03869b4b6688e95a0419e7b5a9b8d7d42ee74ed",
+      "tree": "4bb9d39294631a1d7860646444a4b3b894430c6e",
+      "patch_id": 20
+    },
+    {
+      "version": "1.0.0.26",
+      "tag": "botw-test-1.0.0.26",
+      "commit": "31a415f73976be45dd3d69d7171cffbdf89ffc0a",
+      "tree": "b344ffabca255e7fa3dd2fbfec808da4a5924aa9",
+      "patch_id": 21
+    },
+    {
+      "version": "1.0.0.27",
+      "tag": "botw-test-1.0.0.27",
+      "commit": "cfa104e112d7fc7c92335d0a6827167a5e527b3f",
+      "tree": "2368d551b423e1014461630ece07343ecb8ad489",
+      "patch_id": 22
+    },
+    {
+      "version": "1.0.0.28",
+      "tag": "botw-test-1.0.0.28",
+      "commit": "f85a4122848d10fae9a324365dd5b1fa574996ad",
+      "tree": "19e501104f8aaec8e29a9c0561c0b4fef88ce24d",
+      "patch_id": 23
+    },
+    {
+      "version": "1.0.0.29",
+      "tag": "botw-test-1.0.0.29",
+      "commit": "ceae7120aa141a8598408bebe1436545eb126ebe",
+      "tree": "f6ed7e89235382de1bfa51af694f93d31ea2f0e5",
+      "patch_id": 24
+    },
+    {
+      "version": "1.0.0.30",
+      "tag": "botw-test-1.0.0.30",
+      "commit": "87344250c95410d8f3813e23c882788e60814b38",
+      "tree": "60fd40a63ec2b103e0ac89a201de98bd5466ae0d",
+      "patch_id": 25
+    }
+  ],
+  "patch_history": [
+    {
+      "patch": "0001-texture-gc-budget-and-oom-context.patch",
+      "patch_id": 1,
+      "parent_patch_id": null,
+      "sha256": "12d8d788fdaa6f980dab961970a4b52fa2be9c629053fcfefd743d6770f4fc52",
+      "tree": "e537ff49286ccbfd381b6bc54c9385e7c5e1491d",
+      "commit": "783eb5b4e6c12d010a634c76ba186989c12fa695",
+      "original_seriesx_commit": {
+        "sha": "4d7c09c5ccef826df475da24208b3159e3aafbc7",
+        "subject": "Investigate BOTW upload OOM and compare emulator optimizations",
+        "author_date": "2026-10-18T03:45:41-03:00"
+      }
+    },
+    {
+      "patch": "0002-bc1-array-gpu-upload.patch",
+      "patch_id": 2,
+      "parent_patch_id": 1,
+      "sha256": "b33bba79c94a122255e751776a834dcf1be7ff8c568d19de01564ac1c150534c",
+      "tree": "4811308045a633a372b7b37ae42e310bc494d41a",
+      "commit": "939127358e6a394aef35fedc42f13ee2b11a6677",
+      "original_seriesx_commit": {
+        "sha": "3d17fc5a94cfef1fec62242857b5c9599e2e09b7",
+        "subject": "Decode large BC1 arrays on GPU and record remaining BOTW memory failures",
+        "author_date": "2026-10-18T06:19:35-03:00"
+      }
+    },
+    {
+      "patch": "0003-windows-memory-accounting.patch",
+      "patch_id": 3,
+      "parent_patch_id": 2,
+      "sha256": "4d0433deaf2c0cab8ed81d889c22c5c6f8380e0fc381c46793cecd33eb1174d7",
+      "tree": "21204dcf541e07ab05b54c0ee417b1cff63be5e6",
+      "commit": "650a48d9418a8c133ca530c3102a16c4e4acf2ca",
+      "original_seriesx_commit": {
+        "sha": "2a9891890f46a81c28b4511dce992aafd79abec7",
+        "subject": "Diagnose PC memory accounting and confirm BOTW transitions with separate caps",
+        "author_date": "2026-10-18T07:09:27-03:00"
+      }
+    },
+    {
+      "patch": "0004-separate-pc-cache-budget-and-process-cap.patch",
+      "patch_id": 4,
+      "parent_patch_id": 3,
+      "sha256": "2cfa02909118038f268e9f8f6532e74e9bac79f3a039099feeb7a436d961ccb6",
+      "tree": "8ad709d2e45f37efae3c32545c0ad8b8eea045a2",
+      "commit": "7dd13537eec4cd2ba4eb067711795ecd2604075f",
+      "original_seriesx_commit": {
+        "sha": "2a9891890f46a81c28b4511dce992aafd79abec7",
+        "subject": "Diagnose PC memory accounting and confirm BOTW transitions with separate caps",
+        "author_date": "2026-10-18T07:09:27-03:00"
+      }
+    },
+    {
+      "patch": "0005-split-and-reuse-image-descriptor-tables.patch",
+      "patch_id": 5,
+      "parent_patch_id": 4,
+      "sha256": "e177894b5de784a2f83860e50c265697af30f36595e24a0fbc1f6eb35d635a50",
+      "tree": "180b58aaf0729507ce585e11cb9acefa772e20b8",
+      "commit": "f729d7824579b72e87c47c1fe583a9b9038005a0",
+      "original_seriesx_commit": {
+        "sha": "1b38f03b3f28d54d72d90c0937dc9d2445705861",
+        "subject": "Reduce graphics descriptor copies and add opt-in A64 JIT fast paths",
+        "author_date": "2026-10-18T08:24:32-03:00"
+      }
+    },
+    {
+      "patch": "0006-jit-page-reuse-and-fp-compare.patch",
+      "patch_id": 6,
+      "parent_patch_id": 5,
+      "sha256": "dacd9cbb9a163bc8a3ce52ddd665be72fba07a5e831a1ab489361c404ce7b092",
+      "tree": "76eaa1ac0bbcc4d36e2293826dec8a72ab570cce",
+      "commit": "91c03f62a8418941664b8a7d86c2f48020e48aee",
+      "original_seriesx_commit": {
+        "sha": "1b38f03b3f28d54d72d90c0937dc9d2445705861",
+        "subject": "Reduce graphics descriptor copies and add opt-in A64 JIT fast paths",
+        "author_date": "2026-10-18T08:24:32-03:00"
+      }
+    },
+    {
+      "patch": "0007-persistent-resources-and-buffer-heaps.patch",
+      "patch_id": 7,
+      "parent_patch_id": 6,
+      "sha256": "46224c00180c2f06c57f7788a85bbcd775f100ea1eafa838cc4ed5ee8d5f881f",
+      "tree": "d5cd8cc6cf7a050d435303cfe8a3230b0fc719ba",
+      "commit": "e7fc55a55cf8f73b1ee449cd11723cdc985083f8",
+      "original_seriesx_commit": {
+        "sha": "79fa7e245aa25712a13dcbc9cf764fdb9f73fd2d",
+        "subject": "Add experimental persistent D3D12 resources and record gameplay regression",
+        "author_date": "2026-10-18T18:40:52-03:00"
+      }
+    },
+    {
+      "patch": "0008-persistent-cache-lifetimes.patch",
+      "patch_id": 8,
+      "parent_patch_id": 7,
+      "sha256": "29b77ec27ae5edd5da804ce85e8e8d64802174171a7a00d43bd1fbd89d84350b",
+      "tree": "a4171dcfe931822abcb3a6594e2437451bfb51ea",
+      "commit": "ccd6b66ca2ad1b2ca12cbbecac1ba09a61520eaa",
+      "original_seriesx_commit": {
+        "sha": "8cc948bee3fe0dbcff2c9b1117511384bc8f0641",
+        "subject": "Fix persistent descriptor cache costs and integrate upstream graphics copies",
+        "author_date": "2026-10-18T19:15:46-03:00"
+      }
+    },
+    {
+      "patch": "0009-upstream-graphics-copy-fixes.patch",
+      "patch_id": 9,
+      "parent_patch_id": 8,
+      "sha256": "e9d2b15268cbdfbb616619b22c8fb9ffd1d757f0cbbb675dbc9ce434584f0ff8",
+      "tree": "638fa2659a3b6760222ab6c919b2ff3c7fb4e66b",
+      "commit": "4a2dec384d6e3f06d793179432be7683ab795f0f",
+      "original_seriesx_commit": {
+        "sha": "8cc948bee3fe0dbcff2c9b1117511384bc8f0641",
+        "subject": "Fix persistent descriptor cache costs and integrate upstream graphics copies",
+        "author_date": "2026-10-18T19:15:46-03:00"
+      }
+    },
+    {
+      "patch": "0010-ordered-copy-and-coherent-uniforms.patch",
+      "patch_id": 10,
+      "parent_patch_id": 9,
+      "sha256": "0deda434151a48865de3a42846e4600878103ce245e6ce6dfbcc99ab6973923a",
+      "tree": "245545bbe13e1d535ae858b989012de588187405",
+      "commit": "059e6e996496aa0e32ebbaf50a394fe0bb3cf84a",
+      "original_seriesx_commit": {
+        "sha": "52f61f632c4bc34c26ec926acacb8edc50cbc629",
+        "subject": "perf(jadyx): reuse ordered GPU scratch and coherent uniforms",
+        "author_date": "2026-10-18T21:00:20-03:00"
+      }
+    },
+    {
+      "patch": "0011-incremental-uniform-bindings.patch",
+      "patch_id": 11,
+      "parent_patch_id": 10,
+      "sha256": "725c502c7fa950dfef4b47c4cbc7903e7f7e91c395d4e0868d5e5db0ba384f06",
+      "tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+      "commit": "326b54ef80f9816d158c4b83cc03b08665fe48ea",
+      "original_seriesx_commit": {
+        "sha": "39bd0bbd2bcb6f598286cf5d209661199562232a",
+        "subject": "perf(jadyx): add optional incremental uniform bindings and measured controls",
+        "author_date": "2026-10-18T21:36:29-03:00"
+      }
+    },
+    {
+      "patch": "0012-packet-batching-partial-textures-and-bindings.patch",
+      "patch_id": 12,
+      "parent_patch_id": 11,
+      "sha256": "25d13634b954ba2326ed062d5fb0666dd0bacd225237d830a4280dada6a394b6",
+      "tree": "19b18d9f01a76881c00b051d34b02b088dc80f5c",
+      "commit": "303b11475fd197ec7eb59c67bb7a7ba4d5c5a4ee",
+      "original_seriesx_commit": {
+        "sha": "e082a17b642b99d5837b0ada55ddda5d019e40de",
+        "subject": "perf(jadyx): preserve structural candidates and fix pressure churn",
+        "author_date": "2026-10-19T00:51:17-03:00"
+      }
+    },
+    {
+      "patch": "0013-preserve-hot-pool-before-budget-exhaustion.patch",
+      "patch_id": 13,
+      "parent_patch_id": 12,
+      "sha256": "7054fed351d8e25dce45b35ac7cae42a7a0eddda18321ff3e590453b58d925ff",
+      "tree": "f3df38ab9ac3173698dc2569304e8c30af158d2c",
+      "commit": "c2592d24497b8d8d0d64a20863e8889577cdb9c8",
+      "original_seriesx_commit": {
+        "sha": "e082a17b642b99d5837b0ada55ddda5d019e40de",
+        "subject": "perf(jadyx): preserve structural candidates and fix pressure churn",
+        "author_date": "2026-10-19T00:51:17-03:00"
+      }
+    },
+    {
+      "patch": "0014-jit-free-gpr-moves-and-r13.patch",
+      "patch_id": 14,
+      "parent_patch_id": 11,
+      "sha256": "f779322ed8d904651a7674832226451060baae77d9d572625bca5c3b2d6ee12c",
+      "tree": "6cb4f02d69975d8e0b66df2708c85c8815b156c2",
+      "commit": "47225435d0ab14f41a6c229a6d8f2690c70cc600",
+      "original_seriesx_commit": {
+        "sha": "a0e26d38852ed161c5e031cc6e517f6b15018bfc",
+        "subject": "perf(jadyx): reduce JIT GPR spills and allocate R13 when available",
+        "author_date": "2026-10-19T02:00:59-03:00"
+      }
+    },
+    {
+      "patch": "0015-jit-ordered-loads-and-page-table-exclusives.patch",
+      "patch_id": 15,
+      "parent_patch_id": 11,
+      "sha256": "8d7497cc04323d58c2c6047afaedbcbd025399346c4cbc009325cf672302462d",
+      "tree": "a923c7344bbfddb1e7ce702215bebe27ca8de12d",
+      "commit": "691b9e4584ac9a771887fac7df2f2530d801f451",
+      "original_seriesx_commit": {
+        "sha": "530334cdfb39071c6b69639d8715cb88cd3e9bc1",
+        "subject": "fix(jadyx): handle minimal mirrored tables and verify UWP .21",
+        "author_date": "2026-10-19T03:05:39-03:00"
+      }
+    },
+    {
+      "patch": "0016-include-boost-version.patch",
+      "patch_id": 16,
+      "parent_patch_id": 11,
+      "sha256": "2c01b10d1170a959932288427a94396c86d4e34d8dbd1299e09827df8311ee8d",
+      "tree": "0cc1db914889d3619014088d55966e253d97358f",
+      "commit": "631bfcb98319c787f6fdbf34038bede14775ff5f",
+      "original_seriesx_commit": {
+        "sha": "43ef6f92ae418c32d8d3acb615b55597db7ab148",
+        "subject": "docs(jadyx): audit translation bottlenecks and close .21 comparison",
+        "author_date": "2026-10-19T11:01:07-03:00"
+      }
+    },
+    {
+      "patch": "0017-jit-leaf-addresses-ir-and-code-snapshots.patch",
+      "patch_id": 17,
+      "parent_patch_id": 16,
+      "sha256": "1304e723d5d5334d0ab2ee20fbae7a53f0c95ac4737e33b25a2f397638cad16c",
+      "tree": "bd1dba5023d6b1d57e53b86727fef6e77a81a03c",
+      "commit": "82585004d2743378f416b76cff740fce2e7de3f3",
+      "original_seriesx_commit": {
+        "sha": "6b4252c4cfa335c1ec8065b03bc9185dde707ebb",
+        "subject": "feat(jadyx): recover sampled JIT instructions and audit .22 bottlenecks",
+        "author_date": "2026-10-19T12:05:25-03:00"
+      }
+    },
+    {
+      "patch": "0018-zero-upper-tracking-stable-frame-and-unwind.patch",
+      "patch_id": 18,
+      "parent_patch_id": 17,
+      "sha256": "8840bd3abec46e5a9f4dd208bb249c3f127cceaac961758df2985a609c6340d2",
+      "tree": "a928c032ce44a38245702617aea96cc621f7c01e",
+      "commit": "de335c41fdf09f83145b82f0b9a0c00b7256edd2",
+      "original_seriesx_commit": {
+        "sha": "991fc228dc9d54c2b5cf75df46d1f4f7602f36f1",
+        "subject": "perf(jadyx): eliminate redundant W conversions and per-block frames",
+        "author_date": "2026-10-19T12:40:32-03:00"
+      }
+    },
+    {
+      "patch": "0019-reusable-graphics-binding-plans.patch",
+      "patch_id": 19,
+      "parent_patch_id": 18,
+      "sha256": "e91faffce52782af81d60285a3d080adbfe1f43727e604c340cb593faa37e7ca",
+      "tree": "7d53be222b3b367f5448f668bd34982179a42f67",
+      "commit": "42354163f56048582e6787e8f74fc9f4e6547ea7",
+      "original_seriesx_commit": {
+        "sha": "5cd520139bcdc1cb3bb31e81ba5a597671f3f13f",
+        "subject": "feat(jadyx): add experimental draw plans and record comparison",
+        "author_date": "2026-10-19T21:50:59-03:00"
+      }
+    },
+    {
+      "patch": "0020-budget-aware-buffer-gc-and-pressure-recovery.patch",
+      "patch_id": 20,
+      "parent_patch_id": 19,
+      "sha256": "a63cebcfed8fc0566fc3a3e404ff68af953d22a7c20bdf874c96b1ed936aa5f1",
+      "tree": "4bb9d39294631a1d7860646444a4b3b894430c6e",
+      "commit": "f03869b4b6688e95a0419e7b5a9b8d7d42ee74ed",
+      "original_seriesx_commit": {
+        "sha": "4a4115165aeb16d54590956021c3d8d2ade1ae41",
+        "subject": "fix(jadyx): correct buffer pressure and record .25 measurements",
+        "author_date": "2026-10-20T00:12:22-03:00"
+      }
+    },
+    {
+      "patch": "0021-readback-reuse-batches-and-guest-memory-recovery.patch",
+      "patch_id": 21,
+      "parent_patch_id": 20,
+      "sha256": "6d913e94bae0ebccedae516dcb39e617f8263cd4e9517d859594dc0026a3b9a6",
+      "tree": "b344ffabca255e7fa3dd2fbfec808da4a5924aa9",
+      "commit": "31a415f73976be45dd3d69d7171cffbdf89ffc0a",
+      "original_seriesx_commit": {
+        "sha": "1ff0fe9f211aadd02092a8ce9ffa12174b1429ea",
+        "subject": "feat(jadyx): recover readback reuse and record .26 comparison",
+        "author_date": "2026-10-20T01:27:23-03:00"
+      }
+    },
+    {
+      "patch": "0022-selective-frame-chain-and-producer-correlation.patch",
+      "patch_id": 22,
+      "parent_patch_id": 21,
+      "sha256": "c83934005016978dc13e6c9fd285c892bf0c8e7bd65b60c2941068bc0b8e0fb0",
+      "tree": "2368d551b423e1014461630ece07343ecb8ad489",
+      "commit": "cfa104e112d7fc7c92335d0a6827167a5e527b3f",
+      "original_seriesx_commit": {
+        "sha": "44a2bf21773254185076e9e161680c516d52edf6",
+        "subject": "feat(jadyx): trace frame dependencies and record .27 findings",
+        "author_date": "2026-10-20T02:07:47-03:00"
+      }
+    },
+    {
+      "patch": "0023-bounded-partial-native-submission.patch",
+      "patch_id": 23,
+      "parent_patch_id": 22,
+      "sha256": "a1853ee49eecfd74aa516b815c48e193533ee89a1ec5c11ae006672c810cef0e",
+      "tree": "19e501104f8aaec8e29a9c0561c0b4fef88ce24d",
+      "commit": "f85a4122848d10fae9a324365dd5b1fa574996ad",
+      "original_seriesx_commit": {
+        "sha": "4aad176bf4f793ddbaaa105388be1dd8c70ddbec",
+        "subject": "feat(jadyx): add partial GPU submissions and expansion plan",
+        "author_date": "2026-10-20T03:08:39-03:00"
+      }
+    },
+    {
+      "patch": "0024-continuous-gpu-supply-and-fence-submission-coalescing.patch",
+      "patch_id": 24,
+      "parent_patch_id": 23,
+      "sha256": "c36f2d3fea63d96e32e02fff653013282f94aa69280890a1b42a2cb6d2a650e1",
+      "tree": "f6ed7e89235382de1bfa51af694f93d31ea2f0e5",
+      "commit": "ceae7120aa141a8598408bebe1436545eb126ebe",
+      "original_seriesx_commit": null
+    },
+    {
+      "patch": "0025-firmware-event-contracts-and-consumer-completion.patch",
+      "patch_id": 25,
+      "parent_patch_id": 24,
+      "sha256": "d8278db2c46cda374ee8b77d2bf111fc4b815c1e7fa2b6fc3515c45240de9133",
+      "tree": "60fd40a63ec2b103e0ac89a201de98bd5466ae0d",
+      "commit": "87344250c95410d8f3813e23c882788e60814b38",
+      "original_seriesx_commit": null
+    }
+  ],
+  "evidence_files": [
+    {
+      "file": "docs/performance/history/jadyx-baseline17-sampling-2026-10-19.json",
+      "original_sha256": "6a4e6ef5b50345f78e2ce64b7cf7c9ecc0e33660fad04b5ba0d709d635f9ee1e",
+      "public_sha256": "50dbaed699f0745a8c99911f1f21f2d657ea8480c1bef0ec8e73d6f2ba2e7035"
+    },
+    {
+      "file": "docs/performance/history/jadyx-bc1-array-gpu-2026-10-18.json",
+      "original_sha256": "eb50c1420ec9c4e76aaeccdff7b66e0722e869e79fb6a8aa34efbccc08596a9e",
+      "public_sha256": "525ddab9e62d5992dca5207c876e2ef38ab3a875e27bb6efb6c07f919eea0e5d"
+    },
+    {
+      "file": "docs/performance/history/jadyx-boost-jit-detail-2026-10-19.json",
+      "original_sha256": "b43b6af6679e2c25d3e0bd75206fd32bd24cd348d676cecf45f4ad37a068dbf7",
+      "public_sha256": "bdcb160f17ee55c14ee98c1763fc18e35a8b7ed06d30aa86c7d813ebf8036ead"
+    },
+    {
+      "file": "docs/performance/history/jadyx-cache-fix-2026-10-18.json",
+      "original_sha256": "bd906421ba14022f1d473c47f67638e4348fda5c338f0f23d6e4232f5fb9c36b",
+      "public_sha256": "ea92c2d44b9b4fde27a3625a8fd18b0bc6fa95b707606c39d0ce69e54cb5e54d"
+    },
+    {
+      "file": "docs/performance/history/jadyx-cache-pressure-2026-10-19.json",
+      "original_sha256": "25f6b64df57a069331fffbaadc79b5338e1beef7292661f8382a229feda7ea9e",
+      "public_sha256": "82beae79a77d898c36696a8d5a56a5cde0bf89dd438102d32088f4898f65759f"
+    },
+    {
+      "file": "docs/performance/history/jadyx-continuous-submission-2026-10-20.json",
+      "original_sha256": "9fc198b4216f111a393d475f4df7ce2ec8e7c5703a5b4dc2c96611c02abb99e6",
+      "public_sha256": "8def856bf88947b4f728628565b7d72cbe645fd9d9704cfcb7ab74591be6b53f"
+    },
+    {
+      "file": "docs/performance/history/jadyx-draw-plan-2026-10-19.json",
+      "original_sha256": "5d23b0443713331b4001b171d5bdf545a7a1ec93d8e06152aae8d46f2fe9fbdd",
+      "public_sha256": "f3214b125beb271755ac6b7a352f1d16eeb9027c1e5e8213513a173bc0780282"
+    },
+    {
+      "file": "docs/performance/history/jadyx-firmware-sync-2026-10-20.json",
+      "original_sha256": "bd04879c8bba54c7fc8ebf623ccc6a73ba7cda044b48ab9cae6026bf598a3035",
+      "public_sha256": "09166e9db48b246bda2bff5b600a56e3f2c9728e7c4e13a7a164d441a722cc22"
+    },
+    {
+      "file": "docs/performance/history/jadyx-frame-chain-2026-10-20.json",
+      "original_sha256": "e2ff372934161d0a2a3115d903a0ec182200d72243ca89985d08151dadfced87",
+      "public_sha256": "c38d1d2552db10f629ec228d98b9dfd54e9c21ea091464cd09bff3781f74ecb7"
+    },
+    {
+      "file": "docs/performance/history/jadyx-frame-pressure-audit-2026-10-19.json",
+      "original_sha256": "6c1a4cf99c497de2fadef799af9ceb323207cb2ed92d39be0fb6daa8c2baa08e",
+      "public_sha256": "cd946590fe49551a5622e806bbc256d93f9079cfa82234f19ccafe0e0060f8d2"
+    },
+    {
+      "file": "docs/performance/history/jadyx-frame-time-2026-10-18.json",
+      "original_sha256": "91601fae07222a88436b68433b4d7e9fd4f08571c2ffa6c3fd87369ef23cbe8b",
+      "public_sha256": "bb2422297520fb4899085cd2c4a0ccb4af737cd88246bb8a373105cbeabd4ba4"
+    },
+    {
+      "file": "docs/performance/history/jadyx-frame-time-ab-2026-10-18.json",
+      "original_sha256": "6ba962782996760ba47e60899b3844c7efee8edb84893b4c3dac66a89c4857f9",
+      "public_sha256": "40872a6f56cbe7e9a265ef0388da1a0ff16f5a991992f7308e5e69a01780a717"
+    },
+    {
+      "file": "docs/performance/history/jadyx-gc-candidate-2026-10-18.json",
+      "original_sha256": "7294bb8dd8444c091e3af2b93d4e74f87f1faf9972381bd36ec4467befdb7120",
+      "public_sha256": "a2ded248cc23d51f0bbe7ec71fc0f4e85306875442476f2689340d84968b5fd1"
+    },
+    {
+      "file": "docs/performance/history/jadyx-incremental-bindings-2026-10-18.json",
+      "original_sha256": "e03c6ad3bb774d0e9a852eb4709b8928e0516fda44381a20e6415cee98ec2104",
+      "public_sha256": "2237878442db3000e74fa29c00516e52353de88441d371300bc6d904abb9d5cf"
+    },
+    {
+      "file": "docs/performance/history/jadyx-jit-frame-2026-10-19.json",
+      "original_sha256": "e0e3410abc1bb9eb713271ee45937c96036fcb45277ab057f52d758af2f349d7",
+      "public_sha256": "752b3e4b379d243ad54fd84fb119acb611334b2bf13fa9547352ba44f6fd6158"
+    },
+    {
+      "file": "docs/performance/history/jadyx-jit-memory-order-2026-10-19.json",
+      "original_sha256": "af1bcac6163b33844603a397db00bfff699c9953afcf8dc20da0f0484e2368cb",
+      "public_sha256": "8c9dc2de100b6d121e41deaf6b6a5e4020e80d31abb8d139d6272c8758be52e8"
+    },
+    {
+      "file": "docs/performance/history/jadyx-jit-profile-overlap-2026-10-18.json",
+      "original_sha256": "9f3c246ad16227303fcb98f835a3010a3b17a50e00a9855515866989917e21ce",
+      "public_sha256": "9f3c246ad16227303fcb98f835a3010a3b17a50e00a9855515866989917e21ce"
+    },
+    {
+      "file": "docs/performance/history/jadyx-jit-registers-2026-10-19.json",
+      "original_sha256": "84e0a055ea82a00b4882b85d7a450980b24c967707f2e1251a9fa85ef282787c",
+      "public_sha256": "9b66f379dd9a44bc1b44f8c52c46cc5b13a88f938e7924a7538ae47b24809f87"
+    },
+    {
+      "file": "docs/performance/history/jadyx-memory-accounting-2026-10-18.json",
+      "original_sha256": "b9581a1e1f93864630b000deffe36f439f531b143d6857f35c96d6a1d91bb0ed",
+      "public_sha256": "86760e467d4d3495b21787980d85631b8dd98586623246f9ff14ae9f7c5ae274"
+    },
+    {
+      "file": "docs/performance/history/jadyx-partial-submission-2026-10-20.json",
+      "original_sha256": "b308fb5eaa5922be37089fe1380d10aa9bafc40ada0656796b5fe75721e3cd34",
+      "public_sha256": "be55513c3cbc0ba67bb74a448bd3b722fc88c4e2911b0953fd2048e448b94dbf"
+    },
+    {
+      "file": "docs/performance/history/jadyx-persistent-resources-2026-10-18.json",
+      "original_sha256": "fce3fbe5fbf74519fa7c83260fea5e697c02144d28882ca257298c099cdc81fe",
+      "public_sha256": "3e633042bf023282713a4c63d807a342cd027951c07def1f5971a4b9812c4694"
+    },
+    {
+      "file": "docs/performance/history/jadyx-pgo-native-2026-10-18.json",
+      "original_sha256": "c5e0b827f9f99049ceb2dafc98c148047004a13bf1fabd61e644e8ad013600a5",
+      "public_sha256": "c5e0b827f9f99049ceb2dafc98c148047004a13bf1fabd61e644e8ad013600a5"
+    },
+    {
+      "file": "docs/performance/history/jadyx-profile-2026-10-18.json",
+      "original_sha256": "7d9446a09ccf0710355449d2100345d238393c52324327ecf8ca73584ab99955",
+      "public_sha256": "f87deaee5305e2079acf3e15d628d049b3f3065eebaebed030c5194bb1fa23e7"
+    },
+    {
+      "file": "docs/performance/history/jadyx-readback-implementation-2026-10-20.json",
+      "original_sha256": "96cc1ed1f5278962fbfb9678560299309a9d1604f9cf50c11989919114cfe73c",
+      "public_sha256": "f7930ff95b9a9abafbaceef7ea0b3915ea7e88cac306a6d75f7b90136fc22516"
+    },
+    {
+      "file": "docs/performance/history/jadyx-readback-research-2026-10-20.json",
+      "original_sha256": "34295ab3cbdbb84e10f480972602ae7ad606df92d53ded6f7436c79978e006eb",
+      "public_sha256": "34295ab3cbdbb84e10f480972602ae7ad606df92d53ded6f7436c79978e006eb"
+    },
+    {
+      "file": "docs/performance/history/jadyx-renderer-control-2026-10-18.json",
+      "original_sha256": "85f4c7d8da2174014fcb8f8f167c0b384c2130e5138ae0758ba0ad41682887cf",
+      "public_sha256": "1359647da38d055953fbd0e26b0db21c2311cfde444d850336f6549e918cedd9"
+    },
+    {
+      "file": "docs/performance/history/jadyx-research-after-pgo-2026-10-18.json",
+      "original_sha256": "25f36736c33a18a6979888d73637c2c3247ced52a02775c758e3c5eaef2a22d3",
+      "public_sha256": "683e776c182176fd9d9a0c7e3caf64cc00910d4702f44f899c84147bc3184181"
+    },
+    {
+      "file": "docs/performance/history/jadyx-structural-candidate-2026-10-19.json",
+      "original_sha256": "2092dcb6a5ef36473ec24305e6d2ea17dcf9c7a3e339dd6c3467d1603f549d8e",
+      "public_sha256": "f222d128aec88c27db8ebb470ab73b55e7b01199953c85a9c22bdd9db2e3974a"
+    },
+    {
+      "file": "docs/performance/history/jadyx-transfer-coherent-2026-10-18.json",
+      "original_sha256": "487532becd0eac993d3ffa5f8f2a3cc184863c7e237906019e4067350af453c0",
+      "public_sha256": "74475094ef497ae825536cebdf2314fc64a1157c56e6332238ea35167225ec71"
+    },
+    {
+      "file": "docs/performance/history/jadyx-transfer-pressure-2026-10-18.json",
+      "original_sha256": "6a4dc04bf8bf944310588a06dace694bb4fbb3b4a35de3ef38246145c3c552a5",
+      "public_sha256": "328dc6a0a8abf68d7e6f071c1e5308a145c281adc2d39b937807e359f568a854"
+    },
+    {
+      "file": "docs/performance/history/jadyx-translation-research-2026-10-19.json",
+      "original_sha256": "e455e6cf28e5dbc532255a5fcbda396922391848d9626d337a6f693c60c2aabb",
+      "public_sha256": "fb167f1f8e211d4058652ab59f54669f2b5f9c3cacca13dd838e64074f2b4e5f"
+    },
+    {
+      "file": "docs/performance/history/jadyx-windows-2026-10-18.json",
+      "original_sha256": "d3cac00abf072ef2134c9c6aa1807e8276e036f94094084587ab3c2ad8f45552",
+      "public_sha256": "0bd670d54e47f2a0929d966e91e0a88efa696248fe0b03237f288ec647c9aead"
+    },
+    {
+      "file": "docs/performance/history/jadyx-windows-update-2026-10-18.json",
+      "original_sha256": "9b3cb28b7a69d14f5162f11190f6697b6e62c3ee48a64cc6986bc93a29b70e75",
+      "public_sha256": "c7589b32e678c6c26be631bf871c9a0efc9e31ea4410da42bdc2669a7206b42d"
+    }
+  ],
+  "redacted_fields": [
+    "jadyx-baseline17-sampling-2026-10-19.json.capture.private_directory",
+    "jadyx-bc1-array-gpu-2026-10-18.json.runtime.runtime_layout",
+    "jadyx-bc1-array-gpu-2026-10-18.json.runtime.previous_runtime_preserved",
+    "jadyx-boost-jit-detail-2026-10-19.json.runtime.runtime_layout",
+    "jadyx-boost-jit-detail-2026-10-19.json.runtime.private_backup",
+    "jadyx-boost-jit-detail-2026-10-19.json.private_artifacts",
+    "jadyx-gc-candidate-2026-10-18.json.runtime.runtime_layout",
+    "jadyx-gc-candidate-2026-10-18.json.runtime.previous_control_runtime_preserved",
+    "jadyx-jit-memory-order-2026-10-19.json.emitted_code.private_artifacts",
+    "jadyx-jit-memory-order-2026-10-19.json.gameplay_measurement.candidate_functional_checks.post_game_archive",
+    "jadyx-jit-memory-order-2026-10-19.json.gameplay_measurement.candidate_functional_checks.private_state_backup",
+    "jadyx-jit-memory-order-2026-10-19.json.private_verification_directory",
+    "jadyx-jit-memory-order-2026-10-19.json.private_first_iteration_archive",
+    "jadyx-jit-memory-order-2026-10-19.json.runtime.runtime_layout",
+    "jadyx-jit-memory-order-2026-10-19.json.runtime.private_backup",
+    "jadyx-jit-memory-order-2026-10-19.json.activation.runtime",
+    "jadyx-jit-memory-order-2026-10-19.json.reference_restoration.runtime_layout",
+    "jadyx-jit-memory-order-2026-10-19.json.reference_restoration.private_backup",
+    "jadyx-jit-memory-order-2026-10-19.json.reference_restoration.candidate_21_runtime",
+    "jadyx-jit-registers-2026-10-19.json.private_verification_directory",
+    "jadyx-jit-registers-2026-10-19.json.build.private_source_root",
+    "jadyx-jit-registers-2026-10-19.json.runtime.runtime_layout",
+    "jadyx-jit-registers-2026-10-19.json.runtime.private_backup",
+    "jadyx-jit-registers-2026-10-19.json.activation.runtime",
+    "jadyx-jit-registers-2026-10-19.json.current_runtime.runtime",
+    "jadyx-jit-registers-2026-10-19.json.runtime_restoration.runtime_layout",
+    "jadyx-jit-registers-2026-10-19.json.runtime_restoration.private_backup",
+    "jadyx-jit-registers-2026-10-19.json.runtime_restoration.candidate_20_runtime",
+    "jadyx-memory-accounting-2026-10-18.json.accounting_candidate.runtime.runtime_layout",
+    "jadyx-memory-accounting-2026-10-18.json.accounting_candidate.runtime.previous_runtime_preserved",
+    "jadyx-memory-accounting-2026-10-18.json.contrast_candidate.runtime.runtime_layout",
+    "jadyx-memory-accounting-2026-10-18.json.contrast_candidate.runtime.previous_runtime_preserved",
+    "jadyx-structural-candidate-2026-10-19.json.pressure_regression.runtime.runtime_layout",
+    "jadyx-structural-candidate-2026-10-19.json.pressure_regression.runtime.private_backup",
+    "jadyx-structural-candidate-2026-10-19.json.pressure_regression.final_runtime.runtime_layout",
+    "jadyx-translation-research-2026-10-19.json.small_vector.baseline.translation_unit",
+    "jadyx-translation-research-2026-10-19.json.small_vector.with_version_header.translation_unit",
+    "jadyx-translation-research-2026-10-19.json.small_vector.private_audit_script",
+    "jadyx-windows-2026-10-18.json.runtime.storage.runtime_layout",
+    "jadyx-windows-update-2026-10-18.json.windows_runtime.runtime_layout"
+  ],
+  "limits": [
+    "Shared source tags do not imply identical runtime flags, manifest identities, PGO databases or executable bytes.",
+    "Label .12 has no separately verified retained source record; no source tag is fabricated for it.",
+    "Historical evidence records retain their original observation time and can contain superseded pending statuses.",
+    "Personal paths and identifiers are omitted; no full personal logs or generated build/PGO artifacts are included."
+  ],
+  "original_seriesx_timeline": [
+    {
+      "sha": "4d7c09c5ccef826df475da24208b3159e3aafbc7",
+      "author_date": "2026-10-18T03:45:41-03:00",
+      "subject": "Investigate BOTW upload OOM and compare emulator optimizations",
+      "public_source_commits": [
+        "783eb5b4e6c12d010a634c76ba186989c12fa695"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-gc-candidate-2026-10-18.json",
+        "jadyx-jit-profile-overlap-2026-10-18.json",
+        "jadyx-windows-2026-10-18.json",
+        "jadyx-windows-update-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "dcf638b56ac995cfb59b7a9bd03853b92f48df36",
+      "author_date": "2026-10-18T05:30:28-03:00",
+      "subject": "Record built GC candidate and two BOTW allocation failures",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-gc-candidate-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "3d17fc5a94cfef1fec62242857b5c9599e2e09b7",
+      "author_date": "2026-10-18T06:19:35-03:00",
+      "subject": "Decode large BC1 arrays on GPU and record remaining BOTW memory failures",
+      "public_source_commits": [
+        "939127358e6a394aef35fedc42f13ee2b11a6677"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-bc1-array-gpu-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "2a9891890f46a81c28b4511dce992aafd79abec7",
+      "author_date": "2026-10-18T07:09:27-03:00",
+      "subject": "Diagnose PC memory accounting and confirm BOTW transitions with separate caps",
+      "public_source_commits": [
+        "650a48d9418a8c133ca530c3102a16c4e4acf2ca",
+        "7dd13537eec4cd2ba4eb067711795ecd2604075f"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-memory-accounting-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "1b38f03b3f28d54d72d90c0937dc9d2445705861",
+      "author_date": "2026-10-18T08:24:32-03:00",
+      "subject": "Reduce graphics descriptor copies and add opt-in A64 JIT fast paths",
+      "public_source_commits": [
+        "f729d7824579b72e87c47c1fe583a9b9038005a0",
+        "91c03f62a8418941664b8a7d86c2f48020e48aee"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-frame-time-2026-10-18.json",
+        "jadyx-frame-time-ab-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "f94ce49b813dc86e1a7b94ab468e2fa74528d7d6",
+      "author_date": "2026-10-18T17:42:15-03:00",
+      "subject": "Record resolved GPU profile and prioritize persistent resource bindings",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-profile-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "79fa7e245aa25712a13dcbc9cf764fdb9f73fd2d",
+      "author_date": "2026-10-18T18:40:52-03:00",
+      "subject": "Add experimental persistent D3D12 resources and record gameplay regression",
+      "public_source_commits": [
+        "e7fc55a55cf8f73b1ee449cd11723cdc985083f8"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-persistent-resources-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "8cc948bee3fe0dbcff2c9b1117511384bc8f0641",
+      "author_date": "2026-10-18T19:15:46-03:00",
+      "subject": "Fix persistent descriptor cache costs and integrate upstream graphics copies",
+      "public_source_commits": [
+        "ccd6b66ca2ad1b2ca12cbbecac1ba09a61520eaa",
+        "4a2dec384d6e3f06d793179432be7683ab795f0f"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-cache-fix-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "9f21c8bccb2bbc6ed7d91c85eb0d8947902df944",
+      "author_date": "2026-10-18T19:20:17-03:00",
+      "subject": "Disable unsuccessful persistent renderer experiment in active runtime",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-renderer-control-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "08dc7f271dfe16df35962fabe7abff7c697009ad",
+      "author_date": "2026-10-18T19:37:14-03:00",
+      "subject": "docs(jadyx): reattribute transfer-buffer costs and revise optimization priorities",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-transfer-pressure-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "52f61f632c4bc34c26ec926acacb8edc50cbc629",
+      "author_date": "2026-10-18T21:00:20-03:00",
+      "subject": "perf(jadyx): reuse ordered GPU scratch and coherent uniforms",
+      "public_source_commits": [
+        "059e6e996496aa0e32ebbaf50a394fe0bb3cf84a"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-transfer-coherent-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "39bd0bbd2bcb6f598286cf5d209661199562232a",
+      "author_date": "2026-10-18T21:36:29-03:00",
+      "subject": "perf(jadyx): add optional incremental uniform bindings and measured controls",
+      "public_source_commits": [
+        "326b54ef80f9816d158c4b83cc03b08665fe48ea"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-incremental-bindings-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "ba7fe7e99c048353e2b122a60b9b36460f7634a7",
+      "author_date": "2026-10-18T22:58:04-03:00",
+      "subject": "perf(jadyx): build native PGO candidate from BOTW gameplay counts",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-pgo-native-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "2b6321d08677791784874677af89aa4673f970b6",
+      "author_date": "2026-10-18T23:08:09-03:00",
+      "subject": "perf(jadyx): record PGO comparison and restore optimized runtime",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-pgo-native-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "7dd15b25d2194a9351ec1a9d434ca9a7b92c4062",
+      "author_date": "2026-10-18T23:27:17-03:00",
+      "subject": "docs(jadyx): prioritize structural bottlenecks after native PGO",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-research-after-pgo-2026-10-18.json"
+      ]
+    },
+    {
+      "sha": "e082a17b642b99d5837b0ada55ddda5d019e40de",
+      "author_date": "2026-10-19T00:51:17-03:00",
+      "subject": "perf(jadyx): preserve structural candidates and fix pressure churn",
+      "public_source_commits": [
+        "303b11475fd197ec7eb59c67bb7a7ba4d5c5a4ee",
+        "c2592d24497b8d8d0d64a20863e8889577cdb9c8"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-structural-candidate-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "ce4e46d91661ece8eebfbe0e9b88515b804631b2",
+      "author_date": "2026-10-19T01:09:53-03:00",
+      "subject": "docs(jadyx): correct ON/OFF inference after reviewing individual windows",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-structural-candidate-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "8d76bf6e0094079ef61bd59c9a9603d8094aaf96",
+      "author_date": "2026-10-19T01:29:29-03:00",
+      "subject": "docs(jadyx): record original .17 sampling and prioritize emitted JIT code",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-baseline17-sampling-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "a0e26d38852ed161c5e031cc6e517f6b15018bfc",
+      "author_date": "2026-10-19T02:00:59-03:00",
+      "subject": "perf(jadyx): reduce JIT GPR spills and allocate R13 when available",
+      "public_source_commits": [
+        "47225435d0ab14f41a6c229a6d8f2690c70cc600"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-registers-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "a952bdb2e541153b869f8bf6d1eef1f17e9528ed",
+      "author_date": "2026-10-19T02:16:04-03:00",
+      "subject": "docs(jadyx): record verified UWP .20 delivery and regression results",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-registers-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "c2bbde10d535512d8680e998142ad03629bfde67",
+      "author_date": "2026-10-19T02:25:22-03:00",
+      "subject": "docs(jadyx): record .20 ON/OFF results and restore .17 reference",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-registers-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "65533d707b5776f6a6f1867976f9c5b36c994bb9",
+      "author_date": "2026-10-19T02:53:10-03:00",
+      "subject": "perf(jadyx): inline page-table atomics and lighten ordered loads",
+      "public_source_commits": [],
+      "later_source_commits": [
+        "691b9e4584ac9a771887fac7df2f2530d801f451"
+      ],
+      "evidence_files": [
+        "jadyx-jit-memory-order-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "530334cdfb39071c6b69639d8715cb88cd3e9bc1",
+      "author_date": "2026-10-19T03:05:39-03:00",
+      "subject": "fix(jadyx): handle minimal mirrored tables and verify UWP .21",
+      "public_source_commits": [
+        "691b9e4584ac9a771887fac7df2f2530d801f451"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-memory-order-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "fc4213d30fb788c99a83ecdf58af4769a07dff97",
+      "author_date": "2026-10-19T10:28:29-03:00",
+      "subject": "docs(jadyx): record .21 capture and same-exe control",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-memory-order-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "43ef6f92ae418c32d8d3acb615b55597db7ab148",
+      "author_date": "2026-10-19T11:01:07-03:00",
+      "subject": "docs(jadyx): audit translation bottlenecks and close .21 comparison",
+      "public_source_commits": [
+        "631bfcb98319c787f6fdbf34038bede14775ff5f"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-memory-order-2026-10-19.json",
+        "jadyx-translation-research-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "6b4252c4cfa335c1ec8065b03bc9185dde707ebb",
+      "author_date": "2026-10-19T12:05:25-03:00",
+      "subject": "feat(jadyx): recover sampled JIT instructions and audit .22 bottlenecks",
+      "public_source_commits": [
+        "82585004d2743378f416b76cff740fce2e7de3f3"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-boost-jit-detail-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "991fc228dc9d54c2b5cf75df46d1f4f7602f36f1",
+      "author_date": "2026-10-19T12:40:32-03:00",
+      "subject": "perf(jadyx): eliminate redundant W conversions and per-block frames",
+      "public_source_commits": [
+        "de335c41fdf09f83145b82f0b9a0c00b7256edd2"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-frame-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "3a77cd43090f0e58881a4fea87658d1d34361298",
+      "author_date": "2026-10-19T12:45:38-03:00",
+      "subject": "test(jadyx): record .23 fixed-view capture and open same-exe control",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-frame-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "c28d74e4ec2baf6c5eb5bd7826216cb2968db908",
+      "author_date": "2026-10-19T12:51:22-03:00",
+      "subject": "test(jadyx): record .23 control and prepare independent option captures",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-frame-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "a2622026639e56ab6bd54ac548d1476f99104cbf",
+      "author_date": "2026-10-19T12:58:51-03:00",
+      "subject": "test(jadyx): record isolated zero-upper capture and memory-state confounds",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-frame-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "34b848f2ca40648fb6b98f61a14189cf4b128af2",
+      "author_date": "2026-10-19T13:00:34-03:00",
+      "subject": "docs(jadyx): preserve frame-only activation and pending capture",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-frame-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "7db74459f1c9637c27d37fc56169b9d05d26432a",
+      "author_date": "2026-10-19T13:24:20-03:00",
+      "subject": "test(jadyx): complete four-way comparison and recover window percentiles",
+      "public_source_commits": [],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-jit-frame-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "5cd520139bcdc1cb3bb31e81ba5a597671f3f13f",
+      "author_date": "2026-10-19T21:50:59-03:00",
+      "subject": "feat(jadyx): add experimental draw plans and record comparison",
+      "public_source_commits": [
+        "42354163f56048582e6787e8f74fc9f4e6547ea7"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-draw-plan-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "4a4115165aeb16d54590956021c3d8d2ade1ae41",
+      "author_date": "2026-10-20T00:12:22-03:00",
+      "subject": "fix(jadyx): correct buffer pressure and record .25 measurements",
+      "public_source_commits": [
+        "f03869b4b6688e95a0419e7b5a9b8d7d42ee74ed"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-cache-pressure-2026-10-19.json",
+        "jadyx-frame-pressure-audit-2026-10-19.json"
+      ]
+    },
+    {
+      "sha": "1ff0fe9f211aadd02092a8ce9ffa12174b1429ea",
+      "author_date": "2026-10-20T01:27:23-03:00",
+      "subject": "feat(jadyx): recover readback reuse and record .26 comparison",
+      "public_source_commits": [
+        "31a415f73976be45dd3d69d7171cffbdf89ffc0a"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-readback-implementation-2026-10-20.json",
+        "jadyx-readback-research-2026-10-20.json"
+      ]
+    },
+    {
+      "sha": "44a2bf21773254185076e9e161680c516d52edf6",
+      "author_date": "2026-10-20T02:07:47-03:00",
+      "subject": "feat(jadyx): trace frame dependencies and record .27 findings",
+      "public_source_commits": [
+        "cfa104e112d7fc7c92335d0a6827167a5e527b3f"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-frame-chain-2026-10-20.json"
+      ]
+    },
+    {
+      "sha": "4aad176bf4f793ddbaaa105388be1dd8c70ddbec",
+      "author_date": "2026-10-20T03:08:39-03:00",
+      "subject": "feat(jadyx): add partial GPU submissions and expansion plan",
+      "public_source_commits": [
+        "f85a4122848d10fae9a324365dd5b1fa574996ad"
+      ],
+      "later_source_commits": [],
+      "evidence_files": [
+        "jadyx-partial-submission-2026-10-20.json"
+      ]
+    }
+  ]
+}

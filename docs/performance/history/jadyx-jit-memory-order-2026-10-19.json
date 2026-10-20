@@ -1,0 +1,735 @@
+{
+  "date": "2026-10-19",
+  "candidate_version": "1.0.0.21",
+  "status": "comparison complete, no useful FPS gain demonstrated; original .17 registered again and application closed; .21 preserved",
+  "baseline_version": "1.0.0.17",
+  "baseline_source_tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+  "source": {
+    "previous_tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+    "tree": "a923c7344bbfddb1e7ce702215bebe27ca8de12d",
+    "patch": "0015-jit-ordered-loads-and-page-table-exclusives.patch",
+    "sha256": "8d7497cc04323d58c2c6047afaedbcbd025399346c4cbc009325cf672302462d",
+    "source_paths": [
+      "src/jadyx/app/uwp_boot.cpp",
+      "src/core/arm/dynarmic/arm_dynarmic_64.cpp",
+      "src/core/arm/dynarmic/arm_dynarmic_64.h",
+      "src/dynarmic/src/dynarmic/interface/A64/config.h",
+      "src/dynarmic/src/dynarmic/backend/x64/a64_emit_x64_memory.cpp",
+      "src/dynarmic/src/dynarmic/backend/x64/emit_x64_memory.h",
+      "src/dynarmic/src/dynarmic/backend/x64/emit_x64_memory.cpp.inc"
+    ],
+    "clean_patch_sequence": "pass",
+    "patch_count": 12,
+    "patch_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      15
+    ],
+    "original_index_unchanged": true
+  },
+  "options": {
+    "jit_plain_ordered_reads": true,
+    "jit_inline_exclusives": true,
+    "source_default": false,
+    "options_copied_at_jit_creation": true,
+    "counters_in_guest_instructions": false
+  },
+  "implementation_reference": "https://github.com/Swordpdf/ProsperoEden/blob/a26ba788222465ec7fb94dc813958fc749734e07/headless/CMakeLists.txt",
+  "adaptation": {
+    "plain_reads_only_page_table": true,
+    "natural_alignment_checked": true,
+    "unaligned_keeps_locked_read": true,
+    "ordered_stores_unchanged": true,
+    "atomic_128_keeps_cmpxchg16b": true,
+    "monitor_kept": true,
+    "exclusive_lookup_only_uses_preallocated_scratch": true,
+    "fastmem_source_policy_retained": true,
+    "a32_default_unchanged": true
+  },
+  "production_tests": {
+    "summary": {
+      "kind": "jit_memory_order",
+      "single_core_cases": 2796,
+      "contention_variants": 15,
+      "message_variants": 4,
+      "pair_variants": 4,
+      "store_buffering_variants": 4,
+      "fastmem_cases": 64,
+      "register_pressure_cases": 16,
+      "minimal_table_cases": 2,
+      "result": "pass"
+    },
+    "details": [
+      {
+        "kind": "exclusive_contention",
+        "options": 0,
+        "cores": 1,
+        "increments": 10000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 0,
+        "cores": 2,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 0,
+        "cores": 4,
+        "increments": 40000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 1,
+        "cores": 1,
+        "increments": 10000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 1,
+        "cores": 2,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 1,
+        "cores": 4,
+        "increments": 40000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 2,
+        "cores": 1,
+        "increments": 10000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 2,
+        "cores": 2,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 2,
+        "cores": 4,
+        "increments": 40000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 3,
+        "cores": 1,
+        "increments": 10000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 3,
+        "cores": 2,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 3,
+        "cores": 4,
+        "increments": 40000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 4,
+        "cores": 1,
+        "increments": 10000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 4,
+        "cores": 2,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "exclusive_contention",
+        "options": 4,
+        "cores": 4,
+        "increments": 40000,
+        "pass": true
+      },
+      {
+        "kind": "release_acquire",
+        "options": 0,
+        "messages": 10000,
+        "pass": true
+      },
+      {
+        "kind": "release_acquire",
+        "options": 1,
+        "messages": 10000,
+        "pass": true
+      },
+      {
+        "kind": "release_acquire",
+        "options": 2,
+        "messages": 10000,
+        "pass": true
+      },
+      {
+        "kind": "release_acquire",
+        "options": 3,
+        "messages": 10000,
+        "pass": true
+      },
+      {
+        "kind": "atomic_pairs",
+        "options": 0,
+        "cores": 4,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "atomic_pairs",
+        "options": 1,
+        "cores": 4,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "atomic_pairs",
+        "options": 2,
+        "cores": 4,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "atomic_pairs",
+        "options": 3,
+        "cores": 4,
+        "increments": 20000,
+        "pass": true
+      },
+      {
+        "kind": "store_buffering",
+        "options": 0,
+        "iterations": 4096,
+        "forbidden": 0,
+        "pass": true
+      },
+      {
+        "kind": "store_buffering",
+        "options": 1,
+        "iterations": 4096,
+        "forbidden": 0,
+        "pass": true
+      },
+      {
+        "kind": "store_buffering",
+        "options": 2,
+        "iterations": 4096,
+        "forbidden": 0,
+        "pass": true
+      },
+      {
+        "kind": "store_buffering",
+        "options": 3,
+        "iterations": 4096,
+        "forbidden": 0,
+        "pass": true
+      }
+    ],
+    "source_sha256": "0b19a5fc9d74ad8c8188c7e822cce23d74584e805c4f56a07fcb233c55fac0fe",
+    "stdout_sha256": "660e005e87ca18eaf91692ace12fc3011ddaf381d3c5b66ceba27294c25fbdf2",
+    "production_library_sha256": "47f0d0f78f3654232bdbea9abb93ab69106ae6ffaa4b43b3f55a85da29da3a5f",
+    "minimum_mirrored_table_fixed": "A shift of 64 is a zero shift on x86; explicitly clear the index when the virtual page table has one entry. Two dedicated executions pass."
+  },
+  "prior_edge_regression": {
+    "summary": {
+      "kind": "differential_execution",
+      "memory_cases": 640,
+      "fp_cases": 3136,
+      "exclusive_cases": 4,
+      "parallel_cases": 512,
+      "groups_compiled": 82,
+      "grouped_accesses": 368,
+      "result": "pass"
+    },
+    "stdout_sha256": "f024b5cbd8bb3cd1d806c943f3a8ab14641fc87cd16d33700fa84ff41f9f4d79",
+    "adapter_note": "New flags enabled only in candidate machines; callback count equality removed intentionally, all register/memory/FP comparisons retained; benchmark skipped"
+  },
+  "emitted_code": {
+    "fixtures": [
+      {
+        "fixture": "ordered",
+        "options": 0,
+        "bytes": 240,
+        "sha256": "2fc593fc64153c42198c8cd0aa20b6638ee60f3f342ced304e73152b78ec4aa0",
+        "calls": 2,
+        "locked_xadd": 1,
+        "cmpxchg": 0
+      },
+      {
+        "fixture": "ordered",
+        "options": 1,
+        "bytes": 261,
+        "sha256": "9e359dead6cdebd059d41d1863d22f20f91c151926a6a79c81829f8d6106dfe6",
+        "calls": 2,
+        "locked_xadd": 1,
+        "cmpxchg": 0
+      },
+      {
+        "fixture": "ordered",
+        "options": 2,
+        "bytes": 240,
+        "sha256": "2fc593fc64153c42198c8cd0aa20b6638ee60f3f342ced304e73152b78ec4aa0",
+        "calls": 2,
+        "locked_xadd": 1,
+        "cmpxchg": 0
+      },
+      {
+        "fixture": "ordered",
+        "options": 3,
+        "bytes": 261,
+        "sha256": "9e359dead6cdebd059d41d1863d22f20f91c151926a6a79c81829f8d6106dfe6",
+        "calls": 2,
+        "locked_xadd": 1,
+        "cmpxchg": 0
+      },
+      {
+        "fixture": "exclusive",
+        "options": 0,
+        "bytes": 269,
+        "sha256": "13eb8ca61eee7d8e00e50ae5c359dcad267c2cc259ef666e7722f430d98bbe27",
+        "calls": 3,
+        "locked_xadd": 0,
+        "cmpxchg": 0
+      },
+      {
+        "fixture": "exclusive",
+        "options": 1,
+        "bytes": 269,
+        "sha256": "d70df44d1d1a819d9bb5961f6a3c9561fbb02f94b62ae60ac11bf94b5e63dae5",
+        "calls": 3,
+        "locked_xadd": 0,
+        "cmpxchg": 0
+      },
+      {
+        "fixture": "exclusive",
+        "options": 2,
+        "bytes": 509,
+        "sha256": "b868ae79936c38b01106ac8076ac6b1a588cf5e34160513eab2f14684bb762d3",
+        "calls": 3,
+        "locked_xadd": 1,
+        "cmpxchg": 1
+      },
+      {
+        "fixture": "exclusive",
+        "options": 3,
+        "bytes": 505,
+        "sha256": "c3c3d19a1640ce41d055ea749f10c146f040c661e468bed734a6ea76c3ccaee4",
+        "calls": 3,
+        "locked_xadd": 0,
+        "cmpxchg": 1
+      }
+    ],
+    "review": "Scalar LDAR tests alignment, loads with MOV on aligned branch, keeps LOCK XADD on unaligned branch. Inline exclusives keep CMPXCHG and avoid callbacks at runtime on mapped aligned pages. Static CALL counts include cold fallbacks.",
+    "private_artifacts": "[local path or personal identifier omitted for public archive]"
+  },
+  "native_optimization": {
+    "host_lto": true,
+    "targets": [
+      "video_core",
+      "jadyx"
+    ],
+    "pgo_mode": "USE",
+    "training_version": "1.0.0.16",
+    "pgo_database_input_sha256": "e38933b9ce16b5718cd747e00c7fa7707682dbe1c74863f44e5c1e32b18e8a31",
+    "database_after_link_sha256": "c485b24de37e386d5f87881405ef368cc6c61b0c5fde6ebd53187c6b8203b5c8"
+  },
+  "build": {
+    "completed": true,
+    "exit_code": 0,
+    "gate_exit_code": 0,
+    "system": "WindowsStore",
+    "build_type": "Release",
+    "compiler": "MSVC 19.44.35229",
+    "no_work_after_build": true,
+    "first_full_build_log_sha256": "95ed0582963d674fa1691a76d75f830d7401c823578157e7a36b9c794aef345d",
+    "final_build_log_sha256": "bb8d28ed42571da05e7f8bdf25eb24a36e378f450026b7d6fa9e89ded00a6530",
+    "profile_mismatch_warning_found": false,
+    "final_source_tree": "a923c7344bbfddb1e7ce702215bebe27ca8de12d"
+  },
+  "delivery": {
+    "zip_crc": "pass",
+    "block_hashes": "pass",
+    "layout_payload": "pass",
+    "files": 25,
+    "blocks": 715,
+    "version": "1.0.0.21",
+    "exe_sha256": "c957b182b57c405eb61efb530798d066b51f7dfcad25a8c5a0d6f3ab6a9104de",
+    "pdb_sha256": "cd46f84eb9dcd5ef84c70170a97faf6608eed89fd4bc74487032781e8b20cfd5",
+    "appx_sha256": "5d3d733e3ce291eabb921e18c107eee327cc0d82cf716eba6cc1f4d590a47d4f",
+    "mesa_sha256": "71b99d96379f27010550642218f86497859736d9bf1c3a4493146a1b7a4353a3",
+    "host_lto": true,
+    "pgo_mode": "USE",
+    "training_runtime_import": false,
+    "canonical_memory_mib": 5120,
+    "sampling_enabled": false,
+    "source_tree": "a923c7344bbfddb1e7ce702215bebe27ca8de12d",
+    "build_exit_code": 0,
+    "jit_plain_ordered_reads": true,
+    "jit_inline_exclusives": true,
+    "experimental_0012_0013_included": false,
+    "completed": true,
+    "signature": {
+      "accepted": true,
+      "native_hresult": "0x800B0109",
+      "signature_status": "UntrustedRoot",
+      "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+      "signer_matches_expected": true,
+      "signer_time_valid": true,
+      "chain_error_status": "0x00000020",
+      "integrity_verified": true,
+      "integrity_verification": "WinVerifyTrust/WINTRUST_ACTION_GENERIC_VERIFY_V2",
+      "system_trusted": false,
+      "revocation_checked": false,
+      "trust_policy": "PinnedSignerAllowUntrustedRoot"
+    },
+    "experimental_0014_included": false
+  },
+  "gameplay_measurement": {
+    "completed": true,
+    "fps_gain": -1.2772789337753245,
+    "frame_time_gain_ms": -2.058333333333337,
+    "candidate_on": {
+      "completed": true,
+      "owner_confirmed_same_save_and_view": true,
+      "mark_utc": "2026-10-19T13:18:26.2552772Z",
+      "process_started_utc": "2026-10-19T06:04:30.2182084Z",
+      "pid": 12780,
+      "exe_sha256": "c957b182b57c405eb61efb530798d066b51f7dfcad25a8c5a0d6f3ab6a9104de",
+      "boot_sha256": "1d85d5766b1c6f5c7a08b9a7abdc6deabba91bd84c5c5562ca3c7e42e04ea32a",
+      "jit_plain_ordered_reads": true,
+      "jit_inline_exclusives": true,
+      "selection": "First four complete 300-present windows starting after conservative process-elapsed acknowledgement bound; no slow-window exclusion",
+      "log_time_selection_lower_bound": 26037.037069,
+      "private_prefix_name": "fixed-view-20261019T132414Z",
+      "prefixes": {
+        "jadyx_log.txt": {
+          "bytes": 1244763,
+          "sha256": "b02f20414bb39d628c02570cd3c41dad77fd286bedaab78fec6ce50523890295"
+        },
+        "jadyx_diag.txt": {
+          "bytes": 1555568,
+          "sha256": "7f1eb394917bc23cef4253a61cd9adc1268a428be7c2c4bf2e9ac4d191d6a057"
+        }
+      },
+      "frames": 1200,
+      "wall_ms": 49423,
+      "aggregate_fps": 24.28019343220768,
+      "mean_ms": 41.185833333333335,
+      "window_wall_ms": [
+        12962,
+        12272,
+        12031,
+        12158
+      ],
+      "window_start_log_seconds": [
+        26041.799578,
+        26054.761358,
+        26067.033126,
+        26079.064011
+      ],
+      "window_end_log_seconds": [
+        26054.761358,
+        26067.033126,
+        26079.064011,
+        26091.221887
+      ],
+      "window_draws": [
+        835867,
+        835975,
+        835714,
+        835840
+      ],
+      "window_dispatches": [
+        5336,
+        5495,
+        5469,
+        5483
+      ],
+      "window_resource_creation_ms": [
+        456.9,
+        174.6,
+        25.4,
+        22.4
+      ],
+      "window_pipeline_stall_ms": [
+        1.3,
+        1,
+        0.2,
+        0
+      ],
+      "fallback_translation_count_in_prefix": 0,
+      "fallback_pso_count_in_prefix": 0,
+      "render_error_count_in_prefix": 0,
+      "sampling_enabled": false,
+      "controls_sent": false,
+      "scope": "Manual same-save/view capture; native PGO USE retained. Initial windows still contain some resource/pipeline preparation. No deterministic or isolated speedup claim."
+    },
+    "candidate_functional_checks": {
+      "owner_inventory_back_passed": true,
+      "owner_scope_zoom_passed": true,
+      "owner_saved_and_exited_q": true,
+      "normal_return_10_observed": true,
+      "worker_join_observed": true,
+      "idle_library_closed": true,
+      "session_keep_declined_on_exit": true,
+      "session_keep_note": "Pulse declined keeping the session at manual exit under the logical memory budget, not a crash during the tested gameplay actions",
+      "post_game_archive": "[local path or personal identifier omitted for public archive]",
+      "private_state_backup": "[local path or personal identifier omitted for public archive]",
+      "state_files_verified": 56
+    },
+    "control_off_activation": {
+      "version": "1.0.0.21",
+      "activation_requested_utc": "2026-10-19T13:26:35.5529047Z",
+      "pid": 28008,
+      "process_started_utc": "2026-10-19T13:26:36.0072071Z",
+      "exe_sha256": "c957b182b57c405eb61efb530798d066b51f7dfcad25a8c5a0d6f3ab6a9104de",
+      "boot_sha256": "8eca47463700339f5229ab7a863e699dafa8d40185d7ba8f717a87b7c2c421c9",
+      "jit_plain_ordered_reads": false,
+      "jit_inline_exclusives": false,
+      "sampling_enabled": false,
+      "detailed_profiles_enabled": false,
+      "config_only_two_flags_changed": true,
+      "controls_sent": false
+    },
+    "control_off": {
+      "private_prefix_name": "fixed-view-20261019T133059Z",
+      "prefixes": {
+        "jadyx_log.txt": {
+          "bytes": 951126,
+          "sha256": "10e752e4aac9d12b4da458f0a206d56a9243912912615727935468e7b4408272"
+        },
+        "jadyx_diag.txt": {
+          "bytes": 1589181,
+          "sha256": "b7b2846c60da43108b4791717a14859f0e6c33f4e0dadeb82e14b0f5eadb4ebc"
+        }
+      },
+      "mark": {
+        "utc": "2026-10-19T13:29:42.6883015Z",
+        "process_started_utc": "2026-10-19T13:26:36.0072071Z",
+        "pid": 28008,
+        "version": "1.0.0.21",
+        "owner_confirmed_same_save_and_view": true,
+        "exe_sha256": "c957b182b57c405eb61efb530798d066b51f7dfcad25a8c5a0d6f3ab6a9104de",
+        "boot_sha256": "8eca47463700339f5229ab7a863e699dafa8d40185d7ba8f717a87b7c2c421c9",
+        "jit_plain_ordered_reads": false,
+        "jit_inline_exclusives": false,
+        "sampling_enabled": false,
+        "control_input_sent": false,
+        "selection": "First four complete 300-present windows starting after conservative process-elapsed acknowledgement bound"
+      },
+      "log_time_selection_lower_bound": 187.681094,
+      "selection": "First four complete 300-present windows starting after conservative process-elapsed acknowledgement bound.",
+      "frames": 1200,
+      "wall_ms": 46953,
+      "aggregate_fps": 25.557472365983003,
+      "mean_ms": 39.1275,
+      "windows": [
+        {
+          "start_log_seconds": 196.074193,
+          "end_log_seconds": 208.10707,
+          "fps": 24.93,
+          "p50_ms": 37.99,
+          "p95_ms": 54.24,
+          "p99_ms": 60.49,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12033,
+            "gpu_thread_idle_ms": 4944.9,
+            "fence_waits": 10,
+            "fence_wait_ms": 110.8,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0,
+            "resources_created": 149,
+            "resource_creation_ms": 27.7,
+            "gpu_busy_ms": 4754.8,
+            "submits": 901,
+            "draws": 812150,
+            "dispatches": 5199
+          }
+        },
+        {
+          "start_log_seconds": 208.10707,
+          "end_log_seconds": 219.911297,
+          "fps": 25.41,
+          "p50_ms": 36.43,
+          "p95_ms": 53.24,
+          "p99_ms": 58.33,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 11804,
+            "gpu_thread_idle_ms": 4836.7,
+            "fence_waits": 10,
+            "fence_wait_ms": 104.7,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0,
+            "resources_created": 132,
+            "resource_creation_ms": 20.8,
+            "gpu_busy_ms": 4637.3,
+            "submits": 901,
+            "draws": 812428,
+            "dispatches": 5662
+          }
+        },
+        {
+          "start_log_seconds": 219.911297,
+          "end_log_seconds": 231.056555,
+          "fps": 26.92,
+          "p50_ms": 34.76,
+          "p95_ms": 52.02,
+          "p99_ms": 60.84,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 11145,
+            "gpu_thread_idle_ms": 4083.2,
+            "fence_waits": 11,
+            "fence_wait_ms": 153.8,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0,
+            "resources_created": 136,
+            "resource_creation_ms": 20.3,
+            "gpu_busy_ms": 3942.3,
+            "submits": 901,
+            "draws": 811546,
+            "dispatches": 5408
+          }
+        },
+        {
+          "start_log_seconds": 231.056555,
+          "end_log_seconds": 243.02729,
+          "fps": 25.06,
+          "p50_ms": 36.04,
+          "p95_ms": 55.02,
+          "p99_ms": 64.47,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 11971,
+            "gpu_thread_idle_ms": 4919.6,
+            "fence_waits": 10,
+            "fence_wait_ms": 142.9,
+            "pipeline_stalls": 1,
+            "pipeline_stall_ms": 0.4,
+            "resources_created": 144,
+            "resource_creation_ms": 22.7,
+            "gpu_busy_ms": 4762.1,
+            "submits": 901,
+            "draws": 812439,
+            "dispatches": 5464
+          }
+        }
+      ],
+      "fallback_translation_count_in_prefix": 0,
+      "fallback_pso_count_in_prefix": 0,
+      "render_error_count_in_prefix": 0,
+      "scope": "Manual .17-based memory-order candidate/control, same save/view confirmed, sampling disabled. Native PGO USE retained. Host load, weather and game time are not fixed; no deterministic benchmark claim."
+    },
+    "comparison": {
+      "same_executable": true,
+      "only_new_flags_changed": true,
+      "on_minus_off_ms": 2.058333333333337,
+      "on_ms_increase_percent": 5.260579728664849,
+      "on_draws": 3343396,
+      "off_draws": 3248563,
+      "on_draw_difference_percent": 2.9192292099614603,
+      "promote_candidate": false,
+      "conclusion": "No useful gain demonstrated. ON was slower in this pair but had different resource warm-up and draw workload; the measured difference is not an isolated causal estimate.",
+      "controls_sent": false
+    }
+  },
+  "private_verification_directory": "[local path or personal identifier omitted for public archive]",
+  "private_first_iteration_archive": "[local path or personal identifier omitted for public archive]",
+  "runtime": {
+    "registered": true,
+    "version": "1.0.0.21",
+    "runtime_layout": "[local path or personal identifier omitted for public archive]",
+    "private_backup": "[local path or personal identifier omitted for public archive]",
+    "local_state_files_verified": 56,
+    "payload_files_verified": 25,
+    "activation_requested": false,
+    "pc_hard_cap_mib": 8192,
+    "logical_cache_budget_mib": 5120,
+    "persistent_resources": false,
+    "ordered_copy_reuse": true,
+    "copy_plan_cache": true,
+    "coherent_uniform_cache": true,
+    "incremental_uniform_bindings": false,
+    "dma_packet_batch": false,
+    "partial_texture_uploads": false,
+    "binding_dependency_reuse": false,
+    "jit_free_moves": false,
+    "jit_r13": false,
+    "jit_plain_ordered_reads": true,
+    "jit_inline_exclusives": true,
+    "report_scope": "Verified development registration, before explicit activation"
+  },
+  "activation": {
+    "version": "1.0.0.21",
+    "activation_requested_utc": "2026-10-19T06:04:29.7177235Z",
+    "pid": 12780,
+    "process_started_utc": "2026-10-19T06:04:30.2182084Z",
+    "runtime": "[local path or personal identifier omitted for public archive]",
+    "exe_sha256": "c957b182b57c405eb61efb530798d066b51f7dfcad25a8c5a0d6f3ab6a9104de",
+    "boot_sha256": "1d85d5766b1c6f5c7a08b9a7abdc6deabba91bd84c5c5562ca3c7e42e04ea32a",
+    "jit_plain_ordered_reads": true,
+    "jit_inline_exclusives": true,
+    "sampling_enabled": false,
+    "detailed_profiles_enabled": false,
+    "control_input_sent": false,
+    "runtime_difference_from_original_17": [
+      "jit_plain_ordered_reads=1",
+      "jit_inline_exclusives=1"
+    ]
+  },
+  "reference_restoration": {
+    "utc": "2026-10-19T13:36:00.0373551Z",
+    "version": "1.0.0.17",
+    "reference_restored": true,
+    "app_closed": true,
+    "runtime_layout": "[local path or personal identifier omitted for public archive]",
+    "exe_sha256": "98b7e1f4b1c39fffafa7869aa2b40aefa5438c75f28e41f1dc8b5483da9e1efb",
+    "boot_sha256": "5adae9fd44022cfccf654806b6ddb99d0b54d146385b600cced35827851347b6",
+    "local_state_files_preserved": 56,
+    "private_backup": "[local path or personal identifier omitted for public archive]",
+    "candidate_21_preserved": true,
+    "candidate_21_boot_restored_on": true,
+    "control_shutdown_return": 10,
+    "control_worker_joined": true,
+    "owner_saved_and_exited_q": true,
+    "control_input_sent": false,
+    "candidate_21_runtime": "[local path or personal identifier omitted for public archive]",
+    "candidate_21_exe_sha256": "c957b182b57c405eb61efb530798d066b51f7dfcad25a8c5a0d6f3ab6a9104de"
+  }
+}

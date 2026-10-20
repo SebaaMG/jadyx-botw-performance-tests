@@ -1,0 +1,407 @@
+{
+  "date": "2026-10-19",
+  "candidate_version": "1.0.0.23",
+  "status": "implementation and four-way comparison complete, including repeated control; no reproducible BOTW frame-time or p99 gain established",
+  "baseline_version": "1.0.0.17",
+  "previous_candidate": "1.0.0.22",
+  "upstream_base": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+  "source": {
+    "tree": "a928c032ce44a38245702617aea96cc621f7c01e",
+    "previous_tree": "bd1dba5023d6b1d57e53b86727fef6e77a81a03c",
+    "patch": "0018-zero-upper-tracking-stable-frame-and-unwind.patch",
+    "patch_sha256": "8840bd3abec46e5a9f4dd208bb249c3f127cceaac961758df2985a609c6340d2",
+    "patch_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      16,
+      17,
+      18
+    ],
+    "clean_patch_sequence": "pass",
+    "original_index_unchanged": true,
+    "other_experiments_changed": false
+  },
+  "changes": {
+    "zero_upper_tracking": "physical GPR metadata, explicit load/GetW producers, conservative alias and spill handling",
+    "conversions": "SetW and ZeroExtendWordToLong avoid destructive scratch use when safe",
+    "frame": "Windows RBP anchored to dispatcher RSP; optional removal of three A64 per-block instructions",
+    "unwind": "actual emitted offsets, Run/Step entry regions, frame-based bodies and dedicated handler regions",
+    "fastmem_handler": "40-byte aligned allocation including 32-byte shadow space",
+    "unwind_correction_common_to_both_controls": true,
+    "non_windows_frame_remains_legacy": true,
+    "unsafe_memory_ordering_changes": false,
+    "game_modifications": false,
+    "ui_changes": false
+  },
+  "tests": {
+    "native_production_libraries": true,
+    "differential_cases": 576,
+    "boundary_and_cached_unmapping_cases": 96,
+    "all_four_option_combinations": true,
+    "fastmem_actual_fault_callbacks": true,
+    "cold_prewarm": "pass",
+    "a32_run_step": "pass",
+    "each_run_step_prologue_operation_virtual_unwind": "pass",
+    "live_virtual_unwind_cases": 12,
+    "nonvolatile_gpr_sentinels": 8,
+    "nonvolatile_xmm_sentinels": 10,
+    "dynamic_stack_bytes": [
+      0,
+      64,
+      160
+    ],
+    "cycle_counting_on_off": true,
+    "jit_detail_sampler_and_boost_suite": "pass",
+    "concurrent_symbol_generations": 2000,
+    "python_tests": 19,
+    "result": "pass"
+  },
+  "own_assembly_fixture": {
+    "full_block_bytes_control": 284,
+    "full_block_bytes_zero_upper": 272,
+    "full_block_bytes_stable_frame": 264,
+    "full_block_bytes_both": 252,
+    "redundant_spill_reload_and_normalization_removed": "ndisasm inspection",
+    "per_block_frame_instructions_removed": 3
+  },
+  "synthetic_microbench": {
+    "scope": "own hot A64 loop with load, W aliases, bit-test and two linked blocks; not BOTW frame times",
+    "iterations_per_run": 10000000,
+    "warmup_runs_per_option_excluded": 1,
+    "measured_runs_per_option": 7,
+    "interleaved_reversed_order": true,
+    "compilation_and_state_reset_outside_measured_region": true,
+    "concurrent_builds": false,
+    "median_ms_control": 47.9474,
+    "median_ms_zero_upper": 41.1476,
+    "median_ms_stable_frame": 43.6213,
+    "median_ms_both": 37.9702,
+    "reduction_percent_both": 20.80863613042626
+  },
+  "build": {
+    "native_exit_code": 0,
+    "uwp_exit_code": 0,
+    "lto": true,
+    "pgo": "USE",
+    "pgo_seed_sha256": "e38933b9ce16b5718cd747e00c7fa7707682dbe1c74863f44e5c1e32b18e8a31",
+    "exe_sha256": "585c4a85fe1b27e25f5594c2543551a15582718ab7561c982fc770e5f5398188",
+    "pdb_sha256": "313f66550e81c8582c89b5929c54f2171c93fc2058f1466341f7723cf06529fe",
+    "appx_sha256": "64d81d1c0ae8c8ad51b8b43abc5b6f08e119ea8c1019be4559b51fa6a719f55f"
+  },
+  "package": {
+    "canonical_memory_limit_mib": 5120,
+    "jit_zero_upper": true,
+    "jit_stable_frame": true,
+    "profile": false,
+    "files_verified": 25,
+    "sha256_blocks_verified": 716,
+    "zip_crc": "pass",
+    "layout_payload": "pass",
+    "pinned_signature_integrity": "pass",
+    "signature_trust": "PinnedSignerAllowUntrustedRoot; not system trusted"
+  },
+  "botw": {
+    "measured": true,
+    "comparison_complete": true,
+    "candidate_variant": "both-on",
+    "view_confirmed_utc": "2026-10-19T15:41:03.6032130Z",
+    "complete_windows": 4,
+    "window_frames": 300,
+    "total_frames": 1200,
+    "window_wall_ms": [
+      11726,
+      11497,
+      12164,
+      12194
+    ],
+    "total_wall_ms": 47581,
+    "mean_frame_ms": 39.65083333333333,
+    "fps": 25.220150900569553,
+    "window_end_elapsed_s": [
+      139.981086,
+      151.477593,
+      163.641159,
+      175.835229
+    ],
+    "compilation_wait_ms_in_selected_windows": 0.0,
+    "resource_creation_ms_in_selected_windows": [
+      30.6,
+      21.0,
+      24.7,
+      23.5
+    ],
+    "no_full_pool_evictions_during_selected_windows": "cumulative full count stable at 284; pressure trims still run",
+    "per_frame_percentiles_available": true,
+    "percentile_scope": "p50, p95 and p99 of each 300-presented-interval window are in the existing log; pooled 1200-frame percentiles are not available",
+    "window_p50_ms": [
+      35.98,
+      35.6,
+      37.34,
+      37.22
+    ],
+    "window_p95_ms": [
+      54.0,
+      53.73,
+      54.72,
+      55.36
+    ],
+    "window_p99_ms": [
+      60.07,
+      60.94,
+      61.56,
+      61.81
+    ],
+    "inventory_then_B": "owner confirmed working",
+    "scope_zoom": "owner confirmed working",
+    "saved_Q_exit": "owner confirmed; return 10 and worker joined observed",
+    "caught_shutdown_warning": "Pulse: not enough free memory to keep the session",
+    "fps_gain_claimed": false,
+    "baseline_17_unchanged": true
+  },
+  "windows_runtime": {
+    "registered_version": "1.0.0.23",
+    "ssd_layout": true,
+    "runtime_exe_hash_matches": true,
+    "local_state_files_verified_before_activation": 56,
+    "payload_files_verified": 25,
+    "pc_hard_cap_mib": 8192,
+    "logical_cache_budget_mib": 5120,
+    "launched": true,
+    "boot_log_zero_upper_on": true,
+    "boot_log_stable_frame_on": true,
+    "gameplay_inputs_sent": false,
+    "current_variant": "both-off-repeat",
+    "control_exe_matches_candidate": true,
+    "control_activated_utc": "2026-10-19T15:44:26.9951579Z",
+    "zero_only_activated_utc": "2026-10-19T15:49:04.5284891Z",
+    "frame_only_activated_utc": "2026-10-19T15:59:18.0939336Z",
+    "repeated_control_activated_utc": "2026-10-19T16:05:52.3047486Z",
+    "last_observed_process_id": 21020,
+    "last_observed_zero_upper": false,
+    "last_observed_stable_frame": false,
+    "camera_may_move_after_completed_capture": true
+  },
+  "both_off_control": {
+    "same_exe_sha256": "585c4a85fe1b27e25f5594c2543551a15582718ab7561c982fc770e5f5398188",
+    "view_confirmed_utc": "2026-10-19T15:46:29.4272759Z",
+    "complete_windows": 4,
+    "total_frames": 1200,
+    "window_wall_ms": [
+      12075,
+      12181,
+      12381,
+      11724
+    ],
+    "window_end_elapsed_s": [
+      147.405736,
+      159.586762,
+      171.968235,
+      183.691756
+    ],
+    "total_wall_ms": 48361,
+    "mean_frame_ms": 40.30083333333334,
+    "fps": 24.81338268439445,
+    "pipeline_wait_ms": 0.0,
+    "window_p50_ms": [
+      37.1,
+      37.51,
+      37.93,
+      36.97
+    ],
+    "window_p95_ms": [
+      54.96,
+      54.67,
+      54.71,
+      52.53
+    ],
+    "window_p99_ms": [
+      62.27,
+      59.58,
+      62.91,
+      57.0
+    ],
+    "Q_exit": "owner confirmed",
+    "controls_sent": false
+  },
+  "zero_upper_only": {
+    "same_exe_sha256": "585c4a85fe1b27e25f5594c2543551a15582718ab7561c982fc770e5f5398188",
+    "view_confirmed_utc": "2026-10-19T15:54:32.1001228Z",
+    "minimum_complete_window_start_s": 332.989124,
+    "complete_windows": 4,
+    "total_frames": 1200,
+    "window_wall_ms": [
+      12321,
+      12344,
+      12276,
+      11710
+    ],
+    "window_end_elapsed_s": [
+      348.266141,
+      360.610505,
+      372.88606,
+      384.596233
+    ],
+    "total_wall_ms": 48651,
+    "mean_frame_ms": 40.5425,
+    "fps": 24.665474502065734,
+    "pipeline_wait_ms": 0.2,
+    "window_p50_ms": [
+      37.59,
+      37.77,
+      37.21,
+      36.32
+    ],
+    "window_p95_ms": [
+      55.57,
+      56.49,
+      58.34,
+      55.17
+    ],
+    "window_p99_ms": [
+      63.63,
+      61.64,
+      62.36,
+      61.35
+    ],
+    "total_draws": 3434441,
+    "transfer_pool_creates_increase_during_capture": 0,
+    "transfer_pool_cumulative_creates": 9,
+    "transfer_pool_cumulative_full_trims": 0,
+    "staging_ring_mib": 128,
+    "candidate_and_control_staging_ring_mib": 32,
+    "interpretation": "no measured improvement over control; draw workload and adaptive memory state differ between runs",
+    "Q_exit": "owner confirmed; library scan observed before closing process",
+    "controls_sent": false
+  },
+  "first_pair_interpretation": {
+    "observed_difference_ms": 0.65,
+    "observed_reduction_percent": 1.6128698744856562,
+    "robust_gameplay_gain_claimed": false,
+    "reason": "small difference, overlapping window means and about 1.95 percent different draw counts; completed isolation and repeated control do not establish a reproducible gain",
+    "candidate_total_draws": 3343228,
+    "control_total_draws": 3279430
+  },
+  "stable_frame_only": {
+    "same_exe_sha256": "585c4a85fe1b27e25f5594c2543551a15582718ab7561c982fc770e5f5398188",
+    "view_confirmed_utc": "2026-10-19T16:02:20.4605066Z",
+    "complete_windows": 4,
+    "total_frames": 1200,
+    "window_wall_ms": [
+      11788,
+      11771,
+      11838,
+      11876
+    ],
+    "window_end_elapsed_s": [
+      200.476518,
+      212.247233,
+      224.08548,
+      235.961432
+    ],
+    "total_wall_ms": 47273,
+    "mean_frame_ms": 39.39416666666666,
+    "fps": 25.38446893575614,
+    "window_p50_ms": [
+      35.91,
+      35.7,
+      35.64,
+      35.97
+    ],
+    "window_p95_ms": [
+      55.02,
+      53.68,
+      54.74,
+      53.57
+    ],
+    "window_p99_ms": [
+      59.25,
+      59.84,
+      62.19,
+      64.72
+    ],
+    "total_draws": 3307571,
+    "pipeline_wait_ms": 0.2,
+    "resource_creation_ms_in_selected_windows": [
+      33.2,
+      28.1,
+      21.1,
+      14.9
+    ],
+    "transfer_pool_cumulative_creates": 92,
+    "transfer_pool_cumulative_full_trims": 37,
+    "pool_counts_stable_during_selected_windows": true,
+    "inventory_then_B_and_scope_zoom": "owner confirmed working",
+    "Q_exit": "owner confirmed; return 10 and worker joined observed",
+    "controls_sent": false
+  },
+  "both_off_repeated_control": {
+    "same_exe_sha256": "585c4a85fe1b27e25f5594c2543551a15582718ab7561c982fc770e5f5398188",
+    "view_confirmed_utc": "2026-10-19T16:07:43.6898454Z",
+    "complete_windows": 4,
+    "raw_total_frames": 1200,
+    "raw_total_wall_ms": 53742,
+    "raw_mean_frame_ms": 44.785,
+    "window_wall_ms": [
+      12167,
+      11761,
+      11603,
+      18211
+    ],
+    "window_end_elapsed_s": [
+      139.931567,
+      151.692185,
+      163.294896,
+      181.505962
+    ],
+    "window_p50_ms": [
+      37.67,
+      35.74,
+      35.67,
+      37.44
+    ],
+    "window_p95_ms": [
+      54.55,
+      54.52,
+      54.07,
+      55.75
+    ],
+    "window_p99_ms": [
+      62.33,
+      59.33,
+      60.05,
+      63.26
+    ],
+    "hitch_ms": 6081,
+    "hitch_elapsed_s": 177.146559,
+    "owner_reported_hitch_cause": "Alt+Tab",
+    "raw_data_preserved": true,
+    "posthoc_excluded_window_1based": 4,
+    "clean_frames": 900,
+    "clean_wall_ms": 35531,
+    "clean_mean_frame_ms": 39.47888888888889,
+    "clean_fps": 25.329993526779433,
+    "stable_frame_observed_difference_ms": 0.0847222222222257,
+    "stable_frame_observed_reduction_percent": 0.21460133404633455,
+    "interpretation": "effectively tied with frame-only; scene and adaptive state are not perfectly identical",
+    "controls_sent": false
+  },
+  "final_interpretation": {
+    "all_four_authorized_plan_steps_executed": true,
+    "reproducible_botw_mean_gain_claimed": false,
+    "consistent_window_p99_gain_claimed": false,
+    "other_games_measured": false,
+    "amd_specific_gain_established": false,
+    "pooled_p99_reconstructed_or_window_p99_averaged": false,
+    "synthetic_reduction_is_not_botw_frame_reduction": true,
+    "cross_block_guest_register_preservation_implemented": false
+  }
+}

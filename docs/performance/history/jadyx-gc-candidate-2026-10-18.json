@@ -1,0 +1,246 @@
+{
+  "captured_at_utc": "2026-10-18T08:29:27.678501+00:00",
+  "status": "candidate-tested-two-botw-runs-oom-library-recovered",
+  "source": {
+    "repository": "https://github.com/JulianDr14/jadyx",
+    "base_commit": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+    "base_version": "0.2.93.14",
+    "candidate_revision": "seriesx-gc-budget-1",
+    "local_branch": "codex/gc-eviction-budget",
+    "own_source_changes": true,
+    "patch": "patches/jadyx/0001-texture-gc-budget-and-oom-context.patch",
+    "patch_sha256": "12d8d788fdaa6f980dab961970a4b52fa2be9c629053fcfefd743d6770f4fc52",
+    "patch_bytes": 7839,
+    "clean_baseline_index_forward_check": true,
+    "modified_source_reverse_check": true,
+    "inspiration": "ProsperoEden a26ba788222465ec7fb94dc813958fc749734e07 tools/prepare-vulkan-port.py GC visit/eviction distinction",
+    "changed_files": [
+      "src/video_core/texture_cache/gc_budget.h",
+      "src/video_core/texture_cache/texture_cache.h",
+      "src/video_core/renderer_d3d12/d3d12_staging_buffer_pool.cpp"
+    ]
+  },
+  "cpu_regression": {
+    "passed": true,
+    "compiler": "MSVC 14.44 /std:c++20 /O2 /W4 /DNDEBUG; assertions explicitly re-enabled in test",
+    "source": "tools/jadyx/tests/texture-gc-budget.cpp",
+    "source_sha256": "6773ba78b674872993629b4cec34306ec9acccf56d34ad763d46ec9f726e615e",
+    "production_components": [
+      "Common::LeastRecentlyUsedCache",
+      "VideoCommon::TextureGcBudget"
+    ],
+    "cases": [
+      "protected/pending LRU prefix: legacy zero evictions, candidate eight eligible evictions",
+      "removal during real LRU traversal",
+      "8192 scan cap",
+      "pass reset",
+      "legacy relaxation and zero budget"
+    ],
+    "exe_sha256": "2efda254beb37445f0a406ea569692626c490896a86e27fb9c935269f0652c6b",
+    "log_sha256": "08947794866fbc3a209edca39c406030305fe7e41114c1d33febb409a2332e51",
+    "result": "PASS: real LRU, protected/pending prefix, eight evictions, scan cap, pass reset, legacy",
+    "limits": "Tests algorithm bookkeeping with real LRU/helper, not full GPU GC, frame times or successful reclamation of 448 MiB."
+  },
+  "build": {
+    "completed": true,
+    "exit_code": 0,
+    "system": "WindowsStore/UWP x64",
+    "target": "jadyx",
+    "store_crt_environment_checked": true,
+    "pe_x64_verified": true,
+    "pe_appcontainer_verified": true,
+    "exe_bytes": 34514432,
+    "exe_sha256": "0ee1402862ed6d18c0651199d6e62a79b466f2645463abe5af8e80f1a01535bb",
+    "pdb_sha256": "6c8f16cd8282b7909bb120b3831a8c89c163454e5e58dfcad238ca8342396d62",
+    "source_patch_matches_current_checkout": true,
+    "compile_log_sha256": "0395e163de9d5c270422297538bcc32dae7043af102cd33013f3a83a3172754c",
+    "full_ninja_invocation_exit_code": 1,
+    "full_ninja_exit_scope": "All 1525 preceding actions finished; final link was explicitly stopped after it remained stalled. This is not a claimed successful full Ninja invocation.",
+    "final_link": {
+      "exit_code": 0,
+      "scope": "Retried only the CMake final-link command emitted by the configured Ninja graph, with existing objects and unchanged source/link flags, a fresh Store CRT shell and generated EXE/PDB/import-library/CMake-scratch paths moved to SSD. Copied verified EXE/PDB back to the canonical build directory before packaging.",
+      "configured_command_sha256": "0dd8e00b8f40b2772e9ec5989d785945e39544351bbe5c7aaae7cd839867b60e",
+      "executed_command_with_ssd_output_paths_sha256": "fe73b8e7d2e671886287cff57fdf3579218ce02f9b3d8dadd8a084caa5cc1f6a",
+      "response_file_sha256": "e9e168d205a2e0eeb7c5e88da232dcae11124969b13a67a01d8d2625671e2091",
+      "stdout_sha256": "b63cbf52e69c26c330bf3a73e4cb1b6da01a82b91cb72bdbd7ca74c9efd3ab17",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preceding_hdd_output_link_retry_stopped_after_stall": true,
+      "stalled_previous_outputs_preserved_outside_git": true
+    },
+    "earlier_attempts": {
+      "build.log": "OpenSSL asks to regenerate makefile; exit 1.",
+      "build-retry.log": "Same OpenSSL clock/metadata condition; exit 1.",
+      "build-retry2.log": "Own renderer modules compiled; interrupted before final link, no success claimed.",
+      "build-resume.log": "OpenSSL makefile regeneration recurred; exit 1."
+    },
+    "clock_workaround": "Normalized timestamps of three generated OpenSSL files in dependency order; SHA256 before/after identical. Source bytes, source input timestamps and global clock unchanged. CMAKE_SUPPRESS_REGENERATION requires manual configuration when inputs change.",
+    "generated_openssl_clock_audit_sha256": "d20567cb33b6f5109495fcb04feedae252a3abbc95b8b647769c8d323b9a6b70"
+  },
+  "package": {
+    "name": "jadyx.appx",
+    "bytes": 15026979,
+    "sha256": "ffd1b68254c21d80eccd6270aa7c4b6fa2bb6fa4f79502d4f0a3fc01df651c47",
+    "version": "0.2.93.14",
+    "architecture": "x64",
+    "zip_crc_verified": true,
+    "packaged_exe_matches_build": true,
+    "packaged_mesa_matches_build": true,
+    "exe_sha256": "0ee1402862ed6d18c0651199d6e62a79b466f2645463abe5af8e80f1a01535bb",
+    "mesa_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+    "boot_cfg": [
+      "memory_limit_mib=5120",
+      "library=1",
+      "play=1"
+    ],
+    "no_games_keys_or_firmware_bundled": true,
+    "package_members": 29,
+    "layout_payload_matches_appx": true,
+    "layout_members_verified": 25,
+    "vclibs_dependency_present": true,
+    "completed": true
+  },
+  "runtime": {
+    "candidate_registered": true,
+    "candidate_gameplay_tested": true,
+    "xbox_tested": false,
+    "current_ssd_runtime": "Own source candidate; original .14 runtime preserved in another SSD directory.",
+    "candidate_revision": "seriesx-gc-budget-1",
+    "diagnostic_manifest_version": "1.0.0.2",
+    "runtime_layout": "[local path or personal identifier omitted for public archive]",
+    "previous_control_runtime_preserved": "[local path or personal identifier omitted for public archive]",
+    "local_state_preserved": true,
+    "local_state_files_verified": 45,
+    "private_state_backup_verified_outside_git": true,
+    "payload_files_verified_before_manifest_change": 25,
+    "activation_requested": true,
+    "activation_pid": 19260,
+    "library_window_observed": true,
+    "library_observation": "Computer Use screenshot: original library visible, diagnostic 1.0.0.2, Mario Kart selected; BOTW 1.9.0 second card with 16 minutes. No assistant gameplay input.",
+    "candidate_gameplay_started_by_owner": true,
+    "gameplay_status": "Two owner-started BOTW runs ended with GPU allocation OOM and return 15 to library. Owner reports Sheikah Slate opened, then B to return closed the game. The interaction is not independently timestamp-matched to either run.",
+    "assistant_sent_gameplay_inputs": false,
+    "controlled_fps_comparison": false,
+    "sheikah_slate_owner_report": {
+      "opened": true,
+      "closure_trigger_reported": "B to return from slate",
+      "interaction_timestamp_verified": false,
+      "visual_correctness_independently_verified": false
+    },
+    "private_log_snapshot": {
+      "files": [
+        {
+          "name": "jadyx_log.txt",
+          "bytes": 2637227,
+          "sha256": "e2c48d7c00c8fac5fa35a9ca57bfd5f665e71eca90b56506ca3f1c751041fcd2"
+        },
+        {
+          "name": "jadyx_diag.txt",
+          "bytes": 133219,
+          "sha256": "908dddcc70ee11ece2da2d10553003c4711efb8d25436e9e154f90b525057d91"
+        }
+      ],
+      "snapshot_captured_at_utc": "2026-10-18T08:25:42.068143+00:00",
+      "raw_logs_committed": false
+    },
+    "trials": [
+      {
+        "run": 1,
+        "system_run_at_ms": 136578,
+        "failure_log_time_seconds": 227.962972,
+        "failure": "GPU texture resource allocation E_OUTOFMEMORY after reclaim/retry",
+        "requested_texture_bytes": 89784320,
+        "requested_texture_mib": 85.625,
+        "failure_diag_at_ms": 228297,
+        "reported_commit_mib": 5112,
+        "reported_headroom_mib": 7,
+        "return_at_ms": 230485,
+        "return_code": 15,
+        "library_at_ms": 230531,
+        "library_commit_mib": 255,
+        "controlled_fps_comparison": false
+      },
+      {
+        "run": 2,
+        "system_run_at_ms": 248531,
+        "failure_log_time_seconds": 337.70372,
+        "failure": "Converted texture upload staging E_OUTOFMEMORY after reclaim/retry",
+        "request_bytes": 464169532,
+        "reserved_bytes": 469762048,
+        "resource_allocation_bytes": 469762048,
+        "resource_alignment": 65536,
+        "usage": "upload",
+        "deferred": false,
+        "initial_and_retry_memory": {
+          "app_used_bytes": 5042647040,
+          "app_limit_bytes": 5368709120,
+          "app_free_bytes": 326062080,
+          "gpu_used_bytes": 1681096704,
+          "gpu_budget_bytes": 7725735936,
+          "recording_tick": 4358,
+          "completed_tick": 4357
+        },
+        "texture": {
+          "width": 1024,
+          "height": 1024,
+          "depth": 1,
+          "type": 1,
+          "type_name": "e2D",
+          "format": 64,
+          "format_name": "BC1_RGBA_SRGB",
+          "levels": 11,
+          "layers": 83,
+          "guest_bytes": 58474496,
+          "unswizzled_bytes": 58022312,
+          "converted_bytes": 464169532,
+          "flags_hex": "0x1012",
+          "flags": [
+            "Converted",
+            "Tracked",
+            "CostlyLoad"
+          ]
+        },
+        "return_at_ms": 340094,
+        "return_code": 15,
+        "library_at_ms": 340141,
+        "library_commit_mib": 341,
+        "controlled_fps_comparison": false
+      }
+    ]
+  },
+  "configuration": {
+    "memory_limit_mib": 5120,
+    "library": true,
+    "play": true,
+    "fps_mod": false,
+    "experimental_performance_flags": false,
+    "ui_changes": false
+  },
+  "limits": [
+    "No FPS gain measured.",
+    "Candidate did not resolve BOTW stability: both owner-started runs ended in GPU allocation OOM. Slate opened per owner, but B-to-return closure remains.",
+    "Partial texture uploads, shared machine-code JIT, descriptor redesign and targeted LTO are research proposals, not included changes.",
+    "Windows UWP result is not a Series X runtime measurement."
+  ],
+  "private_material_committed": false,
+  "signature": {
+    "accepted": true,
+    "native_hresult": "0x800B0109",
+    "signature_status": "UntrustedRoot",
+    "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+    "signer_matches_expected": true,
+    "signer_time_valid": true,
+    "chain_error_status": "0x00000020",
+    "integrity_verified": true,
+    "integrity_verification": "WinVerifyTrust/WINTRUST_ACTION_GENERIC_VERIFY_V2",
+    "system_trusted": false,
+    "revocation_checked": false,
+    "trust_policy": "PinnedSignerAllowUntrustedRoot"
+  },
+  "source_analysis_after_trial": {
+    "format_mapping": "PixelFormat::BC1_RGBA_SRGB is ordinal 64 in PIXEL_FORMAT_LIST at pinned base commit. Flags decode from ImageFlagBits.",
+    "conversion_cause": "D3D12 decodes BC 2D arrays by default to avoid documented Xbox array texture sampling/copy disagreement. BC1 sRGB becomes RGBA8 sRGB, approximately 8x expansion.",
+    "existing_override": "bc_arrays=native exists but was not enabled: using it on PC would bypass the Xbox workaround and is not a validated console fix.",
+    "next_target": "Avoid whole expanded-array staging, preserving correct decoded representation and original compressed blocks. Chunking without submission/reuse bounds can still accumulate the same staging bytes.",
+    "separate_failure": "Run 1 failed allocating final GPU texture; removing expanded staging alone does not prove that failure is fixed."
+  }
+}

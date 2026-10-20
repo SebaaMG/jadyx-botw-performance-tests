@@ -1,0 +1,306 @@
+{
+  "captured_at_utc": "2026-10-18T11:20:57.611398+00:00",
+  "status": "small-observed-difference-single-ab-not-large-gameplay-gain-or-xbox-result",
+  "executable_sha256": "04a2ca78d711435603a2e9072b97ca27e1e1b292f8a6a516a622fe6132cf1c2c",
+  "source_patches": "0001 through 0006; same binary, three boot flags toggled",
+  "game": "BOTW 1.9.0, no FPS mod",
+  "windows_job_mib": 8192,
+  "logical_cache_budget_mib": 5120,
+  "instrumentation": {
+    "gpu_profile": false,
+    "cpu_profile": false,
+    "sampling_profile": false,
+    "external_memory_sampler": true
+  },
+  "control": {
+    "variant": "control",
+    "captured_at_utc": "2026-10-18T11:15:02.795971+00:00",
+    "private_prefix_name": "control-fixed-view-20261018T111502Z",
+    "prefix_hashes": {
+      "jadyx_log.txt": {
+        "bytes": 1493850,
+        "sha256": "e88f812afc71a44b91be27d5e5879ab86b5c712ec767d2bcdd05fc45305bfd35"
+      },
+      "jadyx_diag.txt": {
+        "bytes": 434996,
+        "sha256": "62b4a9c6aab95f43425c5533524d2d3c59bacdd3b8fcb0b79330ea804e445481"
+      }
+    },
+    "mark_utc": "2026-10-18T11:12:57.0541187Z",
+    "last_log_seconds_at_owner_ack": 131.366626,
+    "frames": 1200,
+    "wall_ms": 60334.0,
+    "aggregate_fps": 19.8893,
+    "mean_ms": 50.2783,
+    "windows": [
+      {
+        "start_log_seconds": 146.463487,
+        "end_log_seconds": 161.109755,
+        "fps": 20.48,
+        "p50_ms": 46.82,
+        "p95_ms": 61.5,
+        "p99_ms": 66.27,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 14646.0,
+          "gpu_thread_idle_ms": 4422.3,
+          "fence_waits": 10,
+          "fence_wait_ms": 113.1,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 3040,
+          "resource_creation_ms": 1159.3,
+          "gpu_busy_ms": 4610.1,
+          "submits": 901,
+          "draws": 819238,
+          "dispatches": 5375
+        }
+      },
+      {
+        "start_log_seconds": 161.109755,
+        "end_log_seconds": 176.270576,
+        "fps": 19.79,
+        "p50_ms": 47.44,
+        "p95_ms": 63.23,
+        "p99_ms": 72.06,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 15161.0,
+          "gpu_thread_idle_ms": 4975.6,
+          "fence_waits": 11,
+          "fence_wait_ms": 154.0,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 3054,
+          "resource_creation_ms": 1151.1,
+          "gpu_busy_ms": 5192.9,
+          "submits": 901,
+          "draws": 820018,
+          "dispatches": 5405
+        }
+      },
+      {
+        "start_log_seconds": 176.270576,
+        "end_log_seconds": 191.563315,
+        "fps": 19.62,
+        "p50_ms": 48.52,
+        "p95_ms": 62.95,
+        "p99_ms": 73.29,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 15293.0,
+          "gpu_thread_idle_ms": 5027.5,
+          "fence_waits": 10,
+          "fence_wait_ms": 153.3,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 3048,
+          "resource_creation_ms": 1129.3,
+          "gpu_busy_ms": 5244.7,
+          "submits": 901,
+          "draws": 820040,
+          "dispatches": 5415
+        }
+      },
+      {
+        "start_log_seconds": 191.563315,
+        "end_log_seconds": 206.797552,
+        "fps": 19.69,
+        "p50_ms": 47.81,
+        "p95_ms": 62.96,
+        "p99_ms": 71.53,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 15234.0,
+          "gpu_thread_idle_ms": 5038.4,
+          "fence_waits": 10,
+          "fence_wait_ms": 137.9,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 3039,
+          "resource_creation_ms": 1112.9,
+          "gpu_busy_ms": 5254.7,
+          "submits": 901,
+          "draws": 819949,
+          "dispatches": 5424
+        }
+      }
+    ],
+    "scene": "Owner confirms the same save and fixed camera; no programmatic input or screenshot comparison. Time/weather/background host load not controlled.",
+    "percentile_scope": "Per-window percentiles only, not pooled; rounded workload wall times used for aggregate.",
+    "workload_summary": {
+      "draws_per_frame": 2732.704167,
+      "gpu_busy_ms_per_frame": 16.918667,
+      "gpu_thread_idle_ms_per_frame": 16.219833,
+      "resource_creation_ms_per_frame": 3.793833,
+      "resources_created_per_frame": 10.150833,
+      "pipeline_stall_ms_per_frame": 0.0,
+      "pipeline_stalls_per_frame": 0.0,
+      "pipeline_stalls_total": 0
+    },
+    "owner_closed_with_Q": true
+  },
+  "candidate": {
+    "variant": "on",
+    "captured_at_utc": "2026-10-18T11:18:35.843235+00:00",
+    "private_prefix_name": "on-fixed-view-20261018T111835Z",
+    "prefix_hashes": {
+      "jadyx_log.txt": {
+        "bytes": 1417673,
+        "sha256": "6dbf285cdb53fc711a9e232d5d9fb49556387a3b15d4ce39b3eeb604841f768f"
+      },
+      "jadyx_diag.txt": {
+        "bytes": 456588,
+        "sha256": "c66d25bea332a5938eebccda270eee7f404817334ce7d7b3645dc7c5afff3464"
+      }
+    },
+    "mark_utc": "2026-10-18T11:17:10.3677994Z",
+    "last_log_seconds_at_owner_ack": 101.889928,
+    "frames": 1200,
+    "wall_ms": 58337.0,
+    "aggregate_fps": 20.5701,
+    "mean_ms": 48.6142,
+    "windows": [
+      {
+        "start_log_seconds": 102.495668,
+        "end_log_seconds": 116.731276,
+        "fps": 21.07,
+        "p50_ms": 45.1,
+        "p95_ms": 60.63,
+        "p99_ms": 79.27,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 14236.0,
+          "gpu_thread_idle_ms": 4334.8,
+          "fence_waits": 11,
+          "fence_wait_ms": 143.5,
+          "pipeline_stalls": 1,
+          "pipeline_stall_ms": 0.3,
+          "resources_created": 3045,
+          "resource_creation_ms": 1210.3,
+          "gpu_busy_ms": 4614.0,
+          "submits": 901,
+          "draws": 808347,
+          "dispatches": 4935
+        }
+      },
+      {
+        "start_log_seconds": 116.731276,
+        "end_log_seconds": 131.42624,
+        "fps": 20.42,
+        "p50_ms": 46.42,
+        "p95_ms": 60.59,
+        "p99_ms": 64.59,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 14695.0,
+          "gpu_thread_idle_ms": 4835.7,
+          "fence_waits": 10,
+          "fence_wait_ms": 151.6,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 3041,
+          "resource_creation_ms": 1219.8,
+          "gpu_busy_ms": 5115.6,
+          "submits": 901,
+          "draws": 809114,
+          "dispatches": 5229
+        }
+      },
+      {
+        "start_log_seconds": 131.42624,
+        "end_log_seconds": 146.266038,
+        "fps": 20.22,
+        "p50_ms": 46.97,
+        "p95_ms": 61.47,
+        "p99_ms": 69.11,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 14840.0,
+          "gpu_thread_idle_ms": 4952.3,
+          "fence_waits": 10,
+          "fence_wait_ms": 137.6,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 3041,
+          "resource_creation_ms": 1232.8,
+          "gpu_busy_ms": 5203.7,
+          "submits": 901,
+          "draws": 809949,
+          "dispatches": 5355
+        }
+      },
+      {
+        "start_log_seconds": 146.266038,
+        "end_log_seconds": 160.832188,
+        "fps": 20.6,
+        "p50_ms": 45.89,
+        "p95_ms": 60.47,
+        "p99_ms": 69.25,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 14566.0,
+          "gpu_thread_idle_ms": 4888.2,
+          "fence_waits": 11,
+          "fence_wait_ms": 131.0,
+          "pipeline_stalls": 0,
+          "pipeline_stall_ms": 0.0,
+          "resources_created": 3032,
+          "resource_creation_ms": 1225.6,
+          "gpu_busy_ms": 5120.4,
+          "submits": 901,
+          "draws": 809768,
+          "dispatches": 5428
+        }
+      }
+    ],
+    "scene": "Owner confirms the same save and fixed camera; no programmatic input or screenshot comparison. Time/weather/background host load not controlled.",
+    "percentile_scope": "Per-window percentiles only, not pooled; rounded workload wall times used for aggregate.",
+    "workload_summary": {
+      "draws_per_frame": 2697.648333,
+      "gpu_busy_ms_per_frame": 16.711417,
+      "gpu_thread_idle_ms_per_frame": 15.8425,
+      "resource_creation_ms_per_frame": 4.07375,
+      "resources_created_per_frame": 10.1325,
+      "pipeline_stall_ms_per_frame": 0.00025,
+      "pipeline_stalls_per_frame": 0.000833,
+      "pipeline_stalls_total": 1
+    },
+    "owner_closed_with_Q": true
+  },
+  "difference": {
+    "fps_percent": 3.4229,
+    "mean_frame_ms_percent": -3.3098,
+    "mean_frame_ms_saved": 1.6641
+  },
+  "scope": [
+    "One manual AB pair; not an ABBA or randomized causal estimate.",
+    "Owner confirms same save and fixed camera, without independent screenshot matching.",
+    "Only fully completed 300-present windows starting after the acknowledgement marker; first four eligible windows each.",
+    "Caches retained; timed windows exclude load/prewarm, but time/weather/background host activity not controlled.",
+    "Per-window percentiles not pooled; aggregate FPS uses summed rounded workload wall times.",
+    "Scopes such as GPU busy, GPU-thread idle and resource creation overlap; not exclusive frame breakdown.",
+    "The author requested a substantial performance change; this small observed difference does not demonstrate that goal.",
+    "Both processes closed by owner with Q after capture; no assistant game controls or forced termination."
+  ],
+  "followup_profile": {
+    "diagnostic_package_version": "1.0.0.9",
+    "executable_sha256": "04a2ca78d711435603a2e9072b97ca27e1e1b292f8a6a516a622fe6132cf1c2c",
+    "pc_hard_cap_mib": 8192,
+    "logical_cache_budget_mib": 5120,
+    "local_state_files_hash_preserved": 54,
+    "sampling_hz": 125,
+    "detailed_gpu_profile": true,
+    "detailed_cpu_profile": true,
+    "activation_requested": true,
+    "scope": "Separate diagnostics only; do not compare its instrumented FPS directly with this AB pair."
+  }
+}

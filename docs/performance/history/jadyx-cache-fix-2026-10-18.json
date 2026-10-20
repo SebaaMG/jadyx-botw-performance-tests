@@ -1,0 +1,303 @@
+{
+  "recorded_at_utc": "2026-10-18T22:08:41.544328+00:00",
+  "status": "candidate-gameplay-tested-partial-recovery-still-slower-than-prior-control-owner-closed-with-Q",
+  "diagnostic_version": "1.0.0.11",
+  "baseline_commit": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+  "baseline_version": "0.2.93.14-with-selected-upstream-graphics-fixes-not-full-0.2.99.4",
+  "upstream_latest_examined": "aaaf6073fbeb8e7e066091c9b71f466155a476a5",
+  "source_tree": "638fa2659a3b6760222ab6c919b2ff3c7fb4e66b",
+  "clean_index_sequence": "pass",
+  "patches": [
+    {
+      "file": "0001-texture-gc-budget-and-oom-context.patch",
+      "sha256": "12d8d788fdaa6f980dab961970a4b52fa2be9c629053fcfefd743d6770f4fc52"
+    },
+    {
+      "file": "0002-bc1-array-gpu-upload.patch",
+      "sha256": "b33bba79c94a122255e751776a834dcf1be7ff8c568d19de01564ac1c150534c"
+    },
+    {
+      "file": "0003-windows-memory-accounting.patch",
+      "sha256": "4d0433deaf2c0cab8ed81d889c22c5c6f8380e0fc381c46793cecd33eb1174d7"
+    },
+    {
+      "file": "0004-separate-pc-cache-budget-and-process-cap.patch",
+      "sha256": "2cfa02909118038f268e9f8f6532e74e9bac79f3a039099feeb7a436d961ccb6"
+    },
+    {
+      "file": "0005-split-and-reuse-image-descriptor-tables.patch",
+      "sha256": "e177894b5de784a2f83860e50c265697af30f36595e24a0fbc1f6eb35d635a50"
+    },
+    {
+      "file": "0006-jit-page-reuse-and-fp-compare.patch",
+      "sha256": "dacd9cbb9a163bc8a3ce52ddd665be72fba07a5e831a1ab489361c404ce7b092"
+    },
+    {
+      "file": "0007-persistent-resources-and-buffer-heaps.patch",
+      "sha256": "46224c00180c2f06c57f7788a85bbcd775f100ea1eafa838cc4ed5ee8d5f881f"
+    },
+    {
+      "file": "0008-persistent-cache-lifetimes.patch",
+      "sha256": "29b77ec27ae5edd5da804ce85e8e8d64802174171a7a00d43bd1fbd89d84350b"
+    },
+    {
+      "file": "0009-upstream-graphics-copy-fixes.patch",
+      "sha256": "e9d2b15268cbdfbb616619b22c8fb9ffd1d757f0cbbb675dbc9ce434584f0ff8"
+    }
+  ],
+  "selected_upstream_commits": [
+    "e6700db3017c5104474df5a022fdc52e70acfddf",
+    "77a1a6609e1208c0a93bb23fc532ebed85b1d024",
+    "83a7cc2d1317fddd7ac2f0935ab238e418f2180b",
+    "460e748acdf1546cf2e364cb6783879d915844eb",
+    "0fd5c456d0d330cf9475d4efb36caf306e75bf76"
+  ],
+  "ordinary_uwp_build": "pass",
+  "build_log_sha256": "2e1f02d7daa578c489e94f8966b5dbd4de13afe66593b8bacc55867840946843",
+  "production_gpu_results": [
+    {
+      "kind": "production_descriptors",
+      "async": false,
+      "hits": 377,
+      "misses": 71,
+      "evictions": 135,
+      "waits": 1
+    },
+    {
+      "kind": "production_descriptors",
+      "async": true,
+      "hits": 377,
+      "misses": 71,
+      "evictions": 135,
+      "waits": 1
+    },
+    {
+      "kind": "production_buffers_uploads",
+      "async": false,
+      "zero_bytes": 65536,
+      "retired_range_reused": true,
+      "index_map_mutation": true
+    },
+    {
+      "kind": "production_buffers_uploads",
+      "async": true,
+      "zero_bytes": 65536,
+      "retired_range_reused": true,
+      "index_map_mutation": true
+    },
+    {
+      "kind": "hardware_sampler_identity",
+      "distinct_objects": true,
+      "guest_metadata_preserved": true,
+      "different_filter_separated": true
+    },
+    {
+      "kind": "view_descriptor_identity",
+      "moves_preserved": true,
+      "unrelated_allocations_reused": 32,
+      "replacement_invalidated": true
+    },
+    {
+      "kind": "persistent_shader_abi",
+      "control_and_candidate_components": 1024,
+      "modes": 2,
+      "debug": "clean",
+      "shader_model": "6.4"
+    }
+  ],
+  "original_mesa_v3_results": [
+    {
+      "kind": "original_mesa_v3",
+      "legacy_results": "pass"
+    }
+  ],
+  "production_gpu_stdout_sha256": "e64a7450626e37e105fae94d4f35a3055c00c961407ba506f9a11517addde9d8",
+  "production_gpu_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "upstream_copy_gate": {
+    "result": "pass",
+    "debug": "clean",
+    "cases": 11,
+    "stdout_sha256": "a3fae60358921fd61ebdcbfb4e152dd9222d25809507875701ad735a08f33745",
+    "stderr_sha256": "289572f5c767df8316496c61604bb41d4f91db2256e5cc4b0cf22e8ee9d6c029"
+  },
+  "package": {
+    "zip_crc": "pass",
+    "block_hashes": "pass",
+    "layout_payload": "pass",
+    "files": 25,
+    "blocks": 725,
+    "canonical_memory_mib": 5120,
+    "hashes": {
+      "jadyx.appx": "34110ac9b4e4f6090c156b39520b01436b14899fb32f97e9391210e13eda467b",
+      "jadyx.exe": "15b3b7015d84183ad71ca2efd0295eee4be8fb824062a716b2bdab07b854e040",
+      "jadyx.pdb": "8dbf7c84da39acdf6c3191e3b83c3989c404def6b278278c283d274d9c62c83a",
+      "spirv_to_dxil.dll": "71b99d96379f27010550642218f86497859736d9bf1c3a4493146a1b7a4353a3"
+    }
+  },
+  "signature": {
+    "accepted": true,
+    "native_hresult": "0x800B0109",
+    "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+    "signer_matches_expected": true,
+    "chain_error_status": "0x00000020",
+    "integrity_verified": true,
+    "trust_policy": "PinnedSignerAllowUntrustedRoot"
+  },
+  "runtime": {
+    "registered": true,
+    "diagnostic_version": "1.0.0.11",
+    "local_state_files_verified": 55,
+    "payload_files_verified": 25,
+    "activation_requested": true,
+    "process_id": 7844,
+    "activated_at_utc": "2026-10-18T22:07:13.6864785Z",
+    "pc_hard_cap_mib": 8192,
+    "logical_cache_budget_mib": 5120,
+    "persistent_resources": true
+  },
+  "qualification": [
+    "Tests use production UWP libraries on the Windows PC; not Xbox runtime validation.",
+    "1200-frame fixed-view sample: 17.7143 FPS /56.4517 ms, versus earlier .10 15.6112/64.0567 and .8 20.5701/48.6142. Separate sessions do not establish causality; no Xbox result.",
+    "Known view identities preserve cache entries across unrelated allocations; unknown callers retain epoch fallback.",
+    "Sampler reset instrumentation records reasons; sampler exhaustion was not established as the cause of the old regression.",
+    "Root ordering follows vendor/API guidance but actual Xbox spilling or speedup has not been measured.",
+    "Coherent write-tracked uniform reuse, checked A64 fastmem, shared JIT and new draw coalescing are not implemented.",
+    "Canonical Xbox memory cap remains 5120 MiB; diagnostic Windows hard cap 8192 is not an Xbox capability."
+  ],
+  "private_artifacts_directory": "verification/persistent-cache-fix",
+  "research": "docs/JADYX-INVESTIGACION-FPS.md",
+  "gameplay": {
+    "private_prefix_name": "fixed-view-20261018T221044Z",
+    "prefixes": {
+      "jadyx_log.txt": {
+        "bytes": 1022062,
+        "sha256": "c293ba10bebd65e054dcb7527482cda9d0391ecc240a7123a139c2e114d62eb4"
+      },
+      "jadyx_diag.txt": {
+        "bytes": 561121,
+        "sha256": "269c2f7ab57ba766bedb028693e019cde845166e345ddc8c0b3a7275d04c6aa3"
+      }
+    },
+    "mark": {
+      "utc": "2026-10-18T22:09:16.8217995Z",
+      "process_started_utc": "2026-10-18T22:07:13.4387571Z",
+      "pid": 7844,
+      "owner_confirmed_same_view": true,
+      "assistant_controls_sent": false
+    },
+    "log_time_selection_lower_bound": 124.383042,
+    "selection": "First four complete 300-present windows starting after conservative process-elapsed acknowledgement bound.",
+    "frames": 1200,
+    "wall_ms": 67742.0,
+    "aggregate_fps": 17.714268843553484,
+    "mean_ms": 56.45166666666667,
+    "windows": [
+      {
+        "start_log_seconds": 128.544501,
+        "end_log_seconds": 145.503349,
+        "fps": 17.69,
+        "p50_ms": 51.96,
+        "p95_ms": 75.67,
+        "p99_ms": 82.33,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 16959.0,
+          "gpu_thread_idle_ms": 4640.3,
+          "fence_waits": 280,
+          "fence_wait_ms": 1270.6,
+          "pipeline_stalls": 11,
+          "pipeline_stall_ms": 2.2,
+          "resources_created": 4034,
+          "resource_creation_ms": 1479.2,
+          "gpu_busy_ms": 5585.5,
+          "submits": 1120,
+          "draws": 831736,
+          "dispatches": 5371
+        }
+      },
+      {
+        "start_log_seconds": 145.503349,
+        "end_log_seconds": 163.762655,
+        "fps": 16.43,
+        "p50_ms": 61.76,
+        "p95_ms": 78.28,
+        "p99_ms": 85.36,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 18259.0,
+          "gpu_thread_idle_ms": 5875.5,
+          "fence_waits": 246,
+          "fence_wait_ms": 1195.5,
+          "pipeline_stalls": 3,
+          "pipeline_stall_ms": 1.0,
+          "resources_created": 3887,
+          "resource_creation_ms": 1607.3,
+          "gpu_busy_ms": 7021.3,
+          "submits": 1098,
+          "draws": 832019,
+          "dispatches": 5684
+        }
+      },
+      {
+        "start_log_seconds": 163.762655,
+        "end_log_seconds": 180.48225,
+        "fps": 17.94,
+        "p50_ms": 54.46,
+        "p95_ms": 69.52,
+        "p99_ms": 77.22,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 16720.0,
+          "gpu_thread_idle_ms": 4987.1,
+          "fence_waits": 223,
+          "fence_wait_ms": 844.5,
+          "pipeline_stalls": 13,
+          "pipeline_stall_ms": 2.4,
+          "resources_created": 3859,
+          "resource_creation_ms": 1401.3,
+          "gpu_busy_ms": 5778.4,
+          "submits": 1084,
+          "draws": 831776,
+          "dispatches": 5715
+        }
+      },
+      {
+        "start_log_seconds": 180.48225,
+        "end_log_seconds": 196.286584,
+        "fps": 18.98,
+        "p50_ms": 49.93,
+        "p95_ms": 67.46,
+        "p99_ms": 71.68,
+        "intervals": 300,
+        "workload": {
+          "frames": 300,
+          "wall_ms": 15804.0,
+          "gpu_thread_idle_ms": 4337.5,
+          "fence_waits": 223,
+          "fence_wait_ms": 687.8,
+          "pipeline_stalls": 6,
+          "pipeline_stall_ms": 1.3,
+          "resources_created": 3821,
+          "resource_creation_ms": 1372.1,
+          "gpu_busy_ms": 4990.1,
+          "submits": 1084,
+          "draws": 831525,
+          "dispatches": 5437
+        }
+      }
+    ],
+    "fallback_translation_count_in_prefix": 0,
+    "fallback_pso_count_in_prefix": 0,
+    "render_error_count_in_prefix": 0,
+    "scope": "Single manual candidate run, same save/view confirmed, uncontrolled weather/time/host activity. Not a simultaneous control or Xbox result.",
+    "sampler_resets_in_prefix": 0,
+    "owner_inventory_B_passed": true,
+    "owner_scope_passed": true,
+    "owner_closed_with_Q": true,
+    "assistant_game_controls_sent": false,
+    "draws_per_frame": 2772.5466666666666
+  }
+}

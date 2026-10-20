@@ -1,0 +1,51 @@
+{
+  "format_reference_commit": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+  "profiles": [
+    {
+      "core": 0,
+      "records": 262144,
+      "at_capacity": true,
+      "records_with_gameplay_samples": 0,
+      "sha256": "aa5b45e5de989a9aeddfbd5ceff4b930bf0886fa7ebdc876b9ea398778a08265",
+      "header_and_payload_validated": true
+    },
+    {
+      "core": 1,
+      "records": 202673,
+      "at_capacity": false,
+      "records_with_gameplay_samples": 0,
+      "sha256": "719e936b6f4567ea4710547e9be19730c8d9688bb3d628879912d595cba8e349",
+      "header_and_payload_validated": true
+    },
+    {
+      "core": 2,
+      "records": 179133,
+      "at_capacity": false,
+      "records_with_gameplay_samples": 0,
+      "sha256": "190434730b917302d240e97a552683bb3a93d01dfefd882188b0860ccf6cd565",
+      "header_and_payload_validated": true
+    }
+  ],
+  "all_profile_records": {
+    "records_across_cores": 643950,
+    "distinct_descriptor_hash_length_triples": 345722,
+    "distinct_triples_in_multiple_cores": 175753,
+    "extra_cross_core_records": 298228,
+    "extra_cross_core_records_percent": 46.3123
+  },
+  "records_with_gameplay_samples": {
+    "records_across_cores": 0,
+    "distinct_descriptor_hash_length_triples": 0,
+    "distinct_triples_in_multiple_cores": 0,
+    "extra_cross_core_records": 0,
+    "extra_cross_core_records_percent": 0
+  },
+  "limits": [
+    "Accumulated prewarm profiles, not a live compilation trace or frame benchmark.",
+    "Matching requires descriptor, guest code hash and guest length, not only PC.",
+    "Capacity limits and prior profile merging/prewarming can bias overlap.",
+    "Records with samples were observed in gameplay on that core at least once; their sample values are not interpreted as execution time or frequency.",
+    "No host machine code sizes, RAM/FPS savings or runtime JIT safety inferred.",
+    "Output contains counts and file hashes only; input profiles stay outside Git."
+  ]
+}
