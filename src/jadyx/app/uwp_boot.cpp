@@ -120,6 +120,7 @@ namespace D3D12 {
 void SetReadbackReuse(bool enabled);
 void SetReadbackCoalescing(bool enabled);
 void SetGcReadbackBatching(bool enabled);
+void SetPartialSubmission(bool enabled);
 // renderer_d3d12.h; its includes need Mesa's headers, which only video_core sees.
 void SetTracedFrame(u32 frame, u32 count);
 void TraceNextFrames(u32 count);
@@ -2573,6 +2574,10 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                             config.persistent_resources = false;
                         } else if (line == "image_table_reuse=1") {
                             config.image_table_reuse = true;
+                        } else if (line == "partial_submit=0" || line == "partial_submit=1") {
+                            D3D12::SetPartialSubmission(line.back() == '1');
+                            WriteDiag(line.back() == '1' ? "boot.cfg: bounded partial submission on"
+                                                        : "boot.cfg: bounded partial submission off");
                         } else if (line == "readback_reuse=0") {
                             D3D12::SetReadbackReuse(false);
                         } else if (line == "readback_reuse=1") {

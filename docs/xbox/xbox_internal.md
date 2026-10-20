@@ -4,6 +4,28 @@ Cuaderno de trabajo del port: cómo compilar, en qué fase vamos y lo que hemos 
 Los docs "de verdad" son [`uwp_build.md`](uwp_build.md) (toolchain) y [`xbox_deploy.md`](xbox_deploy.md)
 (empaquetar y desplegar). Aquí va el resumen rápido y todo lo que no cabe en ellos.
 
+20 oct 2026, candidato privado SeriesX .28: partial_submit opt-in, presupuesto4ms,
+min128operaciones, relojcada64, max3cortes/frame y2ticksanterioresen vuelo.
+Solo al terminar operaciones realmente grabadas; restaura estado/queries con
+Flush existente. Política/48Python/UWPReleaseLTO-PGOUSE/GPUinline-async pasan;
+bytes yqueries exactos, debuglimpio, backlog y ejecución temprana comprobados.
+BOTW A/B mismoEXE1200frames porvariante:42,5808ms/23,4847FPS OFF frente a
+38,7833ms/25,7843FPS ON; ahorro3,7975ms, FPS+9,7916% enestaescena. ReadbackON,
+sinT ni perfiles enmediciónnormal. Fencewait2,0532->0,4424ms/frame ycolaidle
+14,5585->11,6778; GPUbusysimilar15,62/15,67, no sumar scopes como exclusivos.
+TsoloON posterior:66453eventos/120vsyncs,152partialsubmits, primeraentrega
+mediana4,287ms en51lotes>5ms y0tras98% (.27anterior:23,119ms y46/51tras98%).
+Usuario corrigió aviso: no hizoTcontrol; no inventar esa captura. Inventario/B
+ycatalejo/zoom pasanON; ambasQ/retorno0/procesossalidos. partial_submit1
+restaurado; resultado deunA/Bsecuencial, no30FPS ni mejorauniversal. Diseño y
+fuentes en [xbox_partial_submission.md](xbox_partial_submission.md). Un envío al
+worker CPU no equivale a ejecutar la lista enGPU; no confundir Dispatch y Flush.
+Guard de operación dedicado noexcept(false): omite unwind y ticks ya enviados.
+SCOPE_EXIT tiene destructor noexcept; meter ahí un nuevo Flush que lance cerraría
+el proceso antes del manejador GPU. Nuevos cortes se ejecutan fuera de ese guard.
+Arranque UWP usa declaraciones D3D12 adelantadas y WriteDiag de un solo argumento;
+ambos detalles corregidos tras el primer gate de compilación.
+
 20 oct 2026, diagnóstico privado SeriesX .27 sobre .26: FrameTrace opt-in por T,
 120vsyncs, todos los guest IDs, IPC original, lotes software y Flush/Submit nativo
 correlacionados; colas/frame/slot y fences observados sin cambiar sus decisiones.

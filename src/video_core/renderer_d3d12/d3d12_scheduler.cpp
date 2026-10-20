@@ -12,6 +12,7 @@
 #include "video_core/frame_trace.h"
 #include "video_core/perf_counters.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
+#include "video_core/renderer_d3d12/d3d12_partial_submit_scope.h"
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
@@ -38,6 +39,7 @@ HANDLE ThreadWaitEvent() {
 }
 
 std::atomic<bool> async_recording{false};
+std::atomic<bool> partial_submission{false};
 
 void StoreMax(std::atomic<u64>& target, u64 value) {
     u64 current = target.load(std::memory_order_relaxed);
@@ -53,7 +55,23 @@ void SetAsyncRecording(bool enabled) {
     async_recording.store(enabled, std::memory_order_relaxed);
 }
 
-Scheduler::Scheduler(Device& device_) : device{device_} {
+void SetPartialSubmission(bool enabled) {
+    partial_submission.store(enabled, std::memory_order_relaxed);
+}
+
+void PartialSubmitScope::Recorded() {
+    recorded_tick = scheduler.CurrentTick();
+}
+
+PartialSubmitScope::~PartialSubmitScope() noexcept(false) {
+    if (recorded_tick && std::uncaught_exceptions() == 0 &&
+        recorded_tick == scheduler.CurrentTick() && scheduler.SubmitWorkIfNeeded()) {
+        pending_draws = 0;
+    }
+}
+
+Scheduler::Scheduler(Device& device_)
+    : device{device_}, partial_submission_enabled{partial_submission.load(std::memory_order_relaxed)} {
     ID3D12Device* const dev = device.Get();
     ThrowIfFailed(dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)),
                   "CreateFence (scheduler)");
@@ -73,6 +91,10 @@ Scheduler::Scheduler(Device& device_) : device{device_} {
     stream.emplace(*recorder);
     CreateTimestamps();
     BeginTimestamp();
+    LOG_INFO(Render, "D3D12: partial submission {}, budget {} us, minimum {} operations, max {} per frame and {} lists in flight",
+             partial_submission_enabled ? "on" : "off", PartialSubmitPolicy::BudgetUs,
+             PartialSubmitPolicy::MinWork, PartialSubmitPolicy::MaxPerFrame,
+             PartialSubmitPolicy::MaxInFlight);
 }
 
 void Scheduler::CreateTimestamps() {
@@ -251,7 +273,37 @@ u64 Scheduler::Flush() {
     for (auto& callback : on_reset) {
         callback();
     }
+    partial_submit.Submitted();
     return signaled;
+}
+
+bool Scheduler::SubmitWorkIfNeeded() {
+    if (!partial_submission_enabled || !partial_submit.RecordWork()) return false;
+    ++submission_stats.clock_checks;
+    const auto now_us = static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+    if (!partial_submit.Due(now_us)) return false;
+    const u64 last_issued = CurrentTick() - 1;
+    const u64 completed = KnownGpuTick();
+    if (last_issued > completed && last_issued - completed >= PartialSubmitPolicy::MaxInFlight) {
+        ++submission_stats.backpressure_skips;
+        return false;
+    }
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuPartialSubmit,
+                               CurrentTick(), partial_submit.PendingWork());
+    Flush();
+    partial_submit.PartiallySubmitted();
+    ++submission_stats.partial_submits;
+    return true;
+}
+
+void Scheduler::BeginFrame() {
+    partial_submit.BeginFrame();
+    if (partial_submission_enabled && ++submission_frames % 300 == 0) {
+        LOG_INFO(Render, "D3D12 partial submits: {} submissions, {} clock checks, {} backlog deferrals (cumulative)",
+                 submission_stats.partial_submits, submission_stats.clock_checks,
+                 submission_stats.backpressure_skips);
+    }
 }
 
 void Scheduler::SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick, u32 capture, u64 work) {

@@ -22,6 +22,7 @@
 #include "video_core/perf_counters.h"
 #include "video_core/renderer_d3d12/d3d12_draw_metrics.h"
 #include "video_core/renderer_d3d12/d3d12_rasterizer.h"
+#include "video_core/renderer_d3d12/d3d12_partial_submit_scope.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
 
 namespace D3D12 {
@@ -122,6 +123,7 @@ void RasterizerD3D12::Draw(bool is_indexed, u32 instance_count) {
         return;
     }
     DrawMetrics::ScopedDrawTimer draw_timer;
+    PartialSubmitScope partial{scheduler, draw_counter};
     SCOPE_EXIT {
         FlushIfUploadHeavy();
         gpu.TickWork();
@@ -246,6 +248,7 @@ void RasterizerD3D12::Draw(bool is_indexed, u32 instance_count) {
         }
     }
     RecordDraw(*pipeline, bindings, *framebuffer, params, draw_state.topology);
+    partial.Recorded();
     hunt.Recorded();
     if (material_trace.Active() && trace_this_draw) {
         try {
@@ -304,6 +307,7 @@ void RasterizerD3D12::DispatchCompute() {
     ++draw_counter;
     HuntScope hunt{draw_hunt, Hunt::Kind::Dispatch};
     VideoCore::Perf::ScopedNsTimer dispatch_timer{VideoCore::Perf::Counter::DispatchNs};
+    PartialSubmitScope partial{scheduler, draw_counter};
     SCOPE_EXIT {
         FlushIfUploadHeavy();
         // As after a draw: a guest core waiting on a flush is not held up by a compute batch.
@@ -413,6 +417,7 @@ void RasterizerD3D12::DispatchCompute() {
     if (indirect_range) {
         cmd->ExecuteIndirect(layout.DispatchSignature(), 1, indirect_range->buffer,
                              indirect_range->offset, nullptr, 0);
+        partial.Recorded();
         hunt.Geometry(0, 1, 0); // the group count is on the GPU
         hunt.Recorded();
         if (!logged_indirect_dispatch) {
@@ -423,6 +428,7 @@ void RasterizerD3D12::DispatchCompute() {
         return;
     }
     cmd->Dispatch(dim[0], dim[1], dim[2]);
+    partial.Recorded();
     hunt.Geometry(dim[0] * dim[1] * dim[2], 1, 0);
     hunt.Recorded();
     if (!logged_first_dispatch) {
@@ -724,6 +730,7 @@ void RasterizerD3D12::FlushIfUploadHeavy() {
     scheduler.Flush();
 }
 void RasterizerD3D12::TickFrame() {
+    scheduler.BeginFrame();
     if (++draw_plan_frames % 300 == 0 && draw_plans.Enabled()) {
         const auto& stats = draw_plans.stats;
         LOG_INFO(Render, "D3D12 draw plans: attempts {}, unsupported {}, queries {}, hits {}, key misses {}, input misses {}, "

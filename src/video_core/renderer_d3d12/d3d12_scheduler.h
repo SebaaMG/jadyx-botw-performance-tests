@@ -19,6 +19,7 @@
 
 #include "video_core/renderer_d3d12/d3d12_command_stream.h"
 #include "video_core/renderer_d3d12/d3d12_device.h"
+#include "video_core/renderer_d3d12/d3d12_partial_submit.h"
 
 namespace D3D12 {
 
@@ -26,6 +27,7 @@ namespace D3D12 {
 /// (boot.cfg "async_record=1"), so the GPU thread only records them. Off: the GPU thread makes
 /// every call itself, as the renderer did before the recorder.
 void SetAsyncRecording(bool enabled);
+void SetPartialSubmission(bool enabled);
 
 /// Owns the direct command list and tracks GPU progress with monotonically increasing ticks, the
 /// same model as the Vulkan backend's scheduler: CurrentTick() is the value the list being recorded
@@ -68,6 +70,13 @@ public:
 
     /// Submits the recorded work; returns the tick it signals.
     u64 Flush();
+
+    bool SubmitWorkIfNeeded();
+    void BeginFrame();
+    struct SubmissionStatistics {
+        u64 partial_submits{}, clock_checks{}, backpressure_skips{};
+    };
+    SubmissionStatistics ReadSubmissionStatistics() const { return submission_stats; }
 
     [[nodiscard]] bool HasGpuTimestamps() const noexcept {
         return timestamp_data != nullptr;
@@ -228,6 +237,10 @@ private:
     std::atomic<u64> current_tick{1};
     std::atomic<u64> submitted_tick{0};
     mutable std::atomic<u64> known_gpu_tick{0};
+    const bool partial_submission_enabled;
+    PartialSubmitPolicy partial_submit;
+    SubmissionStatistics submission_stats;
+    u64 submission_frames{};
 };
 
 } // namespace D3D12

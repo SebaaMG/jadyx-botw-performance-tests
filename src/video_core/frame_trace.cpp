@@ -290,6 +290,7 @@ const char* Name(Event event) {
     case Event::GpuWorkBegin: return "gpu-work-begin";
     case Event::GpuWorkEnd: return "gpu-work-end";
     case Event::GpuFlushRecorded: return "gpu-flush-recorded";
+    case Event::GpuPartialSubmit: return "gpu-partial-submit";
     case Event::BufferDequeueBegin: return "buffer-dequeue-begin";
     case Event::BufferDequeueEnd: return "buffer-dequeue-end";
     case Event::BufferDequeued: return "buffer-dequeued";

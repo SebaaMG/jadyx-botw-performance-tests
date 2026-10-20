@@ -14,6 +14,7 @@
 #include "video_core/renderer_d3d12/d3d12_log.h"
 #include "video_core/renderer_d3d12/d3d12_rasterizer.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
+#include "video_core/renderer_d3d12/d3d12_partial_submit_scope.h"
 
 // Indirect draws: ExecuteIndirect records built on the GPU, or read on the CPU for the
 // topologies D3D12 cannot draw directly.
@@ -56,6 +57,7 @@ void RasterizerD3D12::DrawIndirect() {
         return;
     }
     DrawMetrics::ScopedDrawTimer draw_timer;
+    PartialSubmitScope partial{scheduler, draw_counter};
     SCOPE_EXIT {
         FlushIfUploadHeavy();
         gpu.TickWork();
@@ -160,6 +162,7 @@ void RasterizerD3D12::DrawIndirect() {
         cmd->ExecuteIndirect(signature, draw_count, range.buffer, range.offset,
                              params.include_count ? range.buffer : nullptr,
                              params.include_count ? count_offset : 0);
+        partial.Recorded();
     }
     hunt.Recorded();
     // The command signature wrote the runtime data constants: the next draw sets them again.
