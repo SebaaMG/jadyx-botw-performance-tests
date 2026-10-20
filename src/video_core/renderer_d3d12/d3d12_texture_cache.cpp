@@ -30,7 +30,27 @@ namespace D3D12 {
 
 using namespace TextureDetail;
 
-namespace { std::atomic_bool copy_plan_cache_enabled{}; }
+namespace {
+std::atomic_bool copy_plan_cache_enabled{};
+std::atomic_bool readback_coalescing_enabled{true};
+std::atomic_bool gc_readback_batching_enabled{true};
+}
+
+void SetReadbackCoalescing(bool enabled) {
+    readback_coalescing_enabled.store(enabled, std::memory_order_relaxed);
+}
+
+bool ReadbackCoalescingEnabled() {
+    return readback_coalescing_enabled.load(std::memory_order_relaxed);
+}
+
+void SetGcReadbackBatching(bool enabled) {
+    gc_readback_batching_enabled.store(enabled, std::memory_order_relaxed);
+}
+
+bool GcReadbackBatchingEnabled() {
+    return gc_readback_batching_enabled.load(std::memory_order_relaxed);
+}
 void SetCopyPlanCache(bool enabled) {
     copy_plan_cache_enabled.store(enabled, std::memory_order_relaxed);
 }
@@ -143,6 +163,8 @@ TextureCacheRuntime::~TextureCacheRuntime() {
     LOG_INFO(Render, "D3D12: GC readbacks queued {}, ready {}, stale {}, sync {}, pending {} KiB, peak {} KiB",
              gc_queued, gc_ready, gc_stale, gc_sync, gc_pending_bytes / 1024,
              gc_peak_pending_bytes / 1024);
+    LOG_INFO(Render, "SeriesX GC readback batches {}, images {}, synchronous waits {}",
+             gc_batches, gc_batch_images, gc_batch_waits);
 }
 
 FormatInfo TextureCacheRuntime::Format(PixelFormat format) const { return NativeFormat(format); }
@@ -161,7 +183,7 @@ StagingBufferRef TextureCacheRuntime::UploadStagingBuffer(size_t size, bool defe
     return staging.Request(size, MemoryUsage::Upload, deferred);
 }
 StagingBufferRef TextureCacheRuntime::DownloadStagingBuffer(size_t size, bool deferred) {
-    return staging.Request(size, MemoryUsage::Download, deferred);
+    return staging.Request(size, MemoryUsage::Download, deferred, ReadbackSource::Texture);
 }
 void TextureCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) { staging.FreeDeferred(ref); }
 void TextureCacheRuntime::ReleaseGcReadback(StagingBufferRef& map) {
@@ -178,8 +200,9 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
         VideoCore::FrameTrace::Event::TextureGcPrepare, image.gpu_addr};
     constexpr u64 PendingBudget = 8ULL * 1024 * 1024;
     constexpr u64 RecoveryHeadroom = 64ULL * 1024 * 1024;
-    const bool recover_now = pressure_snapshot.app_limit != 0 &&
-                             pressure_snapshot.AppFree() < RecoveryHeadroom;
+    const bool recover_now = GcReadbackBatchingEnabled()
+        ? CachePressureController::RequiresImmediateRecovery(pressure_snapshot)
+        : pressure_snapshot.app_limit != 0 && pressure_snapshot.AppFree() < RecoveryHeadroom;
     auto& pending = image.gc_readback;
     if (pending && (pending->modification_tick != image.modification_tick ||
                     pending->write_version != image.write_version ||
@@ -191,8 +214,10 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
     if (True(image.flags & VideoCommon::ImageFlagBits::CpuModified)) return false;
     if (pending) {
         if (!scheduler.IsFree(pending->tick)) {
-            if (!recover_now) return false;
+            if (!recover_now || gc_prefetching) return false;
             VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcSyncReason, 0, image.gpu_addr);
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcWaitRequest,
+                                       pending->map.capacity, pending->tick);
             {
                 const VideoCore::FrameTrace::ScopedSpan trace_wait{
                     VideoCore::FrameTrace::Event::TextureGcWait, image.gpu_addr};
@@ -227,13 +252,14 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
     const u64 size = image.unswizzled_size_bytes;
     // Large/unsupported transfers and real allocation emergencies preserve the original
     // recovery path. Bound pinned readback memory by the dedicated pool's actual power-of-two size.
-    if (recover_now || size > PendingBudget || !image.CanTransfer()) {
+    if (gc_prefetching && (size > PendingBudget || !image.CanTransfer())) return false;
+    if ((recover_now && !gc_prefetching) || size > PendingBudget || !image.CanTransfer()) {
         VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcSyncReason,
                                     recover_now ? 1 : size > PendingBudget ? 2 : 3, image.gpu_addr);
         {
             const VideoCore::FrameTrace::ScopedSpan trace_staging{
                 VideoCore::FrameTrace::Event::TextureGcStaging, image.gpu_addr};
-            map = DownloadStagingBuffer(size);
+            map = staging.Request(size, MemoryUsage::Download, false, ReadbackSource::TextureGc);
         }
         {
             const VideoCore::FrameTrace::ScopedSpan trace_copy{
@@ -243,6 +269,8 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
         {
             const VideoCore::FrameTrace::ScopedSpan trace_wait{
                 VideoCore::FrameTrace::Event::TextureGcWait, image.gpu_addr};
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcWaitRequest,
+                                       map.capacity, scheduler.CurrentTick());
             Finish();
         }
         ++gc_sync;
@@ -263,7 +291,13 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
     {
         const VideoCore::FrameTrace::ScopedSpan trace_staging{
             VideoCore::FrameTrace::Event::TextureGcStaging, image.gpu_addr};
-        readback->map = DownloadStagingBuffer(allocation_size, true);
+        readback->map = staging.Request(allocation_size, MemoryUsage::Download, true,
+                                        ReadbackSource::TextureGc);
+    }
+    if (readback->map.capacity > PendingBudget - gc_pending_bytes) {
+        staging.FreeDeferred(readback->map);
+        readback->map.buffer = nullptr;
+        return false;
     }
     gc_pending_bytes += readback->map.capacity;
     gc_peak_pending_bytes = std::max(gc_peak_pending_bytes, gc_pending_bytes);
@@ -286,6 +320,44 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
     ++gc_queued;
     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcReadback, 0, image.gpu_addr);
     return false;
+}
+
+void TextureCacheRuntime::PrefetchGcDownloads(std::span<Image*> images) {
+    if (!GcReadbackBatchingEnabled() || images.empty()) return;
+    const auto previous_queued = gc_queued;
+    u64 latest_tick{};
+    {
+        gc_prefetching = true;
+        SCOPE_EXIT { gc_prefetching = false; };
+        for (auto* image : images) {
+            if (image->gc_readback) {
+                latest_tick = std::max(latest_tick, image->gc_readback->tick);
+                continue;
+            }
+            const auto copies = FixSmallVectorADL(VideoCommon::FullDownloadCopies(image->info));
+            StagingBufferRef ignored{};
+            PrepareGcDownload(*image, copies, ignored);
+            if (image->gc_readback) latest_tick = std::max(latest_tick, image->gc_readback->tick);
+        }
+    }
+    if (gc_queued != previous_queued) {
+        ++gc_batches;
+        gc_batch_images += gc_queued - previous_queued;
+        VideoCore::Perf::Add(VideoCore::Perf::Counter::GcReadbackBatchImages, gc_queued - previous_queued);
+        VideoCore::Perf::Add(VideoCore::Perf::Counter::GcReadbackBatches, 1);
+    }
+    if (!latest_tick) return;
+    if (CachePressureController::RequiresImmediateRecovery(pressure_snapshot)) {
+        if (!scheduler.IsFree(latest_tick)) {
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcSyncReason, 4);
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcWaitRequest,
+                                       gc_pending_bytes, latest_tick);
+            scheduler.Wait(latest_tick);
+            ++gc_batch_waits;
+        }
+    } else if (gc_queued != previous_queued) {
+        scheduler.Flush();
+    }
 }
 
 void TextureCacheRuntime::CompleteGcDownload(Image& image) {
@@ -333,8 +405,11 @@ std::optional<VideoCommon::TextureGcPolicy> TextureCacheRuntime::GetTextureGcPol
                                     static_cast<u64>(pressure_level));
     }
     if (!pressure_snapshot.Known()) return std::nullopt;
-    return CachePressureController::Policy(pressure_level, second_pass,
-        CachePressureController::RequiresImmediateRecovery(pressure_snapshot));
+    const bool immediate = CachePressureController::RequiresImmediateRecovery(pressure_snapshot);
+    auto policy = CachePressureController::Policy(pressure_level, second_pass, immediate);
+    if (GcReadbackBatchingEnabled() && policy.aggressive && !immediate)
+        policy.max_downloads = 4;
+    return policy;
 }
 u64 TextureCacheRuntime::GetDeviceLocalMemory() const { return device.CacheMemoryBudget(); }
 u64 TextureCacheRuntime::GetDeviceMemoryUsage() const {

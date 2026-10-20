@@ -41,6 +41,11 @@ enum class Counter : size_t {
     TextureUploadBytes,
     TextureDownloads,
     TextureDownloadBytes,
+    TextureReadbackBulkCopies,
+    TextureReadbackRowCopies,
+    TextureReadbackRowsMerged,
+    GcReadbackBatches,
+    GcReadbackBatchImages,
     ResourcesCreated,   ///< committed resources created (images, staging, transfer buffers)
     ResourceCreateUs,
     StagingDedicated,      ///< staging buffers created outside the stream ring

@@ -390,6 +390,12 @@ void RendererD3D12::ReportPerfWindow(u32 frames, double total_ms) {
                  t.late_max_ns / 1e3, t.durations[0], t.durations[1], t.durations[2], t.durations[3]);
     }
     LOG_INFO(Render, "D3D12 frame chain: {}", DescribeFrameChain(delta));
+    LOG_INFO(Render, "SeriesX readback copies: bulk {}, row {}, rows merged {}; GC batches {}, images {}",
+             VideoCore::Perf::Get(delta, Counter::TextureReadbackBulkCopies),
+             VideoCore::Perf::Get(delta, Counter::TextureReadbackRowCopies),
+             VideoCore::Perf::Get(delta, Counter::TextureReadbackRowsMerged),
+             VideoCore::Perf::Get(delta, Counter::GcReadbackBatches),
+             VideoCore::Perf::Get(delta, Counter::GcReadbackBatchImages));
     LOG_INFO(Render,
              "D3D12 pipeline preparation: frontend {:.1f} ms, dependent waits {} / {:.1f} ms; "
              "host PSO requests {}, hits {}, shared in-flight {}, capacity bypasses {}, "

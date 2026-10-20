@@ -315,7 +315,6 @@ void RendererD3D12::Composite(std::span<const Tegra::FramebufferConfig> framebuf
 
 void RendererD3D12::Present(FrameLease&& frame) {
     present_manager.Present(std::move(frame));
-    staging_pool.TickFrame();
 }
 
 std::vector<u8> RendererD3D12::GetAppletCaptureBuffer() {

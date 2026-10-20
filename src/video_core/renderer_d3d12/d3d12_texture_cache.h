@@ -29,6 +29,11 @@
 
 namespace D3D12 {
 
+void SetReadbackCoalescing(bool enabled);
+bool ReadbackCoalescingEnabled();
+void SetGcReadbackBatching(bool enabled);
+bool GcReadbackBatchingEnabled();
+
 using Common::SlotVector;
 using VideoCommon::ImageId;
 using VideoCommon::NUM_RT;
@@ -102,6 +107,13 @@ public:
     /// downloads retain their synchronous path. The returned map is pinned until CompleteGcDownload.
     bool PrepareGcDownload(Image& image, std::span<const VideoCommon::BufferImageCopy> copies,
                            StagingBufferRef& map);
+    void PrefetchGcDownloads(std::span<Image*> images);
+    struct GcReadbackStatistics {
+        u64 pending_bytes{}, queued{}, ready{}, stale{}, synchronous{}, batches{}, batch_waits{};
+    };
+    [[nodiscard]] GcReadbackStatistics GetGcReadbackStatistics() const {
+        return {gc_pending_bytes, gc_queued, gc_ready, gc_stale, gc_sync, gc_batches, gc_batch_waits};
+    }
     void CompleteGcDownload(Image& image);
     void ReleaseGcReadback(StagingBufferRef& map);
     void TickFrame();
@@ -225,6 +237,8 @@ private:
     u64 gc_pending_bytes{};
     u64 gc_peak_pending_bytes{};
     u64 gc_queued{}, gc_ready{}, gc_stale{}, gc_sync{};
+    u64 gc_batches{}, gc_batch_images{}, gc_batch_waits{};
+    bool gc_prefetching{};
     D3D12_CPU_DESCRIPTOR_HANDLE null_rtv{};
     D3D12_CPU_DESCRIPTOR_HANDLE null_rtv_ms{};
     BlitImageHelper* blit_helper{};

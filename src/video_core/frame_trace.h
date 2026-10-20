@@ -128,6 +128,10 @@ enum class Event : u8 {
     PipelineBuildDone, ///< a=pipeline identity, b=1 if PSO valid; measured before notify
     NvEventSignalLong, ///< a=KEvent Signal host elapsed us>=200, b=readable event identity
     VsyncSignal,     ///< immediately before signalling the display's guest VSync event
+    StagingWaitRequest,
+    StagingWaitReason,
+    StagingWaitLong,
+    TextureGcWaitRequest,
 };
 
 // Focused diagnostic for this investigation. Change the target here for another run.

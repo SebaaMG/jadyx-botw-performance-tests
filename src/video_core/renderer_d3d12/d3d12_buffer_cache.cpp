@@ -353,7 +353,9 @@ void BufferCacheRuntime::RecordBufferGc(const VideoCommon::BufferGcStatistics& s
              buffer_pressure_snapshot.gpu_used >> 20, buffer_pressure_snapshot.gpu_budget >> 20);
 }
 StagingBufferRef BufferCacheRuntime::UploadStagingBuffer(size_t size) { return staging.Request(size, MemoryUsage::Upload); }
-StagingBufferRef BufferCacheRuntime::DownloadStagingBuffer(size_t size, bool deferred) { return staging.Request(size, MemoryUsage::Download, deferred); }
+StagingBufferRef BufferCacheRuntime::DownloadStagingBuffer(size_t size, bool deferred) {
+    return staging.Request(size, MemoryUsage::Download, deferred, ReadbackSource::Buffer);
+}
 void BufferCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) { staging.FreeDeferred(ref); }
 
 void BufferCacheRuntime::Copy(Buffer* dst, ID3D12Resource* dst_raw, Buffer* src,

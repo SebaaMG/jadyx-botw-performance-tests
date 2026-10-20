@@ -270,6 +270,14 @@ const char* Name(Event event) {
         return "nv-event-signal-long";
     case Event::VsyncSignal:
         return "guest-vsync-signal";
+    case Event::StagingWaitRequest:
+        return "staging-wait-request";
+    case Event::StagingWaitReason:
+        return "staging-wait-reason";
+    case Event::StagingWaitLong:
+        return "staging-wait-long";
+    case Event::TextureGcWaitRequest:
+        return "texture-gc-wait-request";
     }
     return "?";
 }

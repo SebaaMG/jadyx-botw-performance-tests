@@ -21,6 +21,7 @@
 #include "video_core/renderer_d3d12/d3d12_log.h"
 #include "video_core/renderer_d3d12/d3d12_resource_utils.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
+#include "video_core/renderer_d3d12/d3d12_transfer_spans.h"
 #include "video_core/surface.h"
 
 // Uploads to and downloads from images through staging and guest buffers.
@@ -482,6 +483,20 @@ void Image::DownloadMemory(std::span<ID3D12Resource*> buffers, std::span<size_t>
                 commands->CopyTextureRegion(&dst, 0, 0, 0, &src, &box);
                 TransitionBuffer(commands, transfer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
                                  D3D12_RESOURCE_STATE_COPY_SOURCE);
+                const u64 contiguous = ReadbackCoalescingEnabled()
+                    ? ContiguousTransferBytes(layout.row_bytes, layout.row_pitch,
+                                              layout.tight_slice, layout.padded_slice, layout.depth)
+                    : 0;
+                if (contiguous) {
+                    commands->CopyBufferRegion(buffer, dest_offset, transfer.Get(), 0, contiguous);
+                    VideoCore::Perf::Add(VideoCore::Perf::Counter::TextureReadbackBulkCopies, 1);
+                    VideoCore::Perf::Add(VideoCore::Perf::Counter::TextureReadbackRowsMerged,
+                                         u64{layout.rows} * layout.depth - 1);
+                    runtime->transfer_buffers.ReleaseCopy(std::move(transfer));
+                    continue;
+                }
+                VideoCore::Perf::Add(VideoCore::Perf::Counter::TextureReadbackRowCopies,
+                                     u64{layout.rows} * layout.depth);
                 for (u32 z = 0; z < layout.depth; ++z) {
                     for (u32 row = 0; row < layout.rows; ++row) {
                         commands->CopyBufferRegion(

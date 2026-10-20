@@ -4,6 +4,14 @@ Cuaderno de trabajo del port: cómo compilar, en qué fase vamos y lo que hemos 
 Los docs "de verdad" son [`uwp_build.md`](uwp_build.md) (toolchain) y [`xbox_deploy.md`](xbox_deploy.md)
 (empaquetar y desplegar). Aquí va el resumen rápido y todo lo que no cabe en ellos.
 
+20 oct 2026, candidato privado SeriesX .26: recuperación de readbacks, reserva
+adaptativa y agrupación GC descritas en [xbox_readback_recovery.md](xbox_readback_recovery.md).
+El gate con recorder asíncrono debe esperar WaitSubmitted antes de insertar un
+Queue::Wait externo: Flush solo encola la grabación y no garantiza ese orden.
+No confundir una barrera externa mal ordenada del harness con una espera de la
+implementación. Las propiedades de objetos se comprueban mediante estadísticas
+y las APIs reales, sin exponer ni modificar miembros privados de Image.
+
 **Reglas de la casa**
 - Los commits van solo a nuestro fork: `origin` = `JulianDr14/jadyx`, fork de
   `eden-emulator/mirror` (el espejo oficial de Eden en GitHub), rama `xbox`.

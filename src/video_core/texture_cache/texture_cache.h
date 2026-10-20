@@ -219,11 +219,32 @@ void TextureCache<P>::RunGarbageCollector() {
         }
         return false;
     };
+    const auto Prefetch = [&] {
+        if constexpr (requires { runtime.PrefetchGcDownloads(std::span<Image*>{}); }) {
+            if (!high_priority_mode || !downloads_left || frame_tick < ticks_to_destroy) return;
+            std::array<Image*, 4> images{};
+            size_t selected{}, inspected{};
+            lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, [&](ImageId image_id) {
+                if (inspected++ >= num_iterations || selected >= std::min(images.size(), downloads_left))
+                    return true;
+                auto& image = slot_images[image_id];
+                if (True(image.flags & ImageFlagBits::IsDecoding) ||
+                    (!aggressive_mode && True(image.flags & ImageFlagBits::CostlyLoad)) ||
+                    !IsDownloadable(image) || True(image.flags & ImageFlagBits::BadOverlap))
+                    return false;
+                images[selected++] = &image;
+                return false;
+            });
+            runtime.PrefetchGcDownloads(std::span<Image*>{images.data(), selected});
+        }
+    };
     Configure(false);
+    Prefetch();
     if (frame_tick >= ticks_to_destroy)
         lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
     if (backend_policy || total_used_memory >= critical_memory) {
         Configure(true);
+        Prefetch();
         if (aggressive_mode && frame_tick >= ticks_to_destroy)
             lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
     }
