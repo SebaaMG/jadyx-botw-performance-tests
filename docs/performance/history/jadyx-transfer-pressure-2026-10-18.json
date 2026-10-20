@@ -1,0 +1,98 @@
+{
+  "scope": "Retrospective PC analysis; no new runtime change, benchmark or Xbox result",
+  "pinned_sha256": {
+    "jadyx.exe": "04a2ca78d711435603a2e9072b97ca27e1e1b292f8a6a516a622fe6132cf1c2c",
+    "jadyx.pdb": "26b72e86818ec87ccc652e7619e1a479ca85f575bf4fbac03bb052e80b35d2eb",
+    "jadyx_profile.txt": "680c0cbcaf3d39610b2037e3afcb51fe67ba1e1b3c188559a7b6ba037d45aadb"
+  },
+  "reader_sha256": {
+    "profile-report.py": "b4ebe577fa36d60bb1ce607fcd9dc94b832f0076ecbc6aa54a3b989889487114",
+    "pdb_symbols.py": "b59ca29353ec5370df9887f4241aefa43d663c6d8c04c2e282f3ec38bf4cd091"
+  },
+  "plain_capture_hashes": {
+    "jadyx_log.txt": {
+      "bytes": 1417673,
+      "sha256": "6dbf285cdb53fc711a9e232d5d9fb49556387a3b15d4ce39b3eeb604841f768f"
+    },
+    "jadyx_diag.txt": {
+      "bytes": 456588,
+      "sha256": "c66d25bea332a5938eebccda270eee7f404817334ce7d7b3645dc7c5afff3464"
+    }
+  },
+  "detailed_capture_hashes": {
+    "jadyx_log.txt": {
+      "bytes": 1641229,
+      "sha256": "77ecfc6d0addcd9aaa657232741b8473dca101918c8a669ba125453ae4505e7d"
+    },
+    "jadyx_diag.txt": {
+      "bytes": 487515,
+      "sha256": "c6b9cb967ffedf4f11d5fc777724ba5a4548d4440ecc0650ccfc60d992d01689"
+    },
+    "jadyx_profile.txt": {
+      "bytes": 5291630,
+      "sha256": "680c0cbcaf3d39610b2037e3afcb51fe67ba1e1b3c188559a7b6ba037d45aadb"
+    }
+  },
+  "unprofiled_1_0_0_8": {
+    "frames": 1200,
+    "wall_ms": 58337.0,
+    "mean_ms": 48.61416666666667,
+    "fps": 20.570135591477108,
+    "resource_creations": 12159,
+    "resource_creation_ms_per_frame": 4.07375,
+    "pipeline_stall_ms_total": 0.3
+  },
+  "profiled_1_0_0_9": {
+    "stack_windows": [
+      6,
+      7,
+      8
+    ],
+    "stack_window_seconds": 60.014,
+    "thread": "GPU",
+    "state": "R",
+    "running_samples": 5707,
+    "create_committed_buffer_samples": 511,
+    "transfer_pool_samples": 507,
+    "transfer_percent_of_creation_samples": 99.21722113502935,
+    "creation_callers": {
+      "D3D12::Image::DownloadMemory > D3D12::Image::DownloadMemory > D3D12::TransferBufferPool::Acquire": 200,
+      "D3D12::Image::RenderToReinterpreted > D3D12::Image::CopyThroughBuffer > D3D12::TransferBufferPool::Acquire": 162,
+      "D3D12::Image::Transition > D3D12::Image::CopyThroughBuffer > D3D12::TransferBufferPool::Acquire": 100,
+      "D3D12::Image::ReadReinterpreted > D3D12::Image::CopyThroughBuffer > D3D12::TransferBufferPool::Acquire": 45,
+      "D3D12::StagingBufferPool::GetStagingBuffer > D3D12::StagingBufferPool::CreateStagingBuffer > D3D12::CreateMappedBuffer": 2,
+      "VideoCommon::BufferCache<>::CreateBuffer > Common::SlotVector<>::Construct<> > D3D12::BufferCacheRuntime::CreateDefaultBuffer": 2
+    },
+    "detail_windows": [
+      {
+        "end_seconds": 147.992358,
+        "cbv_count": 3428532,
+        "cbv_ms": 364.3
+      },
+      {
+        "end_seconds": 167.780726,
+        "cbv_count": 3433197,
+        "cbv_ms": 358.6
+      },
+      {
+        "end_seconds": 185.731327,
+        "cbv_count": 3435924,
+        "cbv_ms": 365.6
+      },
+      {
+        "end_seconds": 205.823406,
+        "cbv_count": 3435723,
+        "cbv_ms": 362.4
+      }
+    ],
+    "cbv_create_ms_per_frame": 1.2090833333333335
+  },
+  "limits": [
+    "Sample counts are neither allocation counts nor exclusive frame times.",
+    "99 percent refers only to creation-stack samples, not all CPU cost.",
+    "The timer and sample captures are different runs; do not multiply them for an exact saving.",
+    "CBV creation is only part of the inclusive descriptor preparation phase.",
+    "No measured saving follows from removing any one sampled operation.",
+    "No raw logs, addresses, game files or key material exported."
+  ]
+}

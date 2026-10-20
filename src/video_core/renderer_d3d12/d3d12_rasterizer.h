@@ -93,6 +93,7 @@ public:
     void SignalFence(std::function<void()>&&) override;
     void SyncOperation(std::function<void()>&&) override;
     void SignalSyncPoint(u32) override;
+    u64 SubmitCompositeFence(u32 syncpoint, u32 value);
     void SignalReference() override;
     void ReleaseFences(bool = true) override;
     void FlushAndInvalidateRegion(DAddr, u64,
@@ -253,6 +254,8 @@ private:
     BufferCache buffer_cache;
     TextureCache texture_cache;
     PipelineCache pipeline_cache;
+    DrawPlanCache draw_plans;
+    u64 draw_plan_frames{};
     Vulkan::StateTracker state_tracker;
     struct CommandListState {
         bool valid{};
@@ -273,8 +276,10 @@ private:
             std::array<u32, PUSH_CONSTANT_WORDS> push_constants{};
             std::array<u32, 16> runtime_words{};
             u64 resource_table{};
+            u64 image_table{};
             u64 sampler_table{};
             D3D12_GPU_VIRTUAL_ADDRESS integer_samplers{};
+            D3D12_GPU_VIRTUAL_ADDRESS index_map{};
         } root_args;
     } command_state;
     bool channel_bound{};

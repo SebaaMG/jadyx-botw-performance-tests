@@ -24,6 +24,7 @@ class BufferQueueConsumer final : public IBinder {
 public:
     explicit BufferQueueConsumer(std::shared_ptr<BufferQueueCore> core_);
     ~BufferQueueConsumer() override;
+    [[nodiscard]] u64 TraceId() const;
 
     Status AcquireBuffer(BufferItem* out_buffer, std::chrono::nanoseconds expected_present);
     Status ReleaseBuffer(s32 slot, u64 frame_number, const Fence& release_fence);

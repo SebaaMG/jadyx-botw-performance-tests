@@ -53,10 +53,66 @@ FakeCall AxxEmitX64::FastmemCallback(u64 rip_) {
                     fastmem_patch_info.size());
 }
 
+#ifdef SERIESX_A64_PAGE_REUSE
+#include "seriesx_page_reuse_memory.inc"
+#endif
+
 template<std::size_t bitsize, auto callback>
 void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const bool ordered = IsOrdered(args[2].GetImmediateAccType());
+#ifdef SERIESX_A64_PAGE_REUSE
+    // ProsperoEden: a grouped access (headless/dynarmic/page-reuse.cmake), its group's page in args[0].
+    if (!args[0].IsImmediate()) {
+        const bool vector = (bitsize == 32 || bitsize == 64) && args[2].GetImmediateAccType() == IR::AccType::VEC;
+        const Xbyak::Reg64 host = ctx.reg_alloc.UseGpr(code, args[0]);
+        const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(code, args[1]);
+        const Xbyak::Reg64 page = ctx.reg_alloc.ScratchGpr(code);
+        const int value_idx = bitsize == 128 || vector ? ctx.reg_alloc.ScratchXmm(code).getIdx() : ctx.reg_alloc.ScratchGpr(code).getIdx();
+        const auto wrapped_fn = read_fallbacks[std::make_tuple(false, bitsize, vaddr.getIdx(), vector ? page.getIdx() : value_idx)];
+        const bool detect = (conf.detect_misaligned_access_via_page_table & bitsize) != 0;
+        const size_t valid_page_index_bits = SeriesXReuseAddressBits(conf) - page_table_const_bits;
+        SharedLabel slow = ctx.GenSharedLabel(), abort = ctx.GenSharedLabel(), end = ctx.GenSharedLabel();
+        const auto read = [this, vector, value_idx](const Xbyak::RegExp& address) {
+            if constexpr (bitsize == 32 || bitsize == 64) {
+                if (vector) {
+                    if constexpr (bitsize == 32) code.movd(Xbyak::Xmm{value_idx}, code.dword[address]);
+                    else code.movq(Xbyak::Xmm{value_idx}, code.qword[address]);
+                    return;
+                }
+            }
+            EmitReadMemoryMov<bitsize>(code, value_idx, address, false);
+        };
+        code.test(host, host);
+        code.jz(*slow, code.T_NEAR);
+        read(host + vaddr);
+        ctx.deferred_emits.emplace_back([=, this] {
+            code.L(*slow);
+            SeriesXReuseSlowLookup(code, bitsize, detect, valid_page_index_bits, *abort, vaddr, page);
+            read(page + vaddr);
+            code.jmp(*end, code.T_NEAR);
+            code.L(*abort);
+            code.call(wrapped_fn);
+            if constexpr (bitsize == 32 || bitsize == 64) {
+                if (vector) {
+                    if constexpr (bitsize == 32) code.movd(Xbyak::Xmm{value_idx}, page.cvt32());
+                    else code.movq(Xbyak::Xmm{value_idx}, page);
+                }
+            }
+            code.jmp(*end, code.T_NEAR);
+        });
+        code.L(*end);
+        if (bitsize == 128 || vector) {
+            ctx.reg_alloc.DefineValue(code, inst, Xbyak::Xmm{value_idx});
+        } else {
+            ctx.reg_alloc.DefineValue(code, inst, Xbyak::Reg64{value_idx});
+            if constexpr (bitsize <= 32) {
+                ctx.reg_alloc.MarkZeroUpper(Xbyak::Reg64{value_idx});
+            }
+        }
+        return;
+    }
+#endif
     const auto fastmem_marker = ShouldFastmem(ctx, inst);
 
     if (!conf.page_table && !fastmem_marker) {
@@ -72,6 +128,9 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
             if (ordered) code.mfence();
             Devirtualize<callback>(conf.callbacks).EmitCall(code);
             code.ZeroExtendFrom(bitsize, code.ABI_RETURN);
+            if constexpr (bitsize <= 32) {
+                ctx.reg_alloc.MarkZeroUpper(code.ABI_RETURN);
+            }
         }
         EmitCheckMemoryAbort(ctx, inst);
         return;
@@ -134,6 +193,9 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
         ctx.reg_alloc.DefineValue(code, inst, Xbyak::Xmm{value_idx});
     } else {
         ctx.reg_alloc.DefineValue(code, inst, Xbyak::Reg64{value_idx});
+        if constexpr (bitsize <= 32) {
+            ctx.reg_alloc.MarkZeroUpper(Xbyak::Reg64{value_idx});
+        }
     }
 }
 
@@ -141,6 +203,50 @@ template<std::size_t bitsize, auto callback>
 void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const bool ordered = IsOrdered(args[3].GetImmediateAccType());
+#ifdef SERIESX_A64_PAGE_REUSE
+    // ProsperoEden: a grouped access (headless/dynarmic/page-reuse.cmake), its group's page in args[0].
+    if (!args[0].IsImmediate()) {
+        const bool vector = (bitsize == 32 || bitsize == 64) && args[3].GetImmediateAccType() == IR::AccType::VEC;
+        const Xbyak::Reg64 host = ctx.reg_alloc.UseGpr(code, args[0]);
+        const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(code, args[1]);
+        const int value_idx = bitsize == 128 || vector ? ctx.reg_alloc.UseXmm(code, args[2]).getIdx() : ctx.reg_alloc.UseGpr(code, args[2]).getIdx();
+        const Xbyak::Reg64 page = ctx.reg_alloc.ScratchGpr(code);
+        const auto wrapped_fn = write_fallbacks[std::make_tuple(false, bitsize, vaddr.getIdx(), vector ? page.getIdx() : value_idx)];
+        const bool detect = (conf.detect_misaligned_access_via_page_table & bitsize) != 0;
+        const size_t valid_page_index_bits = SeriesXReuseAddressBits(conf) - page_table_const_bits;
+        SharedLabel slow = ctx.GenSharedLabel(), abort = ctx.GenSharedLabel(), end = ctx.GenSharedLabel();
+        const auto write = [this, vector, value_idx](const Xbyak::RegExp& address) {
+            if constexpr (bitsize == 32 || bitsize == 64) {
+                if (vector) {
+                    if constexpr (bitsize == 32) code.movd(code.dword[address], Xbyak::Xmm{value_idx});
+                    else code.movq(code.qword[address], Xbyak::Xmm{value_idx});
+                    return;
+                }
+            }
+            EmitWriteMemoryMov<bitsize>(code, address, value_idx, false);
+        };
+        code.test(host, host);
+        code.jz(*slow, code.T_NEAR);
+        write(host + vaddr);
+        ctx.deferred_emits.emplace_back([=, this] {
+            code.L(*slow);
+            SeriesXReuseSlowLookup(code, bitsize, detect, valid_page_index_bits, *abort, vaddr, page);
+            write(page + vaddr);
+            code.jmp(*end, code.T_NEAR);
+            code.L(*abort);
+            if constexpr (bitsize == 32 || bitsize == 64) {
+                if (vector) {
+                    if constexpr (bitsize == 32) code.movd(page.cvt32(), Xbyak::Xmm{value_idx});
+                    else code.movq(page, Xbyak::Xmm{value_idx});
+                }
+            }
+            code.call(wrapped_fn);
+            code.jmp(*end, code.T_NEAR);
+        });
+        code.L(*end);
+        return;
+    }
+#endif
     const auto fastmem_marker = ShouldFastmem(ctx, inst);
 
     if (!conf.page_table && !fastmem_marker) {

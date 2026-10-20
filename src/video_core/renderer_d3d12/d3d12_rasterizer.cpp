@@ -22,6 +22,7 @@
 #include "video_core/perf_counters.h"
 #include "video_core/renderer_d3d12/d3d12_draw_metrics.h"
 #include "video_core/renderer_d3d12/d3d12_rasterizer.h"
+#include "video_core/renderer_d3d12/d3d12_partial_submit_scope.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
 
 namespace D3D12 {
@@ -92,10 +93,12 @@ RasterizerD3D12::RasterizerD3D12(Tegra::GPU& gpu_,
       query_cache{*this, device_memory_, device, scheduler_},
       conditional_rendering{device, scheduler_, query_cache},
       accelerate_dma{buffer_cache, texture_cache},
-      fence_manager{*this, gpu_, texture_cache, buffer_cache, query_cache, scheduler_},
+      fence_manager{*this, gpu_, texture_cache, buffer_cache, query_cache, scheduler_,
+                    [this] { draw_counter = 0; }},
       draw_hunt{device, scheduler_} {
     buffer_runtime.SetDescriptorQueue(&descriptor_queue);
     scheduler.RegisterOnReset([this] { InvalidateCommandListState(); });
+    scheduler.SetSubmissionUploadSize([this] { return this->staging.PendingUploadBytes(); });
     LOG_INFO(Render, "D3D12: rasterizer active (draws, clears, caches, DMA and pipelines)");
 }
 
@@ -122,6 +125,7 @@ void RasterizerD3D12::Draw(bool is_indexed, u32 instance_count) {
         return;
     }
     DrawMetrics::ScopedDrawTimer draw_timer;
+    PartialSubmitScope partial{scheduler, draw_counter};
     SCOPE_EXIT {
         FlushIfUploadHeavy();
         gpu.TickWork();
@@ -179,7 +183,7 @@ void RasterizerD3D12::Draw(bool is_indexed, u32 instance_count) {
     }
     pipeline->Configure(is_indexed,
                         {*maxwell3d, *gpu_memory, buffer_cache, texture_cache, descriptor_queue,
-                         sampler_heap, scheduler},
+                         sampler_heap, scheduler, &draw_plans},
                         bindings);
     buffer_runtime.SetTraceBuffers(nullptr);
     if (!pipeline->Handle()) {
@@ -246,6 +250,7 @@ void RasterizerD3D12::Draw(bool is_indexed, u32 instance_count) {
         }
     }
     RecordDraw(*pipeline, bindings, *framebuffer, params, draw_state.topology);
+    partial.Recorded();
     hunt.Recorded();
     if (material_trace.Active() && trace_this_draw) {
         try {
@@ -304,6 +309,7 @@ void RasterizerD3D12::DispatchCompute() {
     ++draw_counter;
     HuntScope hunt{draw_hunt, Hunt::Kind::Dispatch};
     VideoCore::Perf::ScopedNsTimer dispatch_timer{VideoCore::Perf::Counter::DispatchNs};
+    PartialSubmitScope partial{scheduler, draw_counter};
     SCOPE_EXIT {
         FlushIfUploadHeavy();
         // As after a draw: a guest core waiting on a flush is not held up by a compute batch.
@@ -399,6 +405,9 @@ void RasterizerD3D12::DispatchCompute() {
     if (layout.ResourceTableIndex() != PipelineLayout::NO_TABLE) {
         cmd->SetComputeRootDescriptorTable(layout.ResourceTableIndex(), bindings.resource_table);
     }
+    if (layout.ImageTableIndex() != PipelineLayout::NO_TABLE) {
+        cmd->SetComputeRootDescriptorTable(layout.ImageTableIndex(), bindings.image_table);
+    }
     if (layout.SamplerTableIndex() != PipelineLayout::NO_TABLE) {
         cmd->SetComputeRootDescriptorTable(layout.SamplerTableIndex(), bindings.sampler_table);
     }
@@ -410,6 +419,7 @@ void RasterizerD3D12::DispatchCompute() {
     if (indirect_range) {
         cmd->ExecuteIndirect(layout.DispatchSignature(), 1, indirect_range->buffer,
                              indirect_range->offset, nullptr, 0);
+        partial.Recorded();
         hunt.Geometry(0, 1, 0); // the group count is on the GPU
         hunt.Recorded();
         if (!logged_indirect_dispatch) {
@@ -420,6 +430,7 @@ void RasterizerD3D12::DispatchCompute() {
         return;
     }
     cmd->Dispatch(dim[0], dim[1], dim[2]);
+    partial.Recorded();
     hunt.Geometry(dim[0] * dim[1] * dim[2], 1, 0);
     hunt.Recorded();
     if (!logged_first_dispatch) {
@@ -669,6 +680,10 @@ void RasterizerD3D12::ModifyGPUMemory(size_t as_id, GPUVAddr address, u64 size) 
 void RasterizerD3D12::SignalFence(std::function<void()>&& f) { fence_manager.SignalFence(std::move(f)); }
 void RasterizerD3D12::SyncOperation(std::function<void()>&& f) { fence_manager.SyncOperation(std::move(f)); }
 void RasterizerD3D12::SignalSyncPoint(u32 value) { fence_manager.SignalSyncPoint(value); }
+u64 RasterizerD3D12::SubmitCompositeFence(u32 syncpoint, u32 value) {
+    fence_manager.SignalConsumerFence(syncpoint, value);
+    return scheduler.CurrentTick() - 1;
+}
 void RasterizerD3D12::SignalReference() { fence_manager.SignalOrdering(); }
 void RasterizerD3D12::ReleaseFences(bool force) { fence_manager.WaitPendingFences(force); }
 void RasterizerD3D12::FlushAndInvalidateRegion(DAddr a, u64 s, VideoCommon::CacheType w) {
@@ -721,6 +736,20 @@ void RasterizerD3D12::FlushIfUploadHeavy() {
     scheduler.Flush();
 }
 void RasterizerD3D12::TickFrame() {
+    scheduler.BeginFrame();
+    if ((draw_plan_frames + 1) % 300 == 0) {
+        LOG_INFO(Render, "D3D12 fence submit coalescing: {} submitted-boundary notifications (cumulative)",
+                 fence_manager.SubmissionNotificationCount());
+    }
+    if (++draw_plan_frames % 300 == 0 && draw_plans.Enabled()) {
+        const auto& stats = draw_plans.stats;
+        LOG_INFO(Render, "D3D12 draw plans: attempts {}, unsupported {}, queries {}, hits {}, key misses {}, input misses {}, "
+                 "descriptor misses {}, refresh misses {}, captures {}, uncacheable {}, "
+                 "validated {}, mismatches {} (cumulative, bounded {} KiB)",
+                 stats.attempts, stats.unsupported, stats.queries, stats.hits, stats.key_misses, stats.input_misses,
+                 stats.descriptor_misses, stats.refresh_misses, stats.captures,
+                 stats.uncacheable, stats.validated, stats.mismatches, sizeof(draw_plans) / 1024);
+    }
     Common::BugTracker::TickFrame();
     draw_counter = 0;
     fence_manager.TickFrame();

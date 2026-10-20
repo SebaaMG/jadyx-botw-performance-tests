@@ -3,8 +3,21 @@ SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
+> **BOTW performance experiments, checkpoint .30 (20 October 2026).** This branch
+> contains the tested source changes on Jadyx `068d86bc21`, plus native test
+> harnesses and aggregate measurements. In one Windows fixed-view ON–OFF–ON
+> comparison, the three synchronization options reduced mean frame time by
+> 1.57–1.81 ms (+5.3–6.1% FPS). P99 did not clearly improve. See the
+> [experiment report and reproduction notes](docs/performance/BOTW-PERFORMANCE.md).
+> The [complete experiment history](docs/performance/HISTORY.md) includes all 25
+> retained source changes, historical checkpoint tags, and 33 aggregate records.
+> Upstream credits, licensing, and the original project overview follow below.
+>
+> **Series X testing is pending.** The console may have more performance headroom
+> than this test PC; the results below document the progress measured on PC.
+
 <p align="center">
-  <img src="dist/uwp/Assets/JadyxLogo.png" alt="Jadyx logo" width="128">
+  <img src="dist/qt_themes/default/icons/256x256/eden.png" alt="Eden logo" width="128">
 </p>
 
 <h1 align="center">Jadyx</h1>
@@ -546,8 +559,6 @@ This fork stands on other people's work:
   this fork started from.
 - [Mesa](https://gitlab.freedesktop.org/mesa/mesa): `spirv_to_dxil` and the NIR passes behind
   the shader translation.
-- [@dramon8945](https://www.instagram.com/dramon8945/): the Jadyx logo, tiles and splash screen
-  (`dist/uwp/Assets/`).
 - yuzu, Ryujinx, Sudachi, Citron, Torzu, Suyu and Ryubing, and everyone who worked on the projects
   Eden comes from.
 

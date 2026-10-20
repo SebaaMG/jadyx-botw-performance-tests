@@ -4,8 +4,6 @@
 #include "jadyx/input/stick_navigation.h"
 #include "jadyx/input/controller_catalog.h"
 #include "jadyx/ui/text_entry_input.h"
-#include "jadyx/library/favorites.h"
-#include "jadyx/library/library_layout.h"
 #include "jadyx/library/uwp_library_canvas.h"
 #include "jadyx/storage/uwp_rom_storage.h"
 #include "jadyx/storage/storage_path.h"
@@ -15,11 +13,8 @@
 #include <chrono>
 #include <future>
 #include <thread>
-#include <windows.h>
 #include <winrt/Windows.Foundation.Collections.h>
-#include <winrt/Windows.Devices.Power.h>
 #include <winrt/Windows.Gaming.Input.h>
-#include <winrt/Windows.System.Power.h>
 #include <winrt/Windows.UI.Core.h>
 #include <winrt/Windows.UI.Input.h>
 #include <winrt/Windows.System.h>
@@ -57,6 +52,8 @@ using winrt::Windows::System::VirtualKey;
 using I18n::Tr;
 using T = I18n::Text;
 
+/// Games per row of the grid; the metadata window is the visible page and both neighbours.
+constexpr size_t PageSize = 5;
 /// Background batches stay short so a page change never waits long behind them: games opened
 /// through the loaders per fill batch, cache records read per names batch.
 constexpr size_t FillBatch = 6;
@@ -76,26 +73,11 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
     auto canvas = std::make_unique<LibraryCanvas>(core_window, width, height);
     LibraryScan scan;
     size_t selected = 0;
-    bool rail = false; // The focus is in the played games' rail (library_layout.h).
-    // The screen's tabs; Settings is the configuration panel, shown as a page.
-    using LibraryLayout::LibraryTab;
-    using LibraryLayout::Filter;
-    LibraryTab tab = LibraryTab::Home;
-    Filter filter = Filter::All;
-    std::vector<size_t> shelf;   // The Library tab's entries (LibraryLayout::Shelf).
-    size_t shelf_focus = 0;      // In `shelf`; shelf.size() is the import tile.
-    bool filter_focus = false;   // The Library tab's focus is on the filter bar.
-    Favorites favorites = LoadFavorites();
-    WORD shown_minute = 0xFFFF;  // The header's clock.
-    ControllerBattery battery;   // The header's battery, read every few seconds.
-    auto battery_read_at = std::chrono::steady_clock::time_point{};
     bool dirty = true, loading = true, settings = false;
     ConfigurationPanel configuration;
     SystemPage system_page;
     // The selected game's options (Menu), and its cheats page while open.
     GameOptionsPage game_options;
-    std::optional<std::size_t> requested_game_option;
-    std::optional<std::size_t> requested_manager_tab;
     std::unique_ptr<Content::ContentSession> content_session;
     bool missing_content = false;
     std::optional<Cheats::CheatSession> cheat_session;
@@ -159,10 +141,9 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
     size_t names_cursor = 0; // Next game whose title is looked up in the cache, after a scan.
     size_t fill_cursor = 0;  // Next game the background fill reads into the cache.
     unsigned actions = 0;
-    std::optional<LibraryTab> pressed_tab; // A tab the pointer chose.
     enum : unsigned { Up = 1, Down = 2, Play = 4, Quit = 8, Swap = 16, Zone = 32,
                       Refresh = 64, Panel = 128, Left = 256, Right = 512, AddFolder = 1024,
-                      Options = 2048, PreviousTab = 4096, NextTab = 8192, Pin = 16384, PreviousManagerTab = 32768, NextManagerTab = 65536 };
+                      Options = 2048, PreviousTab = 4096, NextTab = 8192 };
     using winrt::Windows::Storage::StorageFolder;
     winrt::Windows::Foundation::IAsyncOperation<StorageFolder> picker{nullptr};
     std::future<std::string> validation;
@@ -191,9 +172,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
         e.Handled(true);
     });
     auto keyboard = window.KeyDown(winrt::auto_revoke, [&](auto&&, KeyEventArgs const& e) {
-        if (e.KeyStatus().WasKeyDown && e.VirtualKey() != VirtualKey::Up &&
-            e.VirtualKey() != VirtualKey::Down && e.VirtualKey() != VirtualKey::Left &&
-            e.VirtualKey() != VirtualKey::Right) return;
+        if (e.KeyStatus().WasKeyDown) return;
         if (system_page.name_editor) {
             using Command = TextEntry::Command;
             std::optional<Command> command;
@@ -256,12 +235,10 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
         case VirtualKey::Escape: actions |= Quit; break;
         case VirtualKey::Enter: actions |= Play; break;
         case VirtualKey::X: actions |= Swap; break;
+        case VirtualKey::Y:
         case VirtualKey::R: actions |= Refresh; break;
-        case VirtualKey::F: actions |= Pin; break;
         case VirtualKey::O: actions |= AddFolder; break;
         case VirtualKey::F2: actions |= Options; break;
-        case VirtualKey::PageUp: actions |= PreviousManagerTab; break;
-        case VirtualKey::PageDown: actions |= NextManagerTab; break;
         case VirtualKey::Q: actions |= PreviousTab; break;
         case VirtualKey::E: actions |= NextTab; break;
         default: break;
@@ -286,92 +263,33 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
             e.Handled(true);
             return;
         }
-        if (game_options.open && y < 94) {
-            const auto target = canvas->HitAt(x, y);
-            if (target.hit == LibraryHit::Tab) {
-                pressed_tab = static_cast<LibraryTab>(target.index);
-                dirty = true;
-            } else if (target.hit == LibraryHit::Controller && !game_options.page && !content_session) {
-                game_options = {};
-                actions |= Panel;
-                dirty = true;
-            }
-            e.Handled(true);
-            return;
-        }
-        if (game_options.open && canvas->HitAt(x, y).hit == LibraryHit::GameOptionSelect) {
-            const auto target = canvas->HitAt(x, y);
-            if (target.hit == LibraryHit::GameOptionSelect && target.index < GameOptions().size()) {
-                requested_game_option = target.index;
-                dirty = true;
-            }
-            e.Handled(true);
-            return;
-        }
-        if (game_options.open) {
-            const auto target = canvas->HitAt(x, y);
-            if (target.hit == LibraryHit::ManagerTab) {
-                requested_manager_tab = target.index;
-                game_options.focus = GameOptionsFocus::ManagerTabs;
-                dirty = true;
-            } else if (target.hit == LibraryHit::ManagerRow) {
-                if (game_options.page == GameOption::Mods && mod_session) {
-                    const auto count = mods_page.tab == Mods::ModsTab::Installed ?
-                        mod_session->View().mods.size() : mod_session->View().files.size();
-                    if (target.index < count) { mods_page.selected = target.index; actions |= Play; }
-                } else if (game_options.page == GameOption::Cheats && cheat_session && target.index < cheat_session->Catalog().Cheats(cheats_page.category).size()) {
-                    cheats_page.selected = target.index; actions |= Play;
+        if (system_page.open && configuration.open && !settings) {
+            using L = SystemPageLayout;
+            if (y >= L::Footer - 7 && y < L::Footer + 40 && x >= L::RowX + L::RowWidth - 230 &&
+                x < L::RowX + L::RowWidth) {
+                actions |= Quit;
+            } else if (x >= L::RowX && x < L::RowX + L::RowWidth && y >= L::RowTop) {
+                const auto row = static_cast<size_t>((y - L::RowTop) / L::RowStride);
+                if (row < SystemPage::RowCount && y < L::RowTop + row * L::RowStride + L::RowHeight) {
+                    system_page.selected = row;
+                    actions |= Play;
+                    dirty = true;
                 }
-                game_options.focus = GameOptionsFocus::Content;
-                dirty = true;
-            } else if (target.hit == LibraryHit::ManagerCard && mod_session &&
-                       target.index < mod_session->Store().cards.size()) {
-                mods_page.card = target.index;
-                game_options.focus = GameOptionsFocus::Content;
-                actions |= Play; dirty = true;
             }
             e.Handled(true);
             return;
         }
-        // The header's tabs and controller work over every page that is not a dialog.
-        if ((!settings || configuration.open) && !panel.keyboard.open && !panel.expanded && !game_options.open &&
-            !missing_content && !configuration.busy) {
-            const auto target = canvas->HitAt(x, y);
-            if (target.hit == LibraryHit::Tab) {
-                pressed_tab = static_cast<LibraryTab>(target.index);
-                e.Handled(true);
-                return;
-            }
-            if (target.hit == LibraryHit::Controller && !configuration.open) {
-                actions |= Panel;
-                e.Handled(true);
-                return;
-            }
-        }
-        if (configuration.open && !content_session && !panel.keyboard.open && !panel.expanded) {
-            const auto target = canvas->HitAt(x, y);
-            const bool in_page = system_page.open || configuration.files || settings;
-            const size_t shown = system_page.open ? HomeSystem : configuration.files ? HomeFiles :
-                                 settings ? HomeControllers : configuration.selected;
-            auto category = target.hit == LibraryHit::Category ? std::optional<size_t>{target.index} :
-                            target.hit == LibraryHit::Controller ? std::optional<size_t>{HomeControllers} :
-                            std::nullopt;
-            // A row of the category the list has focused opens it, like A would.
-            if (target.hit == LibraryHit::SettingRow && !in_page) category = shown;
-            if (configuration.busy || picker != nullptr) {
-            } else if (category && !(in_page && *category == shown)) {
-                // Another category: leave the open page and enter it.
-                system_page.open = configuration.files = settings = return_to_configuration = false;
-                panel.notice.clear();
-                configuration.selected = *category;
-                actions |= Play;
-                dirty = true;
-            } else if (target.hit == LibraryHit::SettingRow) {
-                if (system_page.open) system_page.selected = target.index;
-                else if (configuration.files) configuration.selected = target.index;
-                else setting_row = static_cast<unsigned>(target.index);
-                actions |= Play;
-                dirty = true;
+        if (configuration.open && !settings && !content_session) {
+            const auto layout = GetConfigurationLayout(configuration);
+            if (y >= layout.footer - 7 && y < layout.footer + 40 &&
+                x >= layout.x + layout.width - 230 && x < layout.x + layout.width) actions |= Quit;
+            else if (!configuration.busy && x >= layout.x && x < layout.x + layout.width && y >= layout.top) {
+                const auto row = static_cast<size_t>((y - layout.top) / layout.stride);
+                const auto choice = ConfigurationFirstRow(configuration) + row;
+                if (row < 5 && y < layout.top + row * layout.stride + layout.row_height &&
+                    choice < ConfigurationRowCount(configuration)) {
+                    configuration.selected = choice; actions |= Play; dirty = true;
+                }
             }
             e.Handled(true);
             return;
@@ -421,54 +339,17 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 setting_row = static_cast<unsigned>((y - ControllerRowTop) / ControllerRowHeight);
                 actions |= Play;
             }
-        } else if (const auto target = canvas->HitAt(x, y); !loading) {
-            switch (target.hit) {
-            case LibraryHit::Play: actions |= Play; break;
-            case LibraryHit::Options: actions |= Options; break;
-            case LibraryHit::Filter:
-                filter = static_cast<Filter>(target.index);
-                filter_focus = true;
-                shelf = LibraryLayout::Shelf(scan.entries, filter);
-                shelf_focus = 0;
-                dirty = true;
-                break;
-            case LibraryHit::RailTile:
-            case LibraryHit::Tile:
-                if (target.index < scan.entries.size()) {
-                    selected = target.index;
-                    rail = target.hit == LibraryHit::RailTile;
-                    dirty = true;
-                }
-                break;
-            case LibraryHit::ShelfTile:
-                if (target.index < shelf.size()) {
-                    // A second press on the focused game plays it.
-                    if (!filter_focus && shelf_focus == target.index) actions |= Play;
-                    shelf_focus = target.index;
-                    selected = shelf[target.index];
-                    filter_focus = false;
-                    dirty = true;
-                }
-                break;
-            case LibraryHit::Import:
-                shelf_focus = shelf.size();
-                filter_focus = false;
-                actions |= Play;
-                dirty = true;
-                break;
-            default: break;
-            }
+        } else if (x >= 839 && x < 1064 && y >= 43 && y < 87) actions |= AddFolder;
+        else if (x >= 1080 && x < 1226 && y >= 43 && y < 87) actions |= Panel;
+        else if (!loading && x >= 320 && x < 504 && y >= 334 && y < 380) actions |= Play;
+        else if (!loading && x >= 520 && x < 720 && y >= 334 && y < 380) actions |= Options;
+        else if (!loading && x >= 58 && x < 1226 && y >= 444 && y < 635) {
+            const size_t index = selected / PageSize * PageSize + static_cast<size_t>((x - 58) / 232);
+            if (index < scan.entries.size()) { selected = index; dirty = true; }
         }
         e.Handled(true);
     });
     auto wheel = window.PointerWheelChanged(winrt::auto_revoke, [&](auto&&, PointerEventArgs const& e) {
-        if (game_options.open && !configuration.open) {
-            const int delta = e.CurrentPoint().Properties().MouseWheelDelta();
-            if (delta) { actions |= delta > 0 ? Up : Down; dirty = true; }
-            e.Handled(true);
-            return;
-        }
-
         if (settings && panel.expanded && !panel.keyboard.open) {
             const int delta = e.CurrentPoint().Properties().MouseWheelDelta();
             const size_t count = panel.devices.size() + 2;
@@ -524,64 +405,17 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
             const auto found = history.find(entry.launch_path);
             entry.play_seconds = found == history.end() ? 0 : found->second.seconds;
             entry.last_played = found == history.end() ? 0 : found->second.last_played;
-            entry.pinned = favorites.contains(entry.launch_path);
         }
         play_order = system_page.settings.track_play_time;
         OrderLibrary(scan.entries, history, play_order);
-        // Pinned games lead, in the order the history gives them.
-        std::stable_partition(scan.entries.begin(), scan.entries.end(), [](const auto& e) { return e.pinned; });
         selected = 0;
         for (size_t i = 0; i < scan.entries.size(); ++i)
             if (!keep.empty() && scan.entries[i].launch_path == keep) selected = i;
-        // The last game played opens in the rail, where the played games are.
-        rail = selected < LibraryLayout::RailCount(scan.entries);
-        shelf = LibraryLayout::Shelf(scan.entries, filter);
-        shelf_focus = 0;
-        for (size_t i = 0; i < shelf.size(); ++i)
-            if (shelf[i] == selected) shelf_focus = i;
         // Covers and background reads follow positions: start them over for the new order.
         metadata_dirty = true;
         retained_page = SIZE_MAX;
         names_cursor = fill_cursor = 0;
         dirty = true;
-    };
-    // The entries whose covers the current tab may show, nearest first, and a key that changes
-    // when they do.
-    struct Covers {
-        std::vector<size_t> order;
-        std::vector<bool> shown;
-        size_t key{};
-    };
-    auto covers_for_tab = [&] {
-        Covers result;
-        result.shown.assign(scan.entries.size(), false);
-        const auto add = [&](size_t index) {
-            if (index < scan.entries.size() && !result.shown[index]) {
-                result.shown[index] = true;
-                result.order.push_back(index);
-            }
-        };
-        if (tab == LibraryTab::Library) {
-            using LibraryLayout::Columns;
-            const size_t row = std::min(shelf_focus, shelf.empty() ? 0 : shelf.size() - 1) / Columns;
-            const size_t first = (row > 0 ? row - 1 : 0) * Columns;
-            const size_t end = std::min(shelf.size(), (row + 3) * Columns);
-            // The focused row, the ones below, then the one above.
-            for (size_t i = row * Columns; i < end; ++i) add(shelf[i]);
-            for (size_t i = first; i < std::min(end, row * Columns); ++i) add(shelf[i]);
-            result.key = (first + end * 65536) * 16 + 8 + static_cast<size_t>(filter);
-        } else {
-            const auto window = LibraryLayout::CoversAround({selected, rail}, scan.entries.size(),
-                                                            LibraryLayout::RailCount(scan.entries));
-            const size_t row = rail ? 0 : selected / LibraryLayout::Columns * LibraryLayout::Columns;
-            for (size_t i = row; i < std::min(row + LibraryLayout::Columns, window.end); ++i) add(i);
-            for (size_t i = row + LibraryLayout::Columns; i < window.end; ++i) add(i);
-            for (size_t i = 0; i < window.rail; ++i) add(i);
-            for (size_t i = window.first; i < row; ++i) add(i);
-            // Rows 0 and 1 share a first entry: the key is both ends of the window.
-            result.key = (window.first + window.end * 65536) * 16;
-        }
-        return result;
     };
     auto start_scan = [&](StorageFolder added = nullptr) {
         loading = dirty = true;
@@ -605,15 +439,6 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 const auto path = (root / entry.relative_path).u8string();
                 entry.launch_path.assign(reinterpret_cast<const char*>(path.data()), path.size());
                 entry.source_name = internal;
-                // When the file arrived: copies keep the source's write time but not its creation.
-                WIN32_FILE_ATTRIBUTE_DATA data{};
-                if (GetFileAttributesExW((root / entry.relative_path).c_str(), GetFileExInfoStandard, &data)) {
-                    const auto ticks = (static_cast<std::uint64_t>(data.ftCreationTime.dwHighDateTime) << 32) |
-                                       data.ftCreationTime.dwLowDateTime;
-                    // 100 ns ticks since 1601 to Unix seconds.
-                    if (ticks > 116444736000000000ULL)
-                        entry.added = static_cast<std::int64_t>((ticks - 116444736000000000ULL) / 10000000ULL);
-                }
             }
             try {
                 if (added) RememberGameFolder(added);
@@ -672,8 +497,6 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
     start_scan();
     GamepadButtons previous{};
     StickNavigation stick_navigation;
-    StickNavigation manager_dpad{std::chrono::milliseconds{280}, std::chrono::milliseconds{80}};
-    TriggerTabs trigger_tabs;
     unsigned navigation_context = 0;
     std::optional<ControllerDevice> pad;
     ControllerCatalog<ControllerDevice> controllers;
@@ -692,9 +515,6 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
         if (!options_notice.empty() && now >= options_notice_until) {
             options_notice.clear(); dirty = true;
         }
-        SYSTEMTIME clock{};
-        GetLocalTime(&clock);
-        if (clock.wMinute != shown_minute) { shown_minute = clock.wMinute; dirty = true; }
         if (panel.keyboard.capturing && now >= capture_until) {
             panel.keyboard.capturing = false; dirty = true;
         }
@@ -716,16 +536,15 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
         const auto next = controllers.Select(options.controller_id);
         if (bool(pad) != bool(next) || (pad && next &&
             (pad->id != next->id || pad->pad != next->pad || pad->pro != next->pro))) {
-            previous = {}; stick_navigation.Reset(); manager_dpad.Reset(); trigger_tabs.Reset();
-            battery_read_at = {}; // Another controller: read its battery now.
+            previous = {}; stick_navigation.Reset();
         }
         if (catalog_changed || !pad || !next || pad->id != next->id)
             pad = next ? std::optional<ControllerDevice>{*next} : std::nullopt;
-        const unsigned context = game_options.open ? (7 + static_cast<unsigned>(game_options.selected) * 3 + static_cast<unsigned>(game_options.focus)) :
+        const unsigned context = game_options.open ? (cheat_session ? 8 : mod_session ? 9 : 7) :
             system_page.name_editor ? 6 : system_page.open ? 5 :
             panel.keyboard.open ? 3 : panel.expanded ? 2 : settings ? 1 : configuration.open ? 4 : 0;
         if (context != navigation_context) {
-            stick_navigation.Reset(); manager_dpad.Reset(); trigger_tabs.Reset(); navigation_context = context;
+            stick_navigation.Reset(); navigation_context = context;
         }
         if (pad) {
             try {
@@ -741,38 +560,20 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 constexpr auto dpad = GamepadButtons::DPadUp | GamepadButtons::DPadDown |
                                       GamepadButtons::DPadLeft | GamepadButtons::DPadRight;
                 unsigned directions = 0;
-                if (game_options.open) {
-                    const double dx = ((buttons & GamepadButtons::DPadRight) != GamepadButtons::None ? 1.0 : 0.0) -
-                                      ((buttons & GamepadButtons::DPadLeft) != GamepadButtons::None ? 1.0 : 0.0);
-                    const double dy = ((buttons & GamepadButtons::DPadUp) != GamepadButtons::None ? 1.0 : 0.0) -
-                                      ((buttons & GamepadButtons::DPadDown) != GamepadButtons::None ? 1.0 : 0.0);
-                    switch (manager_dpad.Update((buttons & dpad) != GamepadButtons::None ? dx : reading.LeftThumbstickX,
-                                                (buttons & dpad) != GamepadButtons::None ? dy : reading.LeftThumbstickY, now)) {
+                if ((buttons & dpad) != GamepadButtons::None) stick_navigation.Reset();
+                else {
+                    switch (stick_navigation.Update(reading.LeftThumbstickX, reading.LeftThumbstickY, now)) {
                     case StickDirection::Up: directions |= Up; break;
                     case StickDirection::Down: directions |= Down; break;
                     case StickDirection::Left: directions |= Left; break;
                     case StickDirection::Right: directions |= Right; break;
                     case StickDirection::None: break;
                     }
-                    const auto triggers = trigger_tabs.Update(reading.LeftTrigger, reading.RightTrigger);
-                    if (triggers == 1) actions |= PreviousManagerTab;
-                    if (triggers == 2) actions |= NextManagerTab;
-                } else {
-                    if ((buttons & dpad) != GamepadButtons::None) stick_navigation.Reset();
-                    else {
-                        switch (stick_navigation.Update(reading.LeftThumbstickX, reading.LeftThumbstickY, now)) {
-                        case StickDirection::Up: directions |= Up; break;
-                        case StickDirection::Down: directions |= Down; break;
-                        case StickDirection::Left: directions |= Left; break;
-                        case StickDirection::Right: directions |= Right; break;
-                        case StickDirection::None: break;
-                        }
-                    }
-                    if (hit(GamepadButtons::DPadUp)) directions |= Up;
-                    if (hit(GamepadButtons::DPadDown)) directions |= Down;
-                    if (hit(GamepadButtons::DPadLeft)) directions |= Left;
-                    if (hit(GamepadButtons::DPadRight)) directions |= Right;
                 }
+                if (hit(GamepadButtons::DPadUp)) directions |= Up;
+                if (hit(GamepadButtons::DPadDown)) directions |= Down;
+                if (hit(GamepadButtons::DPadLeft)) directions |= Left;
+                if (hit(GamepadButtons::DPadRight)) directions |= Right;
                 if (system_page.name_editor) {
                     // Like the console's keyboard: A types, X deletes, Y adds a space, Menu (or RB)
                     // is done, View (or LB) is Shift and B leaves without saving. The bumpers are
@@ -806,15 +607,11 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                     if (!panel.keyboard.open) {
                         actions |= directions;
                         if (hit(GamepadButtons::A)) actions |= Play;
-                        // On the library X rescans and Y pins; the pages keep their own X and Y.
-                        const bool library = !settings && !configuration.open && !game_options.open &&
-                                             !missing_content;
                         if (hit(GamepadButtons::X)) {
                             if (settings || content_session || missing_content) actions |= Swap;
-                            else if (library) actions |= Refresh;
                             else if (!configuration.open) actions |= AddFolder;
                         }
-                        if (hit(GamepadButtons::Y)) actions |= library ? Pin : Refresh;
+                        if (hit(GamepadButtons::Y)) actions |= Refresh;
                         if (hit(GamepadButtons::Menu)) actions |= Options;
                         if (hit(GamepadButtons::View)) actions |= Panel;
                         if (hit(GamepadButtons::LeftShoulder)) actions |= PreviousTab;
@@ -823,29 +620,8 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 }
             } catch (...) {
                 controllers.ReadFailed();
-                pad.reset(); previous = {}; stick_navigation.Reset(); manager_dpad.Reset(); trigger_tabs.Reset();
+                pad.reset(); previous = {}; stick_navigation.Reset();
             }
-        }
-        // The battery changes slowly and its report is a driver call: a few times a minute.
-        if (now >= battery_read_at) {
-            battery_read_at = now + std::chrono::seconds{20};
-            ControllerBattery read;
-            try {
-                if (pad && pad->pad) {
-                    const auto report = pad->pad.TryGetBatteryReport();
-                    using winrt::Windows::System::Power::BatteryStatus;
-                    if (report && report.Status() != BatteryStatus::NotPresent) {
-                        const auto remaining = report.RemainingCapacityInMilliwattHours();
-                        const auto full = report.FullChargeCapacityInMilliwattHours();
-                        if (remaining && full && full.Value() > 0) {
-                            read.known = true;
-                            read.level = std::clamp(static_cast<float>(remaining.Value()) / full.Value(), 0.0f, 1.0f);
-                            read.charging = report.Status() == BatteryStatus::Charging;
-                        }
-                    }
-                }
-            } catch (...) {}
-            if (!(read == battery)) { battery = read; dirty = true; }
         }
         if (window_closed || QuitRequested()) return std::nullopt;
         if (finish_name_editor) {
@@ -883,7 +659,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 }
                 picker = nullptr;
                 previous = {};
-                stick_navigation.Reset(); manager_dpad.Reset(); trigger_tabs.Reset();
+                stick_navigation.Reset();
             }
         }
         if (missing_content) {
@@ -932,68 +708,6 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 dirty = true;
             }
         }
-        // Switching tabs: the bumpers (Q/E) at the top level, or a press on the header.
-        const auto switch_tab = [&](LibraryTab to) {
-            if (to == tab) return;
-            if (tab == LibraryTab::Settings) {
-                system_page.open = false;
-                configuration.open = configuration.files = false;
-                settings = return_to_configuration = false;
-                panel.expanded = panel.keyboard.open = panel.keyboard.capturing = false;
-            }
-            tab = to;
-            if (to == LibraryTab::Settings) {
-                configuration.open = true; configuration.files = false; configuration.selected = HomeSystem;
-                configuration.notice.clear(); refresh_setup();
-            }
-            if (to == LibraryTab::Library) {
-                // The shelf opens on the game Home had focused.
-                shelf = LibraryLayout::Shelf(scan.entries, filter);
-                shelf_focus = 0;
-                for (size_t i = 0; i < shelf.size(); ++i)
-                    if (shelf[i] == selected) shelf_focus = i;
-            }
-            filter_focus = false;
-            dirty = true;
-        };
-        const bool top_level = !settings && !system_page.open && !configuration.files && !configuration.busy &&
-                               !picker && !validation.valid() && !game_options.open && !missing_content;
-        if (pressed_tab) {
-            // A primary tab pops idle management pages. Never interrupt an import/install.
-            if (game_options.open && (!content_session || !content_session->Busy()) &&
-                (!mod_session || (!mod_session->Busy() && mod_session->Downloads().empty()))) {
-                const bool changed = content_session && content_session->Changed();
-                content_session.reset();
-                mod_session.reset();
-                cheat_session.reset();
-                game_options = {};
-                if (changed) {
-                    mod_session.reset(); cheat_session.reset();
-                    cache.Clear(); metadata = {}; ++generation;
-                    for (auto& entry : scan.entries) {
-                        entry.title_loaded = entry.metadata_loaded = false;
-                        entry.build_id = {}; entry.display_version.clear();
-                    }
-                    metadata_dirty = true; names_cursor = fill_cursor = 0;
-                }
-                switch_tab(*pressed_tab);
-            }
-            if (top_level || *pressed_tab == LibraryTab::Settings || tab == LibraryTab::Settings) {
-                if (!game_options.open && !configuration.busy && !picker && !validation.valid()) switch_tab(*pressed_tab);
-            }
-            pressed_tab.reset();
-        }
-        const bool settings_page = tab == LibraryTab::Settings && (settings || system_page.open || configuration.files) &&
-                                   !panel.keyboard.open && !panel.expanded && !system_page.name_editor &&
-                                   !configuration.busy && !picker && !validation.valid() && !game_options.open &&
-                                   !missing_content;
-        if ((top_level || settings_page) && (actions & (PreviousTab | NextTab))) {
-            constexpr auto count = static_cast<unsigned>(LibraryTab::Count);
-            const auto current = static_cast<unsigned>(tab);
-            const auto to = actions & PreviousTab ? (current + count - 1) % count : (current + 1) % count;
-            switch_tab(static_cast<LibraryTab>(to));
-            actions &= ~(PreviousTab | NextTab);
-        }
         if (system_page.open && configuration.open && !settings) {
             // The name editor takes its input in the handlers above; the page waits behind it.
             if (!system_page.name_editor && actions) {
@@ -1002,9 +716,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 };
                 send(Up, SystemInput::Up);
                 send(Down, SystemInput::Down);
-                const bool opens = system_page.selected == SystemPage::UserName ||
-                                   system_page.selected == SystemPage::ClearCache;
-                send(Left, opens ? SystemInput::Back : SystemInput::Left);
+                send(Left, SystemInput::Left);
                 send(Right, SystemInput::Right);
                 send(Play, SystemInput::Confirm);
                 send(Quit, SystemInput::Back);
@@ -1012,12 +724,9 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
             }
             actions = 0;
         }
-        const bool on_game = tab == LibraryTab::Home ||
-                             (tab == LibraryTab::Library && !filter_focus && shelf_focus < shelf.size());
-        if (actions & Options && on_game && !game_options.open && !settings && !configuration.open &&
+        if (actions & Options && !game_options.open && !settings && !configuration.open &&
             !panel.keyboard.open && !loading && !picker && !validation.valid() && !scan.entries.empty()) {
             game_options = {true, selected};
-            requested_game_option = 0;
             options_notice.clear();
             actions = 0;
             dirty = true;
@@ -1028,99 +737,8 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 game_options = {};
                 cheat_session.reset();
                 mod_session.reset();
-                actions = 0; dirty = true;
-                continue;
-            }
-            const bool mods_active = game_options.page == GameOption::Mods && mod_session;
-            const bool cheats_active = game_options.page == GameOption::Cheats && cheat_session;
-            const bool can_switch = !configuration.open && !picker && (!content_session || !content_session->Busy()) &&
-                (!mods_active || (!mod_session->Busy() && mod_session->Downloads().empty()));
-            const bool has_manager_tabs = mods_active ||
-                (cheats_active && Cheats::CheatTabCount(cheat_session->Catalog()) > 0);
-            const bool manager_busy = (mods_active && mod_session->Busy()) ||
-                (content_session && content_session->Busy());
-            const bool manager_modal = mods_active && mods_page.screen != Mods::ModsScreen::List;
-            if (actions & (PreviousTab | NextTab)) {
-                if (can_switch && !manager_modal) {
-                    requested_game_option = actions & PreviousTab ?
-                        (game_options.selected + GameOptions().size() - 1) % GameOptions().size() :
-                        (game_options.selected + 1) % GameOptions().size();
-                    dirty = true;
-                }
-                actions &= ~(PreviousTab | NextTab);
-            }
-            if ((actions & (PreviousManagerTab | NextManagerTab)) && !manager_busy && !manager_modal && has_manager_tabs) {
-                if (game_options.focus == GameOptionsFocus::Sections)
-                    game_options.focus = GameOptionsFocus::ManagerTabs;
-                dirty = true;
-            }
-            if (game_options.focus == GameOptionsFocus::Sections) {
-                if (!can_switch) actions &= Quit;
-                else {
-                    if (actions) dirty = true;
-                    if (actions & (Left | PreviousTab)) requested_game_option =
-                        (game_options.selected + GameOptions().size() - 1) % GameOptions().size();
-                    if (actions & (Right | NextTab)) requested_game_option =
-                        (game_options.selected + 1) % GameOptions().size();
-                    if (actions & (Down | Play)) EnterGameOptionsPane(game_options, has_manager_tabs);
-                    actions &= ~(Left | Right | PreviousTab | NextTab | Up | Down | Play);
-                }
-            } else if (!configuration.open && !manager_busy) {
-                if (game_options.focus == GameOptionsFocus::ManagerTabs) {
-                    if (actions & (Up | Quit)) {
-                        LeaveGameOptionsPane(game_options, has_manager_tabs);
-                        actions &= ~(Up | Quit); dirty = true;
-                    } else if (actions & (Down | Play)) {
-                        EnterGameOptionsPane(game_options, has_manager_tabs);
-                        actions &= ~(Down | Play); dirty = true;
-                    }
-                    actions &= Left | Right | PreviousManagerTab | NextManagerTab;
-                } else {
-                    const bool manager_root = (mods_active && mods_page.screen == Mods::ModsScreen::List && !mods_page.moving) ||
-                        cheats_active || (content_session && content_session->View().screen == Content::Screen::Manager) ||
-                        GameOptions()[game_options.selected] == GameOption::Pulse;
-                    const bool first = (mods_active && (mods_page.tab == Mods::ModsTab::Explore ?
-                        mods_page.card < Mods::ModsLayout::Columns : mods_page.selected == 0)) ||
-                        (cheats_active && cheats_page.selected == 0) ||
-                        (content_session && content_session->View().selected == 0) ||
-                        GameOptions()[game_options.selected] == GameOption::Pulse;
-                    if (manager_root && ((actions & Quit) || ((actions & Up) && first))) {
-                        LeaveGameOptionsPane(game_options, has_manager_tabs);
-                        actions &= ~(Up | Quit); dirty = true;
-                    }
-                }
-            }
-            if (requested_game_option == game_options.selected && !game_options.activate && can_switch) {
-                game_options.focus = GameOptionsFocus::Sections;
-                game_options.confirm_discard = false;
-                requested_game_option.reset(); options_notice.clear(); dirty = true;
-            }
-            if (requested_game_option && can_switch) {
-                const bool changed = content_session && content_session->Changed();
-                content_session.reset(); requested_manager_tab.reset();
-                SelectGameOption(game_options, *requested_game_option);
-                requested_game_option.reset(); options_notice.clear();
-                if (changed) {
-                    mod_session.reset(); cheat_session.reset();
-                    cache.Clear(); metadata = {}; ++generation;
-                    for (auto& entry : scan.entries) {
-                        entry.title_loaded = entry.metadata_loaded = false;
-                        entry.build_id = {}; entry.display_version.clear();
-                    }
-                    metadata_dirty = true; names_cursor = fill_cursor = 0;
-                }
-                dirty = true;
-            } else if (requested_game_option) {
-                requested_game_option.reset(); // Busy jobs retain their page and selection.
             }
             if (cheat_session && cheat_session->Poll()) {
-                std::size_t entries = 0;
-                for (const auto category : {Cheats::CheatCategory::Gameplay, Cheats::CheatCategory::Graphics, Cheats::CheatCategory::Mine})
-                    entries += cheat_session->Catalog().Cheats(category).size();
-                LOG_INFO(Frontend, "Cheats manager: title={:016X} build={} entries={} source={}",
-                         cheat_session->Game().title_id, Cheats::HexId(cheat_session->Game().build_id),
-                         entries, static_cast<unsigned>(cheat_session->Source()));
-                Common::Log::Stop();
                 Cheats::ClampCheatsPage(cheats_page, cheat_session->Catalog(), Cheats::CheatsLayout::VisibleRows);
                 dirty = true;
             }
@@ -1128,76 +746,15 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 options_notice = Tr(text);
                 options_notice_until = now + std::chrono::seconds{4};
             };
-            if (game_options.activate && !configuration.open &&
-                scan.entries[game_options.game].title_loaded) {
-                game_options.activate = false;
-                game_options.page = GameOptions()[game_options.selected] == GameOption::Pulse ? std::nullopt :
-                    std::optional{GameOptions()[game_options.selected]};
-                if (game_options.page == GameOption::Updates || game_options.page == GameOption::Dlc) {
-                    const auto& game = scan.entries[game_options.game];
-                    if (!game.title_loaded || !game.program_id) {
-                        notify(T::CheatsUnavailable); game_options.page.reset();
-                    } else {
-                        std::vector<std::uint64_t> bases;
-                        for (const auto& e : scan.entries) if (e.program_id) bases.push_back(FileSys::GetBaseTitleID(e.program_id));
-                        metadata_worker.request_stop();
-                        content_session = std::make_unique<Content::ContentSession>(game.program_id, game.launch_path,
-                            *game_options.page == GameOption::Updates ? Content::Kind::Update : Content::Kind::Dlc,
-                            std::move(bases), std::move(metadata_worker));
-                        metadata = {};
-                    }
-                }
-                if (game_options.page == GameOption::Mods && !mod_session) {
-                    // Mods are kept per title id; the build id (of the version that boots, update
-                    // included) tells which mods' patches fit it.
-                    const auto& game = scan.entries[game_options.game];
-                    if (game.title_loaded && game.program_id == 0) {
-                        notify(T::ModsHomebrew);
-                        game_options.page.reset();
-                    } else if (!game.title_loaded) {
-                        notify(T::CheatsUnavailable);
-                        game_options.page.reset();
-                    } else {
-                        std::string build_id;
-                        if (std::any_of(game.build_id.begin(), game.build_id.end(), [](std::uint8_t b) { return b != 0; }))
-                            for (const auto b : game.build_id) build_id += fmt::format("{:02X}", b);
-                        // The store and the installs log what went wrong; the log opens with the page.
-                        if (!logging_ready) { Common::Log::Initialize(); logging_ready = true; }
-                        mod_session = std::make_unique<Mods::ModSession>(game.program_id, std::move(build_id),
-                                                                         game.launch_path, I18n::ToUtf8(game.name),
-                                                                         system_page.settings.show_adult_mods);
-                        mods_page = {};
-                        options_notice.clear();
-                    }
-                }
-                if (game_options.page == GameOption::Cheats && !cheat_session) {
-                    // Cheat files are named after the game's title and main build ids, which the
-                    // library reads with the title (uwp_library_metadata.cpp).
-                    const auto& game = scan.entries[game_options.game];
-                    const bool known = std::any_of(game.build_id.begin(), game.build_id.end(),
-                                                   [](std::uint8_t b) { return b != 0; });
-                    if (game.title_loaded && game.program_id == 0) {
-                        notify(T::CheatsHomebrew);
-                        game_options.page.reset();
-                    } else if (!game.title_loaded || !known) {
-                        notify(T::CheatsUnavailable);
-                        game_options.page.reset();
-                    } else {
-                        Cheats::CheatGame cheat_game{game.program_id};
-                        std::copy(game.build_id.begin(), game.build_id.end(), cheat_game.build_id.begin());
-                        cheat_session.emplace(cheat_game);
-                        cheats_page = {};
-                        options_notice.clear();
-                    }
-                }
-            }
             if (content_session) {
                 dirty |= content_session->Poll();
                 if (content_session->Busy()) dirty = true;
                 const auto send = [&](unsigned bits, Content::Input input) {
                     if ((actions & bits) && content_session && content_session->Handle(input)) {
                         const bool changed = content_session->Changed();
-                        content_session.reset(); game_options = {};
+                        const bool overview = configuration.open;
+                        content_session.reset(); game_options.page.reset();
+                        if (overview) game_options = {};
                         if (changed) {
                             cache.Clear(); metadata = {}; ++generation;
                             for (auto& e : scan.entries) { e.title_loaded = false; e.metadata_loaded = false; e.build_id = {}; e.display_version.clear(); }
@@ -1207,7 +764,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 };
                 send(Up, Content::Input::Up); send(Down, Content::Input::Down);
                 send(Play, Content::Input::Confirm); send(Swap | AddFolder, Content::Input::Import);
-                send(PreviousManagerTab | NextManagerTab, Content::Input::Storage); send(Refresh, Content::Input::Refresh);
+                send(PreviousTab | NextTab, Content::Input::Storage); send(Refresh, Content::Input::Refresh);
                 send(Quit, Content::Input::Back);
                 if (content_session && content_session->TakeAuthorizeRequest() && !picker) {
                     try {
@@ -1218,7 +775,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                     } catch (...) { options_notice = Tr(T::PickerOpenFailed); }
                 }
                 dirty |= actions != 0;
-            } else if (game_options.page == GameOption::Mods && mod_session) {
+            } else if (mod_session) {
                 using Kind = Mods::ModsCommand::Kind;
                 using Mods::ModJob;
                 const ModJob finished = mod_session->Poll();
@@ -1259,7 +816,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 if (mod_session->Busy()) dirty = true; // The progress moves.
                 const std::wstring mods_game = scan.entries[game_options.game].name;
                 const auto send = [&](unsigned bits, Mods::ModsInput input) {
-                    if ((bits && !(actions & bits)) || !mod_session) return;
+                    if (!(actions & bits) || !mod_session) return;
                     const auto counts = Mods::CountsFor(*mod_session, mods_page, mods_game);
                     const auto command = Mods::HandleModsInput(mods_page, counts, input);
                     switch (command.kind) {
@@ -1308,28 +865,19 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                     case Kind::PickCategory: mod_session->PickCategory(command.index); break;
                     case Kind::Close:
                         mod_session.reset();
-                        game_options = {};
+                        game_options.page.reset();
                         break;
                     case Kind::None:
                     case Kind::Moved:
                         break;
                     }
                 };
-                if (requested_manager_tab) {
-                    if (*requested_manager_tab < Mods::ModsTabCount && mods_page.screen == Mods::ModsScreen::List) {
-                        const auto steps = (*requested_manager_tab + Mods::ModsTabCount -
-                            static_cast<std::size_t>(mods_page.tab)) % Mods::ModsTabCount;
-                        for (std::size_t i = 0; i < steps; ++i) send(0, Mods::ModsInput::NextTab);
-                    }
-                    requested_manager_tab.reset();
-                }
                 send(Up, Mods::ModsInput::Up);
                 send(Down, Mods::ModsInput::Down);
-                const bool sub_tabs = game_options.focus == GameOptionsFocus::ManagerTabs;
-                send(Left, sub_tabs ? Mods::ModsInput::PreviousTab : Mods::ModsInput::Left);
-                send(Right, sub_tabs ? Mods::ModsInput::NextTab : Mods::ModsInput::Right);
-                send(PreviousManagerTab, Mods::ModsInput::PreviousTab);
-                send(NextManagerTab, Mods::ModsInput::NextTab);
+                send(Left, Mods::ModsInput::Left);
+                send(Right, Mods::ModsInput::Right);
+                send(PreviousTab, Mods::ModsInput::PreviousTab);
+                send(NextTab, Mods::ModsInput::NextTab);
                 send(Play, Mods::ModsInput::Confirm);
                 send(Swap | AddFolder, Mods::ModsInput::Alternate);
                 send(Refresh, Mods::ModsInput::Menu);
@@ -1345,10 +893,10 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                     } catch (...) { options_notice = Tr(T::PickerOpenFailed); }
                 }
                 dirty |= actions != 0;
-            } else if (game_options.page == GameOption::Cheats && cheat_session && (actions || requested_manager_tab)) {
+            } else if (cheat_session && actions) {
                 using Cheats::CheatsEffect;
                 const auto send = [&](unsigned bits, MenuAction action) {
-                    if (bits && !(actions & bits)) return;
+                    if (!(actions & bits)) return;
                     const auto input = Cheats::CheatsInputForAction(action);
                     if (!input) return;
                     switch (Cheats::HandleCheatsInput(cheats_page, *cheat_session, *input,
@@ -1361,26 +909,17 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                     case CheatsEffect::Refresh: cheat_session->Retry(); break;
                     case CheatsEffect::Back:
                         cheat_session.reset();
-                        game_options = {};
+                        game_options.page.reset();
                         break;
                     case CheatsEffect::None:
                     case CheatsEffect::Moved:
                         break;
                     }
                 };
-                if (requested_manager_tab) {
-                    std::array<Cheats::CheatCategory, Cheats::CategoryCount> storage;
-                    const auto tabs = Cheats::CheatTabs(cheat_session->Catalog(), storage);
-                    if (*requested_manager_tab < tabs.size()) {
-                        for (std::size_t i = 0; i < tabs.size() && cheats_page.category != tabs[*requested_manager_tab]; ++i)
-                            send(0, MenuAction::NextTab);
-                    }
-                    requested_manager_tab.reset();
-                }
                 send(Up, MenuAction::Up);
                 send(Down, MenuAction::Down);
-                send(Left | PreviousManagerTab, MenuAction::PreviousTab);
-                send(Right | NextManagerTab, MenuAction::NextTab);
+                send(Left | PreviousTab, MenuAction::PreviousTab);
+                send(Right | NextTab, MenuAction::NextTab);
                 send(Play, MenuAction::Confirm);
                 send(Swap | AddFolder, MenuAction::Alternate);
                 send(Refresh, MenuAction::Refresh);
@@ -1390,8 +929,9 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 const auto send = [&](unsigned bit, GameOptionsInput input) {
                     if (actions & bit) HandleGameOptionsInput(game_options, input);
                 };
-
-                if (GameOptions()[game_options.selected] == GameOption::Pulse) send(Play, GameOptionsInput::Confirm);
+                send(Up, GameOptionsInput::Up);
+                send(Down, GameOptionsInput::Down);
+                send(Play, GameOptionsInput::Confirm);
                 send(Quit, GameOptionsInput::Back);
                 if (game_options.confirm_discard || game_options.discard) {
                     auto& game = scan.entries[game_options.game];
@@ -1408,12 +948,66 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 } else if (options_notice == Tr(T::PulseDiscardConfirm)) {
                     options_notice.clear();
                 }
+                if (game_options.page == GameOption::Updates || game_options.page == GameOption::Dlc) {
+                    const auto& game = scan.entries[game_options.game];
+                    if (!game.title_loaded || !game.program_id) {
+                        notify(T::CheatsUnavailable); game_options.page.reset();
+                    } else {
+                        std::vector<std::uint64_t> bases;
+                        for (const auto& e : scan.entries) if (e.program_id) bases.push_back(FileSys::GetBaseTitleID(e.program_id));
+                        metadata_worker.request_stop();
+                        content_session = std::make_unique<Content::ContentSession>(game.program_id, game.launch_path,
+                            *game_options.page == GameOption::Updates ? Content::Kind::Update : Content::Kind::Dlc,
+                            std::move(bases), std::move(metadata_worker));
+                        metadata = {};
+                    }
+                }
+                if (game_options.page == GameOption::Mods) {
+                    // Mods are kept per title id; the build id (of the version that boots, update
+                    // included) tells which mods' patches fit it.
+                    const auto& game = scan.entries[game_options.game];
+                    if (game.title_loaded && game.program_id == 0) {
+                        notify(T::ModsHomebrew);
+                        game_options.page.reset();
+                    } else if (!game.title_loaded) {
+                        notify(T::CheatsUnavailable);
+                        game_options.page.reset();
+                    } else {
+                        std::string build_id;
+                        if (std::any_of(game.build_id.begin(), game.build_id.end(), [](std::uint8_t b) { return b != 0; }))
+                            for (const auto b : game.build_id) build_id += fmt::format("{:02X}", b);
+                        // The store and the installs log what went wrong; the log opens with the page.
+                        if (!logging_ready) { Common::Log::Initialize(); logging_ready = true; }
+                        mod_session = std::make_unique<Mods::ModSession>(game.program_id, std::move(build_id),
+                                                                         game.launch_path, I18n::ToUtf8(game.name),
+                                                                         system_page.settings.show_adult_mods);
+                        mods_page = {};
+                        options_notice.clear();
+                    }
+                }
+                if (game_options.page == GameOption::Cheats) {
+                    // Cheat files are named after the game's title and main build ids, which the
+                    // library reads with the title (uwp_library_metadata.cpp).
+                    const auto& game = scan.entries[game_options.game];
+                    const bool known = std::any_of(game.build_id.begin(), game.build_id.end(),
+                                                   [](std::uint8_t b) { return b != 0; });
+                    if (game.title_loaded && game.program_id == 0) {
+                        notify(T::CheatsHomebrew);
+                        game_options.page.reset();
+                    } else if (!game.title_loaded || !known) {
+                        notify(T::CheatsUnavailable);
+                        game_options.page.reset();
+                    } else {
+                        Cheats::CheatGame cheat_game{game.program_id};
+                        std::copy(game.build_id.begin(), game.build_id.end(), cheat_game.build_id.begin());
+                        cheat_session.emplace(cheat_game);
+                        cheats_page = {};
+                        options_notice.clear();
+                    }
+                }
                 dirty = true;
             }
             actions = 0;
-        }
-        if (!game_options.open && !content_session) {
-            mod_session.reset(); cheat_session.reset(); requested_manager_tab.reset();
         }
         if (actions & Quit) {
             if (panel.keyboard.open) { panel.keyboard.open = panel.keyboard.capturing = false; dirty = true; actions &= ~Quit; }
@@ -1424,36 +1018,23 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 else configuration.open = false;
                 dirty = true; actions &= ~Quit;
             }
-            else if (tab == LibraryTab::Library) { switch_tab(LibraryTab::Home); actions &= ~Quit; }
             else return std::nullopt;
         }
         if (actions & Panel && !configuration.open) { settings = !settings; panel.keyboard.open = panel.keyboard.capturing = false; panel.expanded = false; dirty = true; }
-        if (actions & AddFolder && !settings && !picker && !configuration.busy && !validation.valid() &&
-            !configuration.open)
-            switch_tab(LibraryTab::Settings);
-        // The import tile opens the file manager on the Settings tab.
-        if (actions & Play && tab == LibraryTab::Library && !filter_focus && shelf_focus >= shelf.size() &&
-            LibraryLayout::HasImportTile(filter) && !settings && !configuration.open && !picker &&
-            !validation.valid()) {
-            switch_tab(LibraryTab::Settings);
-            configuration.files = true;
-            configuration.selected = 0;
-            actions &= ~Play;
+        if (actions & AddFolder && !settings && !picker && !configuration.busy && !validation.valid()) {
+            configuration.open = true; configuration.files = false; configuration.selected = HomeSystem;
+            configuration.notice.clear(); refresh_setup(); dirty = true;
         }
-        // The configuration closed itself (Back): its tab goes with it.
-        if (tab == LibraryTab::Settings && !configuration.open && !settings) { tab = LibraryTab::Home; dirty = true; }
         if (configuration.open && !settings && !picker && !configuration.busy) {
             const auto count = ConfigurationRowCount(configuration);
             if (actions & Up) configuration.selected = (configuration.selected + count - 1) % count;
             if (actions & Down) configuration.selected = (configuration.selected + 1) % count;
             if (actions & (Up | Down)) dirty = true;
-            if (configuration.files && actions & Left) {
-                configuration.files = false; configuration.selected = HomeFiles; dirty = true;
-            } else if (actions & Play || (!configuration.files && actions & Right)) {
+            if (actions & Play) {
                 if (!configuration.files) {
                     switch (configuration.selected) {
                     case HomeFiles: configuration.files = true; configuration.selected = 0; break;
-                    case HomeControllers: settings = true; return_to_configuration = true; setting_row = 0; break;
+                    case HomeControllers: settings = true; return_to_configuration = true; break;
                     default:
                         system_page.open = true;
                         system_page.selected = SystemPage::UserName;
@@ -1471,7 +1052,6 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                         configuration.selected == 3 ? Content::Kind::Update : Content::Kind::Dlc,
                         std::move(bases), std::move(metadata_worker));
                     metadata = {}; game_options.open = true; game_options.game = 0;
-                    game_options.activate = false; game_options.focus = GameOptionsFocus::Content;
                 }
                 else if (configuration.selected >= 5) {
                     try {
@@ -1526,8 +1106,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 }
             }
         }
-        if (actions & Play && on_game && !configuration.open && !settings && !panel.keyboard.open && !loading &&
-            !scan.entries.empty()) {
+        if (actions & Play && !configuration.open && !settings && !panel.keyboard.open && !loading && !scan.entries.empty()) {
             selected_path = scan.entries[selected].launch_path;
             notice = Tr(T::CheckingGame);
             dirty = true;
@@ -1581,10 +1160,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 if (actions & Up) setting_row = (setting_row + rows - 1) % rows;
                 if (actions & Down) setting_row = (setting_row + 1) % rows;
                 if (actions & (Up | Down)) dirty = true;
-                const bool opens = !panel.xbox && (setting_row == 0 || setting_row == 4);
-                if (opens && actions & Left && !(actions & (Play | Right))) {
-                    if (configuration.open) { settings = return_to_configuration = false; dirty = true; }
-                } else if (actions & (Play | Left | Right)) {
+                if (actions & (Play | Left | Right)) {
                     if (!panel.xbox && setting_row == 4) {
                         panel.keyboard.open = true; panel.keyboard.capturing = false; dirty = true;
                     } else if (!panel.xbox && setting_row == 0) {
@@ -1596,73 +1172,15 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                     } else if (setting_row == offset) {
                         options.style = StepConsoleControllerStyle(options.style, (actions & Left) != 0);
                         device_changed = true; dirty = true;
-                    } else if (setting_row == offset + 1) {
-                        actions |= Swap;
-                    } else if (actions & Left) {
-                        // Back along the 8 / 12 / 18 % segments; A and Right go forward.
-                        options.deadzone = options.deadzone < 0.10f ? 0.18f : options.deadzone < 0.15f ? 0.08f : 0.12f;
-                        device_changed = true; dirty = true;
-                    } else actions |= Zone;
+                    } else actions |= setting_row == offset + 1 ? Swap : Zone;
                 }
             }
         } else {
             actions &= ~(Swap | Zone);
-            using LibraryLayout::Move;
-            const auto move = [&](Move direction) {
-                const auto moved = LibraryLayout::Moved({selected, rail}, direction, scan.entries.size(),
-                                                        LibraryLayout::RailCount(scan.entries));
-                if (moved.selected == selected && moved.rail == rail) return;
-                selected = moved.selected;
-                rail = moved.rail;
-                dirty = true;
-            };
-            if (tab == LibraryTab::Home) {
-                if (actions & Left) move(Move::Left);
-                if (actions & Right) move(Move::Right);
-                if (actions & Up) move(Move::Up);
-                if (actions & Down) move(Move::Down);
-            } else if (tab == LibraryTab::Library && !loading) {
-                const size_t count = shelf.size() + (LibraryLayout::HasImportTile(filter) ? 1 : 0);
-                if (filter_focus) {
-                    if (actions & (Left | Right)) {
-                        constexpr auto filters = static_cast<unsigned>(LibraryLayout::FilterCount);
-                        const auto current = static_cast<unsigned>(filter);
-                        filter = static_cast<Filter>(actions & Left ? (current + filters - 1) % filters
-                                                                    : (current + 1) % filters);
-                        shelf = LibraryLayout::Shelf(scan.entries, filter);
-                        shelf_focus = 0;
-                        dirty = true;
-                    }
-                    if (actions & Down && count) { filter_focus = false; dirty = true; }
-                } else {
-                    const auto shelf_move = [&](Move direction) {
-                        const auto moved = LibraryLayout::ShelfMoved(shelf_focus, direction, count);
-                        if (moved != shelf_focus) { shelf_focus = moved; dirty = true; }
-                    };
-                    if (actions & Up && shelf_focus < LibraryLayout::Columns) { filter_focus = true; dirty = true; }
-                    else if (actions & Up) shelf_move(Move::Up);
-                    if (actions & Down) shelf_move(Move::Down);
-                    if (actions & Left) shelf_move(Move::Left);
-                    if (actions & Right) shelf_move(Move::Right);
-                }
-                if (shelf_focus < shelf.size()) selected = shelf[shelf_focus];
-            }
-        }
-        // Pinning the focused game: first in Home's rail and under the Pinned filter.
-        if (actions & Pin && on_game && !settings && !configuration.open && !game_options.open && !loading &&
-            selected < scan.entries.size()) {
-            auto& entry = scan.entries[selected];
-            entry.pinned = !entry.pinned;
-            if (entry.pinned) favorites.insert(entry.launch_path);
-            else favorites.erase(entry.launch_path);
-            if (!SaveFavorites(favorites)) notice = Tr(T::PinSaveFailed);
-            const auto focused_shelf = shelf_focus;
-            refresh_play(std::string{entry.launch_path});
-            // On a filtered shelf the focus stays where it was, not where the game moved.
-            if (tab == LibraryTab::Library) {
-                shelf_focus = std::min(focused_shelf, shelf.empty() ? 0 : shelf.size() - 1);
-                if (shelf_focus < shelf.size()) selected = shelf[shelf_focus];
-            }
+            if (actions & Left && selected) { --selected; dirty = true; }
+            if (actions & Right && selected + 1 < scan.entries.size()) { ++selected; dirty = true; }
+            if (actions & Up && selected >= PageSize) { selected -= PageSize; dirty = true; }
+            if (actions & Down && selected + PageSize < scan.entries.size()) { selected += PageSize; dirty = true; }
         }
         if (actions & Swap) { options.swap_face_buttons = !options.swap_face_buttons; dirty = true; }
         if (actions & Zone) {
@@ -1682,7 +1200,8 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                 auto batch = metadata.get();
                 if (batch.generation == generation) {
                     // Merge field by field: a names-only batch must not drop icons already shown.
-                    const auto covers = covers_for_tab();
+                    const size_t page = selected / PageSize * PageSize;
+                    const size_t window_first = page >= PageSize ? page - PageSize : 0;
                     for (auto& entry : batch.entries) {
                         auto found = std::find_if(scan.entries.begin(), scan.entries.end(), [&](const auto& e) {
                             return e.launch_path == entry.launch_path;
@@ -1703,7 +1222,7 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
                         }
                         found->title_loaded |= entry.title_loaded;
                         // The player may have paged on meanwhile: keep icons only inside the window.
-                        if (batch.icons && covers.shown[index])
+                        if (batch.icons && index >= window_first && index < page + 2 * PageSize)
                             found->icon = std::move(entry.icon);
                     }
                     dirty = true;
@@ -1712,9 +1231,8 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
         }
         // Metadata, one worker at a time and in priority order: the covers around the cursor, then
         // every title the cache already has, then the rest of the library into the cache.
-        const auto covers = covers_for_tab();
-        const size_t page = covers.key;
-        // The player moved to other rows: background work yields to its covers.
+        const size_t page = selected / PageSize * PageSize;
+        // The player moved to another page: background work yields to its covers.
         if (metadata.valid() && metadata_background && (metadata_dirty || retained_page != page))
             metadata_worker.request_stop();
         if (!content_session && !validation.valid() && !missing_content && !configuration.open && !loading && !metadata.valid() && !scan.entries.empty()) {
@@ -1723,21 +1241,27 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
             if (metadata_dirty || retained_page != page) {
                 metadata_dirty = false;
                 retained_page = page;
+                const size_t window_first = page >= PageSize ? page - PageSize : 0;
+                const size_t window_end = std::min(page + 2 * PageSize, scan.entries.size());
                 for (size_t i = 0; i < scan.entries.size(); ++i) {
                     auto& entry = scan.entries[i];
-                    if (!covers.shown[i] && entry.metadata_loaded) {
+                    if ((i < window_first || i >= window_end) && entry.metadata_loaded) {
                         std::vector<unsigned char>{}.swap(entry.icon);
                         entry.metadata_loaded = false;
                     }
                 }
-                // The focused row first, then the next ones (where the player usually goes), the
-                // rail, and the row above.
-                for (const size_t i : covers.order) {
-                    auto& entry = scan.entries[i];
-                    if (entry.metadata_loaded) continue;
-                    entry.metadata_loaded = true;
-                    requested.push_back(entry);
-                }
+                // The visible page first, then the next one (where the player usually goes), then the previous.
+                const auto want = [&](size_t first, size_t last) {
+                    for (size_t i = first; i < std::min(last, scan.entries.size()); ++i) {
+                        auto& entry = scan.entries[i];
+                        if (entry.metadata_loaded) continue;
+                        entry.metadata_loaded = true;
+                        requested.push_back(entry);
+                    }
+                };
+                want(page, page + PageSize);
+                want(page + PageSize, page + 2 * PageSize);
+                want(window_first, page);
                 request.icons = true;
             } else {
                 // Titles without icons: what the grid and the cache need, never a cover's bytes.
@@ -1778,31 +1302,16 @@ std::optional<std::string> ShowGameLibrary(void* core_window, unsigned width, un
             resize = false;
             dirty = true;
         }
-        const bool draw = dirty || canvas->Animating();
-        if (draw) {
+        if (dirty) {
             const GameOptionsView options_view{
-                game_options, game_options.open && !configuration.open && game_options.game < scan.entries.size() ? &scan.entries[game_options.game] : nullptr,
+                game_options, game_options.open && game_options.game < scan.entries.size() ? &scan.entries[game_options.game] : nullptr,
                 cheat_session ? &*cheat_session : nullptr, cheats_page, options_notice, content_session.get(),
                 mod_session.get(), &mods_page};
-            // Titles, Pulse sessions and plays arrive after the shelf was made: keep it current,
-            // the focus on the same game.
-            if (tab == LibraryTab::Library && !loading) {
-                const auto focused = shelf_focus < shelf.size() ? shelf[shelf_focus] : SIZE_MAX;
-                shelf = LibraryLayout::Shelf(scan.entries, filter);
-                const size_t count = shelf.size() + (LibraryLayout::HasImportTile(filter) ? 1 : 0);
-                shelf_focus = std::min(shelf_focus, count ? count - 1 : 0);
-                for (size_t i = 0; i < shelf.size(); ++i)
-                    if (shelf[i] == focused) shelf_focus = i;
-                if (shelf_focus < shelf.size()) selected = shelf[shelf_focus];
-            }
             canvas->Draw({scan, selected, loading, settings, setting_row, options, notice, panel,
-                          configuration, system_page, options_view, missing_content, rail, tab, filter,
-                          &shelf, shelf_focus, filter_focus, battery});
+                          configuration, system_page, options_view, missing_content});
             dirty = false;
         }
-        // A drawn frame already waited for the display in Present(1); sleeping after it too made
-        // every press answer a frame late. Idle, poll the pad every half frame.
-        if (!draw) std::this_thread::sleep_for(std::chrono::milliseconds{8});
+        std::this_thread::sleep_for(std::chrono::milliseconds{16});
     }
 }
 } // namespace Jadyx

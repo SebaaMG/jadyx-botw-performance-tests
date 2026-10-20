@@ -978,11 +978,13 @@ void Device::LogCapabilities() const {
 
     // The runtime-level additions (Agility SDK era). Each query simply fails on an older runtime.
     D3D12_FEATURE_DATA_D3D12_OPTIONS12 o12{};
+    D3D12_FEATURE_DATA_D3D12_OPTIONS13 o13{};
     D3D12_FEATURE_DATA_D3D12_OPTIONS14 o14{};
     D3D12_FEATURE_DATA_D3D12_OPTIONS15 o15{};
     D3D12_FEATURE_DATA_D3D12_OPTIONS16 o16{};
     D3D12_FEATURE_DATA_D3D12_OPTIONS17 o17{};
     const bool has12 = Query(dev, D3D12_FEATURE_D3D12_OPTIONS12, o12);
+    const bool has13 = Query(dev, D3D12_FEATURE_D3D12_OPTIONS13, o13);
     const bool has14 = Query(dev, D3D12_FEATURE_D3D12_OPTIONS14, o14);
     const bool has15 = Query(dev, D3D12_FEATURE_D3D12_OPTIONS15, o15);
     const bool has16 = Query(dev, D3D12_FEATURE_D3D12_OPTIONS16, o16);
@@ -995,6 +997,8 @@ void Device::LogCapabilities() const {
              has15 ? YesNo(o15.TriangleFanSupported) : "n/a",
              has16 ? YesNo(o16.DynamicDepthBiasSupported) : "n/a",
              has17 ? YesNo(o17.NonNormalizedCoordinateSamplersSupported) : "n/a");
+    LOG_INFO(Render, "D3D12: unrestricted buffer-texture copy pitch {}",
+             has13 ? YesNo(o13.UnrestrictedBufferTextureCopyPitchSupported) : "n/a");
 
     D3D12_FEATURE_DATA_ARCHITECTURE1 arch{};
     if (Query(dev, D3D12_FEATURE_ARCHITECTURE1, arch)) {

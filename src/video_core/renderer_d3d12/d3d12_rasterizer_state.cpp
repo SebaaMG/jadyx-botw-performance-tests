@@ -231,7 +231,7 @@ void RasterizerD3D12::SetGraphicsRootArguments(CommandStream* cmd,
     // Consecutive draws of one pipeline mostly repeat their root arguments: only changes are set.
     auto& cached = command_state.root_args;
     if (!cached.valid || cached.push_constants != bindings.push_constants) {
-        cmd->SetGraphicsRoot32BitConstants(PipelineLayout::PUSH_CONSTANTS_INDEX,
+        cmd->SetGraphicsRoot32BitConstants(layout.PushConstantsIndex(),
                                            PUSH_CONSTANT_WORDS, bindings.push_constants.data(), 0);
         cached.push_constants = bindings.push_constants;
     }
@@ -258,6 +258,11 @@ void RasterizerD3D12::SetGraphicsRootArguments(CommandStream* cmd,
         cmd->SetGraphicsRootDescriptorTable(layout.ResourceTableIndex(), bindings.resource_table);
         cached.resource_table = bindings.resource_table.ptr;
     }
+    if (layout.ImageTableIndex() != PipelineLayout::NO_TABLE &&
+        (!cached.valid || cached.image_table != bindings.image_table.ptr)) {
+        cmd->SetGraphicsRootDescriptorTable(layout.ImageTableIndex(), bindings.image_table);
+        cached.image_table = bindings.image_table.ptr;
+    }
     if (layout.SamplerTableIndex() != PipelineLayout::NO_TABLE &&
         (!cached.valid || cached.sampler_table != bindings.sampler_table.ptr)) {
         cmd->SetGraphicsRootDescriptorTable(layout.SamplerTableIndex(), bindings.sampler_table);
@@ -269,6 +274,11 @@ void RasterizerD3D12::SetGraphicsRootArguments(CommandStream* cmd,
                                                bindings.integer_samplers);
         cached.integer_samplers = bindings.integer_samplers;
     }
+    if (layout.IsPersistent() && (!cached.valid || cached.index_map != bindings.index_map)) {
+        cmd->SetGraphicsRootConstantBufferView(layout.IndexMapIndex(), bindings.index_map);
+        cached.index_map = bindings.index_map;
+    }
+    if (layout.IsPersistent()) descriptor_queue.TouchPersistentUsage();
     cached.valid = true;
 }
 

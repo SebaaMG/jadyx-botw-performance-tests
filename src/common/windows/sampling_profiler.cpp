@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -18,6 +19,7 @@
 #include <fmt/format.h>
 
 #include "common/windows/sampling_profiler.h"
+#include "common/jit_symbols.h"
 
 namespace Common::SamplingProfiler {
 namespace {
@@ -30,6 +32,9 @@ constexpr size_t MAX_STACK_COPY = 256 * 1024;
 constexpr size_t COPY_SLACK = 64 * 1024;
 /// Distinct stacks kept per window; past it, samples only count towards their thread.
 constexpr size_t MAX_STACKS = 100'000;
+constexpr size_t MAX_JIT_CODE = 64 * 1024;
+constexpr size_t MAX_JIT_SNAPSHOT_BYTES = 32 * 1024 * 1024;
+constexpr size_t MAX_JIT_SNAPSHOTS = 10'000;
 /// A thread that did not run since the last tick is sampled once in this many ticks, and the
 /// sample weighs as many: where threads wait matters, but they wait in few places, and most
 /// threads of the process wait most of the time.
@@ -104,6 +109,15 @@ bool VirtualUnwindGuarded(DWORD64 image_base, DWORD64 pc, PRUNTIME_FUNCTION func
     }
 }
 
+bool CopyCodeGuarded(u8* destination, const void* source, size_t size) {
+    __try {
+        std::memcpy(destination, source, size);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 class Sampler {
 public:
     explicit Sampler(const Options& options_) : options{options_} {
@@ -114,7 +128,7 @@ public:
                                                    MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
         if (std::FILE* file = OpenOutput(output_started ? L"a" : L"w")) {
             output_started = true;
-            std::fputs("# jadyx sampling profile v1\n", file);
+            std::fputs("# jadyx sampling profile v2\n", file);
             WriteModuleIdentity(file);
             std::fclose(file);
         }
@@ -142,6 +156,17 @@ public:
     }
 
 private:
+    struct Frame {
+        DWORD64 pc;
+        u64 block;
+        bool operator==(const Frame&) const = default;
+    };
+
+    struct JitSnapshot {
+        JitSymbols::Block block;
+        std::vector<u8> code;
+    };
+
     struct StackRecord {
         u32 thread;
         bool waiting;
@@ -230,6 +255,10 @@ private:
         stacks.clear();
         stack_index.clear();
         frame_pool.clear();
+        jit_snapshots.clear();
+        jit_snapshot_bytes = 0;
+        jit_busy_samples = 0;
+        jit_dropped_samples = 0;
         for (ThreadEntry* entry : threads) {
             entry->window_cpu_start = CpuTime100ns(entry->handle);
             entry->running_samples = 0;
@@ -269,7 +298,9 @@ private:
 
     /// Suspends the thread only to read its registers and copy its stack: no allocation, lock or
     /// logging may happen in between, since the thread may hold the heap lock or any other.
-    bool Capture(ThreadEntry& entry, CONTEXT& context, size_t& copied, ULONG_PTR& origin) {
+    bool Capture(ThreadEntry& entry, CONTEXT& context, size_t& copied, ULONG_PTR& origin,
+                 const JitSymbols::ReadView& symbols, const JitSymbols::Block*& block,
+                 size_t& code_bytes) {
         LARGE_INTEGER start{}, end{};
         QueryPerformanceCounter(&start);
         if (SuspendThread(entry.handle) == static_cast<DWORD>(-1)) {
@@ -279,6 +310,18 @@ private:
         // GetThreadContext also waits for the suspension to take effect.
         context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
         const bool ok = GetThreadContext(entry.handle, &context) != 0;
+        if (ok) {
+            block = symbols.Find(static_cast<std::uintptr_t>(context.Rip));
+            if (block && !jit_snapshots.contains(block->id) &&
+                jit_snapshots.size() < MAX_JIT_SNAPSHOTS) {
+                const size_t size = std::min(block->size, MAX_JIT_CODE);
+                if (size <= MAX_JIT_SNAPSHOT_BYTES - jit_snapshot_bytes &&
+                    CopyCodeGuarded(jit_code_copy.data(), reinterpret_cast<const void*>(block->host),
+                                    size)) {
+                    code_bytes = size;
+                }
+            }
+        }
         copied = 0;
         if (ok && stack_copy) {
             const ULONG_PTR sp = static_cast<ULONG_PTR>(context.Rsp);
@@ -362,15 +405,44 @@ private:
         CONTEXT context{};
         size_t copied{};
         ULONG_PTR origin{};
-        if (!Capture(entry, context, copied, origin)) {
-            return;
+        u64 leaf_block{};
+        DWORD64 addresses[MAX_FRAMES];
+        size_t depth{};
+        {
+            JitSymbols::ReadView symbols;
+            if (!symbols.Ready()) {
+                jit_busy_samples += weight;
+            }
+            const JitSymbols::Block* block{};
+            size_t code_bytes{};
+            if (!Capture(entry, context, copied, origin, symbols, block, code_bytes)) {
+                return;
+            }
+            if (block) {
+                if (!jit_snapshots.contains(block->id) &&
+                    jit_snapshots.size() < MAX_JIT_SNAPSHOTS) {
+                    JitSnapshot snapshot{*block, {jit_code_copy.begin(),
+                                               jit_code_copy.begin() + code_bytes}};
+                    jit_snapshot_bytes += code_bytes;
+                    jit_snapshots.emplace(block->id, std::move(snapshot));
+                }
+                if (jit_snapshots.contains(block->id)) {
+                    leaf_block = block->id;
+                } else {
+                    jit_dropped_samples += weight;
+                }
+            }
+            depth = Unwind(context, copied, origin, addresses);
         }
-        DWORD64 frames[MAX_FRAMES];
-        const size_t depth = Unwind(context, copied, origin, frames);
+        Frame frames[MAX_FRAMES];
+        for (size_t index = 0; index < depth; ++index) {
+            frames[index] = {addresses[index], index == 0 ? leaf_block : 0};
+        }
         u64 hash = 0xcbf29ce484222325ULL ^ (static_cast<u64>(thread_index) << 1) ^
                    static_cast<u64>(waiting ? 1 : 0);
         for (size_t i = 0; i < depth; ++i) {
-            hash = (hash ^ frames[i]) * 0x100000001b3ULL;
+            hash = (hash ^ frames[i].pc) * 0x100000001b3ULL;
+            hash = (hash ^ frames[i].block) * 0x100000001b3ULL;
         }
         for (u64 probe = hash;; ++probe) {
             const auto it = stack_index.find(probe);
@@ -403,7 +475,7 @@ private:
         auto [it, inserted] = module_names.try_emplace(base);
         if (inserted) {
             if (image_base == nullptr) {
-                it->second = "[jit]";
+                it->second = "[dynamic]";
             } else {
                 wchar_t path[MAX_PATH]{};
                 const DWORD length =
@@ -445,12 +517,13 @@ private:
         std::fputs(
             fmt::format("window {} seconds {:.3f} hz {} ticks {} sampler_cpu_ms {:.1f} "
                         "suspensions {} suspended_us_avg {:.1f} suspended_us_max {:.1f} "
-                        "stacks {} dropped_samples {}\n",
+                        "stacks {} dropped_samples {} jit_busy_samples {} "
+                        "jit_dropped_samples {} jit_snapshot_bytes {}\n",
                         ++window_counter, seconds, options.hz, window_ticks,
                         static_cast<double>(sampler_cpu) / 1e4, suspensions,
                         suspensions ? static_cast<double>(suspended_ns) / 1e3 / suspensions : 0.0,
                         static_cast<double>(max_suspended_ns) / 1e3, stacks.size(),
-                        dropped_samples)
+                        dropped_samples, jit_busy_samples, jit_dropped_samples, jit_snapshot_bytes)
                 .c_str(),
             file);
         // Names can change while a thread lives (RegisterCurrentThread again).
@@ -493,17 +566,42 @@ private:
                            record.waiting ? 'W' : 'R', record.count);
             // Root first, as flame graphs fold them.
             for (size_t i = record.depth; i-- > 0;) {
-                const DWORD64 pc = frame_pool[record.first_frame + i];
+                const auto& frame = frame_pool[record.first_frame + i];
+                const DWORD64 pc = frame.pc;
                 DWORD64 base{};
                 const std::string& module = ModuleName(pc, base);
-                if (base == 0) {
-                    line += module;
+                if (frame.block) {
+                    const auto& block = jit_snapshots.at(frame.block).block;
+                    fmt::format_to(std::back_inserter(line), "jit#{}+0x{:x}@0x{:x}",
+                                   block.id, pc - block.host, pc);
+                } else if (base == 0) {
+                    fmt::format_to(std::back_inserter(line), "{}+0x{:x}", module, pc);
                 } else {
                     fmt::format_to(std::back_inserter(line), "{}+0x{:x}", module, pc - base);
                 }
                 if (i != 0) {
                     line += ';';
                 }
+            }
+            line += '\n';
+            std::fputs(line.c_str(), file);
+        }
+        for (const auto& [id, snapshot] : jit_snapshots) {
+            const auto& block = snapshot.block;
+            std::fputs(fmt::format("jit_block {} owner {} generation {} process 0x{:x} core {} "
+                                   "descriptor 0x{:x} guest 0x{:x} end 0x{:x} host 0x{:x} "
+                                   "size {} captured {} ir_truncated {}\n",
+                                   id, block.owner, block.generation, block.process, block.core,
+                                   block.descriptor, block.guest_begin, block.guest_end, block.host,
+                                   block.size, snapshot.code.size(), block.annotations_truncated)
+                           .c_str(), file);
+            for (const auto& annotation : block.annotations) {
+                std::fputs(fmt::format("jit_ir {} {} {} {}\n", id, annotation.begin,
+                                       annotation.end, annotation.opcode).c_str(), file);
+            }
+            line = fmt::format("jit_code {} ", id);
+            for (const auto byte : snapshot.code) {
+                fmt::format_to(std::back_inserter(line), "{:02x}", byte);
             }
             line += '\n';
             std::fputs(line.c_str(), file);
@@ -535,8 +633,13 @@ private:
     u64 dropped_samples{};
     std::vector<StackRecord> stacks;
     std::unordered_map<u64, size_t> stack_index;
-    std::vector<DWORD64> frame_pool;
+    std::vector<Frame> frame_pool;
     std::unordered_map<DWORD64, std::string> module_names;
+    std::array<u8, MAX_JIT_CODE> jit_code_copy;
+    std::unordered_map<u64, JitSnapshot> jit_snapshots;
+    size_t jit_snapshot_bytes{};
+    u64 jit_busy_samples{};
+    u64 jit_dropped_samples{};
 };
 
 std::mutex sampler_mutex;

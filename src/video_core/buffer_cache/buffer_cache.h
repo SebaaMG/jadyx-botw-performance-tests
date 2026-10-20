@@ -7,6 +7,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <numeric>
 #include <stdexcept>
@@ -55,7 +56,23 @@ template <class P>
 BufferCache<P>::~BufferCache() = default;
 
 template <class P>
-void BufferCache<P>::RunGarbageCollector() {
+void BufferCache<P>::RunGarbageCollector(std::optional<BufferGcPolicy> policy) {
+    if (policy) {
+        const auto stats = CollectBufferGarbage(*policy, frame_tick,
+            [&](u64 cutoff, auto&& visitor) { lru_cache.ForEachItemBelow(cutoff, visitor); },
+            [&](BufferId buffer_id) {
+                const auto& buffer = slot_buffers[buffer_id];
+                return IsRegionGpuModified(buffer.CpuAddr(), buffer.SizeBytes());
+            },
+            [&](BufferId buffer_id) { return DownloadBufferMemory(slot_buffers[buffer_id]); },
+            [&](BufferId buffer_id) { DeleteBuffer(buffer_id); },
+            []() -> u64 {
+                return std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+            });
+        if constexpr (requires { runtime.RecordBufferGc(stats); }) runtime.RecordBufferGc(stats);
+        return;
+    }
     const bool aggressive_gc = total_used_memory >= critical_memory;
     const u64 ticks_to_destroy = aggressive_gc ? 60 : 120;
     int num_iterations = aggressive_gc ? 64 : 32;
@@ -97,12 +114,13 @@ void BufferCache<P>::TickFrame() {
     const bool skip_preferred = hits * 256 < shots * 251;
     channel_state->uniform_buffer_skip_cache_size = skip_preferred ? DEFAULT_SKIP_CACHE_SIZE : 0;
 
-    // If we can obtain the memory info, use it instead of the estimate.
-    if (runtime.CanReportMemoryUsage()) {
+    std::optional<BufferGcPolicy> gc_policy;
+    if constexpr (requires { runtime.GetBufferGcPolicy(); }) gc_policy = runtime.GetBufferGcPolicy();
+    if (!gc_policy && runtime.CanReportMemoryUsage()) {
         total_used_memory = runtime.GetDeviceMemoryUsage();
     }
-    if (total_used_memory >= minimum_memory) {
-        RunGarbageCollector();
+    if (gc_policy || total_used_memory >= minimum_memory) {
+        RunGarbageCollector(gc_policy);
     }
     ++frame_tick;
     delayed_destruction_ring.Tick();
@@ -1003,8 +1021,26 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
             return alignment > 1 && (offset % alignment) != 0;
         }
     }();
+    bool prefer_coherent = false;
+    bool already_coherent = false;
+    if constexpr (requires { runtime.UseCoherentUniformCache(); }) {
+        if (!needs_alignment_stream && has_host_buffer && size != 0 &&
+            size <= channel_state->uniform_buffer_skip_cache_size &&
+            runtime.UseCoherentUniformCache()) {
+            const bool cpu_dirty = memory_tracker.IsRegionCpuModified(device_addr, size);
+            prefer_coherent = runtime.PreferCachedUniformBuffer(
+                buffer, device_addr, size, frame_tick, cpu_dirty);
+            if constexpr (requires { runtime.UseIncrementalUniformBindings(); }) {
+                // The same dirty-page query already proved no CPU upload is required.
+                // GPU-written bytes remain in this coherent buffer. Do not walk/upload the
+                // same clean range again; a later write stays dirty for the next binding.
+                already_coherent = !cpu_dirty && runtime.UseIncrementalUniformBindings();
+            }
+        }
+    }
     const bool use_fast_buffer = needs_alignment_stream
         || (has_host_buffer && size <= channel_state->uniform_buffer_skip_cache_size
+            && !prefer_coherent
             && !memory_tracker.IsRegionGpuModified(device_addr, size));
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {
@@ -1026,6 +1062,9 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
         }
         channel_state->fast_bound_uniform_buffers[stage] |= 1u << binding_index;
         channel_state->uniform_buffer_binding_sizes[stage][binding_index] = size;
+        if constexpr (requires { runtime.BindPersistentUniformBuffer(device_addr, size); }) {
+            if (runtime.BindPersistentUniformBuffer(device_addr, size)) return;
+        }
         // Stream buffer path to avoid stalling on non-Nvidia drivers or Vulkan
         const std::span<u8> span = runtime.BindMappedUniformBuffer(stage, binding_index, size);
         if constexpr (requires { runtime.UseWriteCombinedUniformCopy(size); }) {
@@ -1040,8 +1079,11 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
         return;
     }
     // Classic cached path
-    if (SynchronizeBuffer(buffer, device_addr, size)) {
+    if (already_coherent || SynchronizeBuffer(buffer, device_addr, size)) {
         ++channel_state->uniform_cache_hits[0];
+    }
+    if constexpr (requires { runtime.RecordCleanUniformBinding(); }) {
+        if (already_coherent) runtime.RecordCleanUniformBinding();
     }
     // Skip binding if it's not needed and if the bound buffer is not the fast version
     // This exists to avoid instances where the fast buffer is bound and a GPU write happens
@@ -1933,14 +1975,15 @@ void BufferCache<P>::InlineMemoryImplementation(DAddr dest_address, size_t copy_
 }
 
 template <class P>
-void BufferCache<P>::DownloadBufferMemory(Buffer& buffer) {
-    DownloadBufferMemory(buffer, buffer.CpuAddr(), buffer.SizeBytes());
+u64 BufferCache<P>::DownloadBufferMemory(Buffer& buffer) {
+    return DownloadBufferMemory(buffer, buffer.CpuAddr(), buffer.SizeBytes());
 }
 
 template <class P>
-void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64 size) {
+u64 BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64 size) {
     boost::container::small_vector<BufferCopy, 1> copies;
     u64 total_size_bytes = 0;
+    u64 downloaded_bytes = 0;
     u64 largest_copy = 0;
     memory_tracker.ForEachDownloadRangeAndClear(
         device_addr, size, [&](u64 device_addr_out, u64 range_size) {
@@ -1948,6 +1991,7 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
             const auto add_download = [&](DAddr start, DAddr end) {
                 const u64 new_offset = start - buffer_addr;
                 const u64 new_size = end - start;
+                downloaded_bytes += new_size;
                 copies.push_back(BufferCopy{
                     .src_offset = new_offset,
                     .dst_offset = total_size_bytes,
@@ -1965,7 +2009,7 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
             gpu_modified_ranges.Subtract(device_addr_out, range_size);
         });
     if (total_size_bytes == 0) {
-        return;
+        return 0;
     }
     largest_download = (std::max)(largest_download, total_size_bytes);
 
@@ -1995,6 +2039,7 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
             device_memory.WriteBlockUnsafe(copy_device_addr, immediate_buffer.data(), copy.size);
         }
     }
+    return downloaded_bytes;
 }
 
 template <class P>

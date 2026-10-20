@@ -37,6 +37,8 @@
 #include <vector>
 
 #include <winrt/base.h>
+#include <windows.h>
+#include <psapi.h>
 
 #include "common/bug_tracker.h"
 #include "common/fs/path_util.h"
@@ -47,17 +49,21 @@
 #include "common/memory_ledger.h"
 #include "common/scm_rev.h"
 #include "common/settings.h"
+#include "common/jit_symbols.h"
 #include "common/thread.h"
 #include "common/windows/timed_wait_profile.h"
 #include "common/windows/sampling_profiler.h"
 #include "common/windows/timer_resolution.h"
 #include "core/arm/cpu_profile.h"
 #include "core/arm/dynarmic/arm_dynarmic.h"
+#include "core/arm/dynarmic/arm_dynarmic_64.h"
+#include "dynarmic/ir/opt_passes.h"
 #include "dynarmic/interface/code_memory.h"
 #include "core/arm/jit_prewarm.h"
 #include "core/core.h"
 #include "core/perf_stats.h"
 #include "core/cpu_manager.h"
+#include "core/device_memory.h"
 #include "video_core/host1x/host1x.h"
 #include "video_core/host1x/syncpoint_manager.h"
 #include "core/file_sys/control_metadata.h"
@@ -77,6 +83,7 @@
 #include "video_core/frame_trace.h"
 #include "video_core/gpu.h"
 #include "video_core/gpu_thread.h"
+#include "video_core/synchronization_options.h"
 #include "video_core/perf_counters.h"
 #include "video_core/rasterizer_interface.h"
 #include "video_core/renderer_base.h"
@@ -87,7 +94,6 @@
 #include "jadyx/cheats/cheats_page.h"
 #include "jadyx/cheats/cheats_view.h"
 #include "jadyx/game/game_menu_surface.h"
-#include "jadyx/game/game_screenshot.h"
 #include "jadyx/app/headless_emu_window.h"
 #include "jadyx/app/prewarm_budget.h"
 #include "jadyx/pulse/pulse_gate.h"
@@ -112,6 +118,12 @@
 #include "jadyx/storage/utf8.h"
 
 namespace D3D12 {
+void SetReadbackReuse(bool enabled);
+void SetReadbackCoalescing(bool enabled);
+void SetGcReadbackBatching(bool enabled);
+void SetPartialSubmission(bool enabled);
+void SetContinuousSubmission(bool enabled);
+void SetFenceFlushCoalescing(bool enabled);
 // renderer_d3d12.h; its includes need Mesa's headers, which only video_core sees.
 void SetTracedFrame(u32 frame, u32 count);
 void TraceNextFrames(u32 count);
@@ -144,6 +156,13 @@ void SetPipelineEviction(bool enabled);      // d3d12_pipeline_cache.h
 void SetDescriptorRemovalChecks(bool enabled); // d3d12_device.h
 void SetUniformUploadCopy(bool enabled);
 void SetDrawSamplerReuse(bool enabled);
+void SetImageTableReuse(bool enabled);
+void SetDrawPlanReuse(bool enabled, bool validate);
+void SetPersistentResources(bool enabled);
+void SetOrderedCopyReuse(bool enabled);
+void SetCopyPlanCache(bool enabled);
+void SetCoherentUniformCache(bool enabled);
+void SetIncrementalUniformBindings(bool enabled);
 void SetAsyncRecording(bool enabled);          // d3d12_scheduler.h
 using AppMemoryQuery = bool (*)(u64& used, u64& limit); // d3d12_device.h
 void SetAppMemoryQuery(AppMemoryQuery query);            // d3d12_device.h
@@ -171,6 +190,7 @@ void WritePulseLog(const std::string& msg); // jadyx_pulse.txt, defined next to 
 std::string MemoryReport();             // likewise
 std::string MemoryOwners();             // likewise
 std::string GuestMemoryReport(Core::System& system); // likewise
+u64 TrimFreeGuestMemory(Core::System& system, u64 budget); // likewise
 void ApplyProcessMemoryLimit(u32 limit_mib); // likewise
 [[noreturn]] void RestartApp();              // likewise
 std::string LargestAllocations();       // likewise
@@ -273,6 +293,9 @@ struct BootConfig {
     u32 run_seconds{};
     /// PC test budget; hard process-commit enforcement belongs to local-run.ps1.
     u32 memory_limit_mib{};
+    /// PC diagnostic: keep this logical cache budget while varying the Windows Job cap.
+    /// Zero preserves the original coupling. QueryAppMemory still honors the platform limit.
+    u32 pc_memory_budget_mib{};
     /// Per-core JIT code cache ("jit_cache_mib="). Full, it is cleared with all the blocks'
     /// metadata, so it bounds the JIT's memory: a large game compiled 400+ MiB in two minutes on
     /// the default 512 MiB per core, and 1 GiB with the metadata, without ever releasing any.
@@ -332,6 +355,23 @@ struct BootConfig {
     bool async_record{};
     bool upload_copy{}; ///< Experimental short uniform copies; default off.
     bool draw_sampler_reuse{}; ///< Experimental gather-local TSC resolution; default off.
+    bool persistent_resources{};
+    bool ordered_copy_reuse{};
+    bool copy_plan_cache{};
+    bool coherent_uniform_cache{};
+    bool incremental_uniform_bindings{};
+    bool continuous_submit{};
+    bool coalesce_fence_flush{};
+    bool nonblocking_nv_events{};
+    bool consumer_release_fences{};
+    bool detached_syncpoint_actions{};
+    bool image_table_reuse{}; ///< SeriesX: split/reuse image tables, independently testable.
+    bool draw_plan_reuse{};
+    bool draw_plan_validate{};
+    bool jit_page_reuse{};
+    bool jit_fp_compare{};
+    bool jit_zero_upper{};
+    bool jit_stable_frame{};
     /// Host timing waits sleep on a high-resolution timer and wait only its lateness on the CPU
     /// ("timer_sleep=0" waits the last timer tick on the CPU, as before).
     bool timer_sleep{true};
@@ -380,6 +420,8 @@ struct BootConfig {
     /// Every minute of play, the process heaps and the memory map ("memory_audit=1"): what the
     /// commit no owner accounts for is made of. Walking the heaps locks them for a moment.
     bool memory_audit{};
+    bool pool_trim{true};
+    bool host_trim{false};
     /// Guest memory through the host-mapped arena. Xbox uses a bounded hybrid section; "full" is
     /// diagnostic and falls back to hybrid if the complete mapping cannot be created.
     enum class Fastmem { Off, Auto, Hybrid, Full } fastmem{Fastmem::Off};
@@ -472,7 +514,16 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     D3D12::SetFrameDiagnostics(!config.play);
     // The GPU spends the same 5 GiB as the emulated DRAM and the JIT: the texture and buffer
     // caches evict against what the whole app has left, not DXGI's budget.
-    g_test_memory_limit = u64{config.memory_limit_mib} << 20;
+    const u32 requested_budget = config.pc_memory_budget_mib != 0
+        ? config.pc_memory_budget_mib : config.memory_limit_mib;
+    const u32 cache_budget = config.memory_limit_mib != 0
+        ? (std::min)(requested_budget, config.memory_limit_mib) : requested_budget;
+    g_test_memory_limit = u64{cache_budget} << 20;
+    if (config.pc_memory_budget_mib != 0) {
+        WriteDiag("PC memory diagnostic: cache budget " + std::to_string(cache_budget) +
+                  " MiB, requested process cap " + std::to_string(config.memory_limit_mib) +
+                  " MiB; distinct budgets, not Xbox memory equivalence");
+    }
     Core::SetJitCodeCacheSize(config.jit_cache_mib << 20);
     D3D12::SetAppMemoryQuery(QueryAppMemory);
     D3D12::SetBcArrayDecode(!config.bc_arrays_native);
@@ -504,8 +555,41 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     Settings::values.async_presentation.SetValue(config.async_present);
     if (config.upscaling) ApplyUpscaling(*config.upscaling); // before the renderer exists
     D3D12::SetAsyncRecording(config.async_record);
+    D3D12::SetContinuousSubmission(config.continuous_submit);
+    D3D12::SetFenceFlushCoalescing(config.coalesce_fence_flush);
+    VideoCore::SetSynchronizationOptions({config.nonblocking_nv_events,
+        config.consumer_release_fences, config.detached_syncpoint_actions});
+    WriteDiag("Synchronization: nonblocking_nv_events=" + std::to_string(config.nonblocking_nv_events) +
+              " consumer_release_fences=" + std::to_string(config.consumer_release_fences) +
+              " detached_syncpoint_actions=" + std::to_string(config.detached_syncpoint_actions));
     D3D12::SetUniformUploadCopy(config.upload_copy);
     D3D12::SetDrawSamplerReuse(config.draw_sampler_reuse);
+    const bool reuse_image_tables = config.image_table_reuse && !config.async_record;
+    D3D12::SetImageTableReuse(reuse_image_tables);
+    D3D12::SetDrawPlanReuse(config.draw_plan_reuse, config.draw_plan_validate);
+    WriteDiag(std::string{"Draw plans: "} + (config.draw_plan_reuse ? "on" : "off") +
+              (config.draw_plan_validate ? " (reference validation)" : ""));
+    D3D12::SetPersistentResources(config.persistent_resources);
+    D3D12::SetOrderedCopyReuse(config.ordered_copy_reuse);
+    D3D12::SetCopyPlanCache(config.copy_plan_cache);
+    D3D12::SetCoherentUniformCache(config.coherent_uniform_cache);
+    D3D12::SetIncrementalUniformBindings(config.incremental_uniform_bindings);
+    LOG_INFO(Frontend, "SeriesX: ordered copy reuse {}, copy plan cache {}",
+             config.ordered_copy_reuse, config.copy_plan_cache);
+    LOG_INFO(Frontend, "SeriesX: persistent resources requested {} (tier 3/v4 required)", config.persistent_resources);
+    WriteDiag(std::string{"Image table reuse: "} + (reuse_image_tables ? "on" : "off"));
+    if (config.image_table_reuse && config.async_record) {
+        WriteDiag("Image table reuse disabled for async recording: no end-to-end gain qualified");
+    }
+    Core::SetJitPageReuse(config.jit_page_reuse);
+    Core::SetJitZeroUpper(config.jit_zero_upper);
+    Core::SetJitStableFrame(config.jit_stable_frame);
+    Core::SetJitEfficientFpCompare(config.jit_fp_compare);
+    Common::JitSymbols::SetEnabled(config.profile);
+    WriteDiag(std::string{"JIT zero upper: "} + (config.jit_zero_upper ? "on" : "off") +
+              ", stable frame: " + (config.jit_stable_frame ? "on" : "off"));
+    WriteDiag(std::string{"JIT page reuse: "} + (config.jit_page_reuse ? "on" : "off") +
+              ", efficient FP compare: " + (config.jit_fp_compare ? "on" : "off"));
     if (config.debug_layer) {
         Settings::values.renderer_debug = true;
         D3D12::SetGpuBasedValidation(config.gpu_validation);
@@ -559,7 +643,9 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
     // Shown while Pulse saves or resumes a session (pulse_screen.h); it draws through the GPU
     // thread, so it goes before anything is torn down.
     std::optional<PulseScreen> pulse_screen;
+    std::optional<std::jthread> trim_worker;
     const auto shutdown = [&] {
+        trim_worker.reset();
         pulse_screen.reset();
         Common::SamplingProfiler::Stop(); // writes the window in progress, if it runs
         if (config.gpu_failure_probe) WriteDiag("GPU recovery shutdown: input.Stop");
@@ -837,16 +923,6 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
         Cheats::CheatsPage cheats_page;
         std::wstring cheats_notice;
         std::wstring game_title;
-        // Beside the menu: the game's maker and version, and how long this session has run.
-        std::wstring game_details;
-        const auto session_start = std::chrono::steady_clock::now();
-        std::wstring session_text;
-        // The paused frame while the menu is open: behind it, and what a screenshot saves.
-        D3D12::MenuImage game_frame;
-        const auto capture_frame = [&] {
-            system.GPU().RunOnGpuThread([&] { game_frame = D3D12::CaptureGameFrame(system.Renderer()); });
-            if (menu_surface) menu_surface->SetBackdrop(game_frame);
-        };
         const Cheats::CheatGame cheat_game{program_id, system.GetApplicationProcessBuildID()};
         const auto cheats_on = [&](const Cheats::CheatCatalog& catalog) {
             std::size_t count = 0;
@@ -861,10 +937,9 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
             D3D12::MenuImage image;
             try {
                 menu_surface->SetPromptMapping(input.MenuPromptMapping());
-                const GameMenuScene scene{game_title, game_details, session_text};
                 image = cheats ? menu_surface->DrawCheats({*cheats, cheats_page, game_title, cheats_notice, true},
-                                                          scene, screen)
-                        : menu ? menu_surface->DrawMenu(*menu, scene, screen)
+                                                          screen)
+                        : menu ? menu_surface->DrawMenu(*menu, game_title, screen)
                                : menu_surface->DrawKeyboard(game_keyboard.View(), game_keyboard.CanCancel(), screen);
             } catch (const winrt::hresult_error& e) {
                 WriteDiag("menu: not drawn: " + winrt::to_string(e.message()));
@@ -922,6 +997,50 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
         constexpr u64 LOW_HEADROOM_STEP = 50ULL << 20;
         u64 low_snapshot_headroom = ~u64{};
         u32 low_snapshot_tick = 0;
+        constexpr u64 POOL_TRIM_PER_SECOND = 64ULL << 20;
+        constexpr u64 POOL_TRIM_ALL_HEADROOM = 512ULL << 20;
+        constexpr u64 TRIM_SLICE = 32ULL << 20;
+        constexpr u64 TRIM_LOW_HEADROOM = 1024ULL << 20;
+        constexpr u64 TRIM_ACTIVE_PASS = 64ULL << 20;
+        std::atomic<bool> trim_low{false};
+        std::atomic<bool> trim_paused{false};
+        struct StopTrim {
+            std::optional<std::jthread>& worker;
+            ~StopTrim() { worker.reset(); }
+        } stop_trim{trim_worker};
+        if (config.host_trim) {
+            trim_worker.emplace([&](std::stop_token stop) {
+                Common::SetCurrentThreadName("HostTrim");
+                auto& dram = system.DeviceMemory().buffer;
+                size_t cursor = 0;
+                u64 pass_released = TRIM_ACTIVE_PASS;
+                u64 last_pass_released = TRIM_ACTIVE_PASS;
+                while (!stop.stop_requested()) {
+                    if (trim_paused.load(std::memory_order_relaxed)) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        continue;
+                    }
+                    const size_t before = cursor;
+                    const auto slice_start = std::chrono::steady_clock::now();
+                    const auto trim = dram.Trim(cursor, TRIM_SLICE);
+                    const auto slice_time = std::chrono::steady_clock::now() - slice_start;
+                    pass_released += trim.released;
+                    if (cursor <= before) {
+                        last_pass_released = pass_released;
+                        pass_released = 0;
+                    }
+                    if (trim.visited != 0 && trim.released >= trim.visited / 4) {
+                        std::this_thread::sleep_for((std::max)(
+                            std::chrono::steady_clock::duration{std::chrono::milliseconds(2)},
+                            slice_time / 2));
+                        continue;
+                    }
+                    const bool low = trim_low.load(std::memory_order_relaxed);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(
+                        low ? 20 : last_pass_released >= TRIM_ACTIVE_PASS ? 100 : 500));
+                }
+            });
+        }
         // Pulse: after a resume the presented frames are logged each second for 30 s, so a guest
         // that freezes shows when it stopped.
         u64 resume_frames = 0;
@@ -950,6 +1069,20 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
                 WriteDiag("JIT prewarm budget lowered to " +
                           std::to_string(prewarm_budget.MiBPerCore()) +
                           " MiB per core for this game's next session | " + MemoryReport());
+            }
+            if (config.host_trim) {
+                trim_paused.store(menu.has_value(), std::memory_order_relaxed);
+                if (u64 used{}, limit{}; tick % TICKS_PER_SECOND == 0 &&
+                                         QueryAppMemory(used, limit)) {
+                    trim_low.store((limit > used ? limit - used : 0) < TRIM_LOW_HEADROOM,
+                                   std::memory_order_relaxed);
+                }
+            }
+            if (config.pool_trim && tick % TICKS_PER_SECOND == 0) {
+                u64 used{}, limit{};
+                const bool low = QueryAppMemory(used, limit) &&
+                                 (limit > used ? limit - used : 0) < POOL_TRIM_ALL_HEADROOM;
+                TrimFreeGuestMemory(system, low ? ~u64{} : POOL_TRIM_PER_SECOND);
             }
             if (ConsumeStorageReadFailure()) {
                 WriteDiag("content: storage read failed; closing guest for library recovery");
@@ -999,22 +1132,6 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
                     input.SetMenuOpen(true);
                     SetTextEntryActive(false); // The real keyboard drives the menu.
                     const ControllerOptions options = input.Options();
-                    {
-                        const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
-                                                 std::chrono::steady_clock::now() - session_start)
-                                                 .count();
-                        wchar_t text[24]{};
-                        std::swprintf(text, std::size(text), L"%lld:%02lld:%02lld",
-                                      static_cast<long long>(seconds / 3600),
-                                      static_cast<long long>(seconds / 60 % 60), static_cast<long long>(seconds % 60));
-                        session_text = text;
-                    }
-                    try {
-                        menu_surface.emplace();
-                    } catch (const winrt::hresult_error& e) {
-                        WriteDiag("menu: no surface: " + winrt::to_string(e.message()));
-                    }
-                    capture_frame();
                     // Upscaling as this boot applied it (a boot.cfg override included); only the
                     // GPU thread writes it while the game runs, and it is paused now.
                     menu.emplace(GameMenuSettings{options.style, options.swap_face_buttons,
@@ -1023,26 +1140,22 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
                                                   pulse_identity.has_value(),
                                                   FromSettings(Settings::values.scaling_filter.GetValue(),
                                                                Settings::values.fsr_sharpening_slider.GetValue()),
-                                                  config.material_capture_menu, config.hunt_menu,
-                                                  !game_frame.pixels.empty()},
+                                                  config.material_capture_menu, config.hunt_menu},
                                  program_id != 0);
                     if (game_title.empty()) {
                         std::string title;
                         void(system.GetAppLoader().ReadTitle(title));
                         game_title = Utf8ToUtf16(title);
-                        FileSys::NACP nacp;
-                        if (system.GetAppLoader().ReadControlData(nacp) == Loader::ResultStatus::Success) {
-                            const std::string developer = nacp.GetDeveloperName();
-                            const std::string version = nacp.GetVersionString();
-                            game_details = Utf8ToUtf16(developer);
-                            if (!version.empty())
-                                game_details += (game_details.empty() ? L"v" : L" · v") + Utf8ToUtf16(version);
-                        }
                     }
                     if (program_id != 0) {
                         menu->SetCheatsOn(cheats_on(Cheats::LoadCatalog(
                             Cheats::TitleLoadDirectory(program_id), cheat_game.build_id)));
                         menu->SetModsOn(Mods::ActiveMods(Mods::DefaultModPaths(), program_id));
+                    }
+                    try {
+                        menu_surface.emplace();
+                    } catch (const winrt::hresult_error& e) {
+                        WriteDiag("menu: no surface: " + winrt::to_string(e.message()));
                     }
                     WriteDiag("menu: opened, guest paused | " + MemoryReport());
                     if (menu_surface) draw_menu();
@@ -1054,7 +1167,7 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
                     if (!pressed) continue;
                     cheats_notice.clear();
                     const CheatsEffect effect = Cheats::HandleCheatsInput(cheats_page, *cheats, *pressed,
-                                                                          GameMenuSurface::CheatRows);
+                                                                          Cheats::CheatsLayout::VisibleRows);
                     if (effect == CheatsEffect::Changed) {
                         // Hot: the engine (created now if the game booted without cheats) runs
                         // the new list from its next tick.
@@ -1154,31 +1267,13 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
                     cheats.emplace(cheat_game);
                     cheats->Poll();
                     cheats_page = {};
-                    Cheats::ClampCheatsPage(cheats_page, cheats->Catalog(), GameMenuSurface::CheatRows);
+                    Cheats::ClampCheatsPage(cheats_page, cheats->Catalog(), Cheats::CheatsLayout::VisibleRows);
                     cheats_notice.clear();
-                }
-                if (result == GameMenuResult::Screenshot) {
-                    try {
-                        const auto folder = std::filesystem::path{std::wstring{
-                                                winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path()}} /
-                                            L"jadyx" / L"captures";
-                        if (const auto name = SaveScreenshot(game_frame, folder)) {
-                            menu->SetScreenshotNote(I18n::Format(I18n::Text::MenuScreenshotSaved, {*name}));
-                            WriteDiag("menu: screenshot saved as " + I18n::ToUtf8(*name));
-                        } else {
-                            menu->SetScreenshotNote(std::wstring{I18n::Tr(I18n::Text::MenuScreenshotFailed)});
-                            WriteDiag("menu: screenshot could not be saved");
-                        }
-                    } catch (const winrt::hresult_error& e) {
-                        menu->SetScreenshotNote(std::wstring{I18n::Tr(I18n::Text::MenuScreenshotFailed)});
-                        WriteDiag("menu: screenshot failed: " + winrt::to_string(e.message()));
-                    }
                 }
                 if (result == GameMenuResult::Resume || result == GameMenuResult::CaptureGraphics ||
                     result == GameMenuResult::CapturePerformance) {
                     menu.reset();
                     cheats.reset();
-                    game_frame = {};
                     if (game_keyboard.IsOpen() && menu_surface) {
                         // The game's keyboard was under the menu: it comes back.
                         SetTextEntryActive(true);
@@ -1224,9 +1319,6 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
                     // Written where the present reads it; draw_menu below presents the paused
                     // frame again with it.
                     system.GPU().RunOnGpuThread([upscaling] { ApplyUpscaling(upscaling); });
-                    // The display page shows the game sharp behind it: read it again with the
-                    // new filter, so the change is seen at once.
-                    capture_frame();
                     WriteDiag("menu: upscaling " + I18n::ToUtf8(I18n::Tr(UpscalingText(upscaling))));
                 }
                 if (result == GameMenuResult::FullScreen) {
@@ -1237,7 +1329,7 @@ int RunHeadlessBoot(const std::string& nro_path, const BootSurface& surface,
             }
             // Cheats the database sent while the page is open join the list.
             if (cheats && cheats->Poll()) {
-                Cheats::ClampCheatsPage(cheats_page, cheats->Catalog(), GameMenuSurface::CheatRows);
+                Cheats::ClampCheatsPage(cheats_page, cheats->Catalog(), Cheats::CheatsLayout::VisibleRows);
                 if (menu_surface) draw_menu();
             }
             if (config.memory_audit && tick % (10 * TICKS_PER_SECOND) == 0) {
@@ -1482,6 +1574,18 @@ std::string MemoryReport() {
         // not in AppMemoryUsage (0.2.53 died at 2.8 GiB of usage).
         const auto report = MemoryManager::GetAppMemoryReport();
         const std::string stats = Common::HostMemoryCommitStats();
+        PROCESS_MEMORY_COUNTERS_EX process{};
+        process.cb = sizeof(process);
+        const bool have_process = K32GetProcessMemoryInfo(
+            GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&process),
+            sizeof(process));
+        const std::string process_stats = have_process
+            ? ", working set " + std::to_string(process.WorkingSetSize >> 20) +
+                  " MiB, process private commit " + std::to_string(process.PrivateUsage >> 20) +
+                  " MiB"
+            : ", process memory counters unavailable";
+        const u64 private_commit = report.PrivateCommitUsage();
+        const u64 total_commit = report.TotalCommitUsage();
         return "app memory " + std::to_string(MemoryManager::AppMemoryUsage() >> 20) + " MiB of " +
                std::to_string(MemoryManager::AppMemoryUsageLimit() >> 20) + " MiB limit, commit " +
                std::to_string(report.TotalCommitUsage() >> 20) + " of " +
@@ -1490,7 +1594,10 @@ std::string MemoryReport() {
                     std::to_string(g_test_memory_limit.load() >> 20) + " MiB, headroom " +
                     std::to_string((g_test_memory_limit.load() > report.TotalCommitUsage()
                         ? g_test_memory_limit.load() - report.TotalCommitUsage() : 0) >> 20) + " MiB") +
-               (stats.empty() ? "" : ", " + stats);
+               process_stats + ", WinRT private commit " + std::to_string(private_commit >> 20) +
+               " MiB, shared commit " +
+               std::to_string((total_commit > private_commit ? total_commit - private_commit : 0) >> 20) +
+               " MiB" + (stats.empty() ? "" : ", " + stats);
     } catch (...) {
         return "app memory: MemoryManager unavailable";
     }
@@ -1498,7 +1605,9 @@ std::string MemoryReport() {
 
 // The app's commit split by owner: the emulated DRAM, the JIT's code, the renderer's accounts
 // (Common::MemoryLedger) and the rest, which no account covers: driver objects such as compiled
-// PSOs, the smaller GPU resources, the heaps and the executable.
+// PSOs, the smaller GPU resources, the heaps and the executable. On discrete GPUs, the ledger
+// excludes GPU-local accounts from the subtotal, but a driver can still charge their backing to
+// process commit. That backing then appears in "rest"; this is not a CPU heap or leak census.
 std::string MemoryOwners() {
     u64 commit{};
     try {
@@ -1508,12 +1617,16 @@ std::string MemoryOwners() {
     }
     const std::optional<u64> dram = Common::EmulatedDramCommittedBytes();
     const u64 jit = Dynarmic::CommittedCodeBytes();
+    const auto page_reuse = Dynarmic::Optimization::GetPageReuseCounters();
     const u64 known = dram.value_or(0) + jit + Common::MemoryLedgerCommittedBytes();
     return "emulated DRAM " + (dram ? std::to_string(*dram >> 20) + " MiB" : std::string("n/a")) +
            ", JIT code " + std::to_string(jit >> 20) + " MiB, " + Common::DescribeMemoryLedger() +
            "; rest " + std::to_string((commit > known ? commit - known : 0) >> 20) +
            " MiB of " + std::to_string(commit >> 20) +
-           " MiB commit (driver objects, small GPU resources, heaps, executable)";
+           " MiB commit (includes unclassified GPU backing on discrete GPUs, driver objects, "
+           "heaps, executable; not a CPU-only heap total); compiled page reuse groups " +
+           std::to_string(page_reuse.groups) + ", grouped accesses " +
+           std::to_string(page_reuse.accesses) + " (cumulative process counts, not FPS)";
 }
 
 // What the guest kernel has handed out against what the emulated DRAM commits. Pages the game
@@ -1546,6 +1659,27 @@ std::string GuestMemoryReport(Core::System& system) {
            std::to_string(*committed >> 20) + " MiB, freed but committed about " +
            std::to_string((*committed > in_use ? *committed - in_use : 0) >> 20) + " MiB (" +
            pools + ")";
+}
+
+u64 TrimFreeGuestMemory(Core::System& system, u64 budget) {
+    using Pool = Kernel::KMemoryManager::Pool;
+    constexpr u64 STEP = 64ULL << 20;
+    auto& manager = system.Kernel().MemoryManager();
+    u64 total = 0;
+    for (const Pool pool : {Pool::Application, Pool::Applet, Pool::System, Pool::SystemNonSecure}) {
+        for (;;) {
+            const u64 step = (std::min)(STEP, budget > total ? budget - total : 0);
+            if (step == 0) {
+                return total;
+            }
+            const u64 released = manager.TrimFree(pool, step);
+            total += released;
+            if (released < step) {
+                break;
+            }
+        }
+    }
+    return total;
 }
 
 // The PC has no app memory limit of its own: memory_limit_mib (boot.cfg) puts the process in a
@@ -2371,10 +2505,7 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                 WriteDiag(std::string("library: failed: ") + e.what());
                 return;
             } catch (const winrt::hresult_error& e) {
-                // The code first: the message can be a stale error the platform recorded earlier.
-                char code[16];
-                std::snprintf(code, sizeof(code), "%08X", static_cast<unsigned>(e.code().value));
-                WriteDiag(std::string("library: failed: ") + code + " " + winrt::to_string(e.message()));
+                WriteDiag("library: failed: " + winrt::to_string(e.message()));
                 return;
             }
 
@@ -2420,6 +2551,84 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                         } else if (line == "upload_copy=1") {
                             config.upload_copy = true;
                             WriteDiag("boot.cfg: short uniform write-combined copy enabled");
+                        } else if (line == "jit_zero_upper=1") {
+                            config.jit_zero_upper = true;
+                        } else if (line == "jit_zero_upper=0") {
+                            config.jit_zero_upper = false;
+                        } else if (line == "jit_stable_frame=1") {
+                            config.jit_stable_frame = true;
+                        } else if (line == "jit_stable_frame=0") {
+                            config.jit_stable_frame = false;
+                        } else if (line == "jit_page_reuse=1") {
+                            config.jit_page_reuse = true;
+                        } else if (line == "jit_page_reuse=0") {
+                            config.jit_page_reuse = false;
+                        } else if (line == "jit_fp_compare=1") {
+                            config.jit_fp_compare = true;
+                        } else if (line == "jit_fp_compare=0") {
+                            config.jit_fp_compare = false;
+                        } else if (line == "incremental_uniform_bindings=1") {
+                            config.incremental_uniform_bindings = true;
+                        } else if (line == "incremental_uniform_bindings=0") {
+                            config.incremental_uniform_bindings = false;
+                        } else if (line == "coherent_uniform_cache=1") {
+                            config.coherent_uniform_cache = true;
+                        } else if (line == "coherent_uniform_cache=0") {
+                            config.coherent_uniform_cache = false;
+                        } else if (line == "ordered_copy_reuse=1") {
+                            config.ordered_copy_reuse = true;
+                        } else if (line == "ordered_copy_reuse=0") {
+                            config.ordered_copy_reuse = false;
+                        } else if (line == "copy_plan_cache=1") {
+                            config.copy_plan_cache = true;
+                        } else if (line == "copy_plan_cache=0") {
+                            config.copy_plan_cache = false;
+                        } else if (line == "persistent_resources=1") {
+                            config.persistent_resources = true;
+                        } else if (line == "persistent_resources=0") {
+                            config.persistent_resources = false;
+                        } else if (line == "image_table_reuse=1") {
+                            config.image_table_reuse = true;
+                        } else if (line == "partial_submit=0" || line == "partial_submit=1") {
+                            D3D12::SetPartialSubmission(line.back() == '1');
+                            WriteDiag(line.back() == '1' ? "boot.cfg: bounded partial submission on"
+                                                        : "boot.cfg: bounded partial submission off");
+                        } else if (line == "continuous_submit=0" || line == "continuous_submit=1") {
+                            config.continuous_submit = line.back() == '1';
+                            WriteDiag(config.continuous_submit ? "boot.cfg: continuous GPU supply on"
+                                                               : "boot.cfg: continuous GPU supply off");
+                        } else if (line == "coalesce_fence_flush=0" || line == "coalesce_fence_flush=1") {
+                            config.coalesce_fence_flush = line.back() == '1';
+                            WriteDiag(config.coalesce_fence_flush ? "boot.cfg: fence submit coalescing on"
+                                                                 : "boot.cfg: fence submit coalescing off");
+                        } else if (line == "nonblocking_nv_events=0" || line == "nonblocking_nv_events=1") {
+                            config.nonblocking_nv_events = line.back() == '1';
+                        } else if (line == "consumer_release_fences=0" || line == "consumer_release_fences=1") {
+                            config.consumer_release_fences = line.back() == '1';
+                        } else if (line == "detached_syncpoint_actions=0" || line == "detached_syncpoint_actions=1") {
+                            config.detached_syncpoint_actions = line.back() == '1';
+                        } else if (line == "readback_reuse=0") {
+                            D3D12::SetReadbackReuse(false);
+                        } else if (line == "readback_reuse=1") {
+                            D3D12::SetReadbackReuse(true);
+                        } else if (line == "readback_copy_coalesce=0") {
+                            D3D12::SetReadbackCoalescing(false);
+                        } else if (line == "readback_copy_coalesce=1") {
+                            D3D12::SetReadbackCoalescing(true);
+                        } else if (line == "gc_readback_batch=0") {
+                            D3D12::SetGcReadbackBatching(false);
+                        } else if (line == "gc_readback_batch=1") {
+                            D3D12::SetGcReadbackBatching(true);
+                        } else if (line == "draw_plan_reuse=1") {
+                            config.draw_plan_reuse = true;
+                        } else if (line == "draw_plan_reuse=0") {
+                            config.draw_plan_reuse = false;
+                        } else if (line == "draw_plan_validate=1") {
+                            config.draw_plan_validate = true;
+                        } else if (line == "draw_plan_validate=0") {
+                            config.draw_plan_validate = false;
+                        } else if (line == "image_table_reuse=0") {
+                            config.image_table_reuse = false;
                         } else if (line == "draw_sampler_reuse=1") {
                             config.draw_sampler_reuse = true;
                             WriteDiag("boot.cfg: draw-local sampler resolution reuse enabled");
@@ -2465,6 +2674,15 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                                 config.memory_limit_mib = static_cast<u32>(parsed);
                             } else {
                                 WriteDiag("boot.cfg: invalid memory_limit_mib, ignored");
+                            }
+                        } else if (line.starts_with("pc_memory_budget_mib=")) {
+                            const auto value = line.substr(21);
+                            unsigned long parsed{};
+                            const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+                            if (result.ec == std::errc{} && result.ptr == value.data() + value.size() && parsed <= 1048576) {
+                                config.pc_memory_budget_mib = static_cast<u32>(parsed);
+                            } else {
+                                WriteDiag("boot.cfg: invalid pc_memory_budget_mib, ignored");
                             }
                         } else if (line == "pulse_store=1") {
                             config.pulse_store = true;
@@ -2686,6 +2904,19 @@ struct BootView : implements<BootView, IFrameworkViewSource, IFrameworkView> {
                         } else if (line == "pso_probe=1") {
                             D3D12::SetPsoCostProbe(true);
                             WriteDiag("boot.cfg: measuring the driver's commit per graphics PSO");
+                        } else if (line == "frame_chain_trace=1") {
+                            VideoCore::FrameTrace::SetFrameChainMode(true);
+                            WriteDiag("boot.cfg: selective frame-chain trace armed by T, 120 vsyncs");
+                        } else if (line == "frame_chain_trace=0") {
+                            VideoCore::FrameTrace::SetFrameChainMode(false);
+                        } else if (line == "host_trim=1") {
+                            config.host_trim = true;
+                        } else if (line == "host_trim=0") {
+                            config.host_trim = false;
+                            WriteDiag("boot.cfg: host_trim off");
+                        } else if (line == "pool_trim=0") {
+                            config.pool_trim = false;
+                            WriteDiag("boot.cfg: pool_trim off");
                         } else if (line == "memory_audit=1") {
                             config.memory_audit = true;
                             WriteDiag("boot.cfg: memory audit every minute of play");

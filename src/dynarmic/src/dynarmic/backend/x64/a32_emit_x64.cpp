@@ -119,7 +119,11 @@ A32EmitX64::BlockDescriptor A32EmitX64::Emit(IR::Block& block) {
     code.align();
     const u8* const entrypoint = code.getCurr();
     code.mov(code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)], rbp);
+#ifdef _WIN32
+    code.lea(rbp, code.ptr[rsp]);
+#else
     code.lea(rbp, code.ptr[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer) - 8]);
+#endif
 
     EmitCondPrelude(ctx);
     typedef void (EmitX64::*EmitHandlerFn)(EmitContext& context, IR::Inst* inst);

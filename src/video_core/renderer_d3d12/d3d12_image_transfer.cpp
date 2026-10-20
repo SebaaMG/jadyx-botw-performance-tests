@@ -7,18 +7,21 @@
 #include <array>
 #include <atomic>
 #include <cstring>
+#include <stdexcept>
 #include <utility>
 
 #include "common/alignment.h"
 #include "common/bug_tracker.h"
 #include "common/div_ceil.h"
 #include "common/logging.h"
+#include "common/scope_exit.h"
 #include "video_core/frame_trace.h"
 #include "video_core/perf_counters.h"
 #include "video_core/renderer_d3d12/d3d12_blit_image.h"
 #include "video_core/renderer_d3d12/d3d12_log.h"
 #include "video_core/renderer_d3d12/d3d12_resource_utils.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
+#include "video_core/renderer_d3d12/d3d12_transfer_spans.h"
 #include "video_core/surface.h"
 
 // Uploads to and downloads from images through staging and guest buffers.
@@ -202,7 +205,7 @@ void Image::UploadMemoryImpl(ID3D12Resource* buffer, size_t base_offset, u8* map
                 src.PlacedFootprint.Offset = packed.offset;
             } else {
                 // GPU-only source (DMA from the buffer cache): repack row by row on the GPU.
-                transfer = runtime->transfer_buffers.Acquire(layout.padded_slice * layout.depth);
+                transfer = runtime->transfer_buffers.AcquireCopy(layout.padded_slice * layout.depth);
                 for (u32 z = 0; z < layout.depth; ++z) {
                     for (u32 row = 0; row < layout.rows; ++row) {
                         commands->CopyBufferRegion(
@@ -232,7 +235,7 @@ void Image::UploadMemoryImpl(ID3D12Resource* buffer, size_t base_offset, u8* map
             }
             VideoCore::Perf::AddDetailed(VideoCore::Perf::Counter::TextureUploadCopies, 1);
             if (transfer) {
-                runtime->transfer_buffers.Release(std::move(transfer));
+                runtime->transfer_buffers.ReleaseCopy(std::move(transfer));
             }
         }
     }
@@ -256,17 +259,23 @@ void Image::UploadMemory(const StagingBufferRef& map, std::span<const BufferImag
 
 void Image::PreserveGuestBlocks(std::span<const u8> data,
                                 std::span<const BufferImageCopy> copies) {
+    (void)PreserveGuestBlocksImpl(data, copies);
+}
+
+StagingBufferRef Image::PreserveGuestBlocksImpl(std::span<const u8> data,
+                                               std::span<const BufferImageCopy> copies,
+                                               bool deferred) {
     if (!IsBcDecoded() || copies.empty()) {
-        return;
+        return {};
     }
     // The generic cache calls this with the original, unswizzled layout, before ConvertImage
     // rewrites both the bytes and BufferImageCopy pitches/offsets. Reuse the native upload and
     // allocator: the additional allocation is compressed-sized and retired through the scheduler.
     if (!EnsureGuestBlocks()) {
         guest_blocks_version = 0;
-        return;
+        return {};
     }
-    const auto staging = runtime->UploadStagingBuffer(data.size());
+    const auto staging = runtime->UploadStagingBuffer(data.size(), deferred);
     std::memcpy(staging.mapped_span.data(), data.data(), data.size());
     guest_blocks->UploadMemory(staging, copies);
     s32 expected_level = 0;
@@ -290,6 +299,95 @@ void Image::PreserveGuestBlocks(std::span<const u8> data,
         }
     }
     guest_blocks_upload_pending = true;
+    return staging;
+}
+
+// SeriesX modification. This is deliberately restricted to BC1 arrays with aligned base
+// dimensions. Other converted formats and the existing CPU path retain their original behavior.
+bool Image::CanUploadConvertedBcArray() const noexcept {
+    return runtime && resource && IsBcDecoded() && info.type == ImageType::e2D &&
+           info.num_samples == 1 && info.size.depth == 1 && info.resources.layers > 1 &&
+           info.size.width % 4 == 0 && info.size.height % 4 == 0 &&
+           (info.format == PixelFormat::BC1_RGBA_UNORM ||
+            info.format == PixelFormat::BC1_RGBA_SRGB) &&
+           runtime->blit_helper && runtime->blit_helper->CanDecodeBc1() &&
+           (resource->GetDesc().Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) != 0;
+}
+
+void Image::UploadConvertedBcArray(std::span<const u8> data,
+                                   std::span<const BufferImageCopy> copies) {
+    if (!CanUploadConvertedBcArray() ||
+        copies.size() != static_cast<size_t>(info.resources.levels)) {
+        throw std::invalid_argument("SeriesX: unsupported converted BC1 array upload");
+    }
+    // Validate the complete batch before recording commands or certifying the block shadow.
+    for (size_t index = 0; index < copies.size(); ++index) {
+        const auto& copy = copies[index];
+        const u32 width = std::max(1U, info.size.width >> index);
+        const u32 height = std::max(1U, info.size.height >> index);
+        const u64 bytes = static_cast<u64>((width + 3) / 4) * ((height + 3) / 4) * 8 *
+                          info.resources.layers;
+        if (copy.image_subresource.base_level != static_cast<s32>(index) ||
+            copy.image_subresource.base_layer != 0 ||
+            copy.image_subresource.num_layers != info.resources.layers ||
+            copy.image_offset != VideoCommon::Offset3D{} ||
+            copy.image_extent != VideoCommon::Extent3D{width, height, 1} ||
+            copy.buffer_row_length != Common::AlignUp(width, 4U) ||
+            copy.buffer_image_height != Common::AlignUp(height, 4U) ||
+            copy.buffer_size != bytes || copy.buffer_offset > data.size() ||
+            bytes > data.size() - copy.buffer_offset) {
+            throw std::invalid_argument("SeriesX: invalid converted BC1 array copy layout");
+        }
+    }
+
+    // Reuse the original compressed upload needed by the lossless block shadow. Pin it across
+    // descriptor-heap submissions; release at the final consumer tick, not the allocation tick.
+    auto staging = PreserveGuestBlocksImpl(data, copies, true);
+    if (!staging.buffer) {
+        throw std::runtime_error("SeriesX: missing original blocks for converted BC1 upload");
+    }
+    SCOPE_EXIT { runtime->FreeDeferredStagingBuffer(staging); };
+    for (const auto& copy : copies) {
+        const auto srv = runtime->view_descriptors.Allocate();
+        SCOPE_EXIT { runtime->view_descriptors.Free(srv); };
+        const auto uav = runtime->view_descriptors.Allocate();
+        SCOPE_EXIT { runtime->view_descriptors.Free(uav); };
+        const size_t start = staging.offset + copy.buffer_offset;
+        const size_t aligned_start = Common::AlignDown(start, size_t{16});
+        const u32 first_word = static_cast<u32>((start - aligned_start) / 4);
+        const u32 input_words = first_word + static_cast<u32>(copy.buffer_size / 4);
+        const D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{
+            .Format = DXGI_FORMAT_R32_TYPELESS,
+            .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
+            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            .Buffer = {.FirstElement = aligned_start / 4,
+                       .NumElements = input_words,
+                       .Flags = D3D12_BUFFER_SRV_FLAG_RAW}};
+        runtime->device.Get()->CreateShaderResourceView(staging.buffer, &srv_desc, srv);
+        // Both UNORM and sRGB arrays contain the same encoded bytes. An UNORM UAV writes
+        // those bytes directly; the image's existing SRGB SRV applies gamma when sampled.
+        const D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc{
+            .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+            .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY,
+            .Texture2DArray = {.MipSlice = static_cast<u32>(copy.image_subresource.base_level),
+                               .FirstArraySlice = 0,
+                               .ArraySize = static_cast<u32>(info.resources.layers)}};
+        runtime->device.Get()->CreateUnorderedAccessView(resource.Get(), nullptr, &uav_desc, uav);
+        Transition(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        runtime->blit_helper->DecodeBc1({srv, uav, copy.image_extent.width,
+                                       copy.image_extent.height,
+                                       static_cast<u32>(info.resources.layers),
+                                       input_words, first_word});
+    }
+    // Make all mip writes visible to later sampling/copies, even when state remains UAV.
+    Transition(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    guest_blocks_upload_pending = false;
+    guest_blocks_version = write_version;
+    ++runtime->converted_bc_upload_serial;
+    LOG_INFO(Render, "SeriesX: integer GPU BC1 array upload {}x{} levels={} layers={} "
+                     "compressed={} expanded={}; Xbox array workaround kept",
+             info.size.width, info.size.height, info.resources.levels, info.resources.layers,
+             data.size(), converted_size_bytes);
 }
 
 Image* Image::EnsureGuestBlocks() {
@@ -379,12 +477,26 @@ void Image::DownloadMemory(std::span<ID3D12Resource*> buffers, std::span<size_t>
                 }
                 // The destination wants tight rows: go through a padded buffer, then row copies.
                 ComPtr<ID3D12Resource> transfer =
-                    runtime->transfer_buffers.Acquire(layout.padded_slice * layout.depth);
+                    runtime->transfer_buffers.AcquireCopy(layout.padded_slice * layout.depth);
                 dst.pResource = transfer.Get();
                 dst.PlacedFootprint.Offset = 0;
                 commands->CopyTextureRegion(&dst, 0, 0, 0, &src, &box);
                 TransitionBuffer(commands, transfer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
                                  D3D12_RESOURCE_STATE_COPY_SOURCE);
+                const u64 contiguous = ReadbackCoalescingEnabled()
+                    ? ContiguousTransferBytes(layout.row_bytes, layout.row_pitch,
+                                              layout.tight_slice, layout.padded_slice, layout.depth)
+                    : 0;
+                if (contiguous) {
+                    commands->CopyBufferRegion(buffer, dest_offset, transfer.Get(), 0, contiguous);
+                    VideoCore::Perf::Add(VideoCore::Perf::Counter::TextureReadbackBulkCopies, 1);
+                    VideoCore::Perf::Add(VideoCore::Perf::Counter::TextureReadbackRowsMerged,
+                                         u64{layout.rows} * layout.depth - 1);
+                    runtime->transfer_buffers.ReleaseCopy(std::move(transfer));
+                    continue;
+                }
+                VideoCore::Perf::Add(VideoCore::Perf::Counter::TextureReadbackRowCopies,
+                                     u64{layout.rows} * layout.depth);
                 for (u32 z = 0; z < layout.depth; ++z) {
                     for (u32 row = 0; row < layout.rows; ++row) {
                         commands->CopyBufferRegion(
@@ -395,7 +507,7 @@ void Image::DownloadMemory(std::span<ID3D12Resource*> buffers, std::span<size_t>
                             layout.row_bytes);
                     }
                 }
-                runtime->transfer_buffers.Release(std::move(transfer));
+                runtime->transfer_buffers.ReleaseCopy(std::move(transfer));
             }
         }
         if (promoted) {

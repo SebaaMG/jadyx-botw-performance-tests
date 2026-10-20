@@ -15,6 +15,16 @@
 
 namespace D3D12 {
 
+/// SeriesX: split stable image descriptors from per-draw buffers. Set before renderer creation.
+void SetImageTableReuse(bool enabled);
+
+/// v4 ABI: stable CBV/SRV/UAV banks and two sampler arrays, SM 6.0-6.4.
+/// Requires binding tier 3. Parameter 0 is the frequently changing binding-index CBV;
+/// 1 retains runtime data (also used by ExecuteIndirect), 2/3 are global tables,
+/// 4 holds push constants and 5 the integer-sampler CBV.
+ComPtr<ID3D12RootSignature> CreatePersistentRootSignature(const Device& device,
+                                                        u32 runtime_words);
+
 /// Root constants for Vulkan push constants (space 30). spirv_to_dxil sizes the CBV to the highest
 /// offset read, 16-byte aligned: RescalingLayout needs 8 dwords, RenderAreaLayout 4.
 constexpr u32 PUSH_CONSTANT_WORDS = 8;
@@ -56,6 +66,13 @@ constexpr u32 INDIRECT_DISPATCH_WORDS = INDIRECT_DISPATCH_CONSTANT_WORDS + 3;
 ///  - texture: count SRVs, plus count samplers in the sampler table
 class PipelineLayout {
 public:
+    struct PersistentSlot { u32 binding; D3D12_DESCRIPTOR_RANGE_TYPE type; };
+    bool IsPersistent() const { return persistent_resources; }
+    u32 IndexMapIndex() const { return persistent_resources ? 0u : NO_TABLE; }
+    u32 PushConstantsIndex() const { return persistent_resources ? 4u : PUSH_CONSTANTS_INDEX; }
+    u32 NumBindings() const { return num_bindings; }
+    std::span<const PersistentSlot> PersistentSlots() const { return persistent_slots; }
+    std::span<const u32> PersistentSamplerBindings() const { return persistent_sampler_bindings; }
     ID3D12RootSignature* Handle() const noexcept {
         return root_signature.Get();
     }
@@ -69,11 +86,17 @@ public:
     u32 SamplerTableIndex() const noexcept {
         return sampler_table_index;
     }
+    u32 ImageTableIndex() const noexcept {
+        return image_table_index;
+    }
     u32 IntegerSamplerIndex() const noexcept {
         return integer_sampler_index;
     }
     u32 NumResourceDescriptors() const noexcept {
-        return num_resources;
+        return num_resources + num_images;
+    }
+    u32 NumImageDescriptors() const noexcept {
+        return num_images;
     }
     u32 NumSamplerDescriptors() const noexcept {
         return num_samplers;
@@ -101,9 +124,15 @@ private:
     u32 runtime_data_words{};
     u32 resource_table_index{NO_TABLE};
     u32 sampler_table_index{NO_TABLE};
+    u32 image_table_index{NO_TABLE};
     u32 integer_sampler_index{NO_TABLE};
     u32 num_resources{};
     u32 num_samplers{};
+    u32 num_images{};
+    bool persistent_resources{};
+    u32 num_bindings{};
+    std::vector<PersistentSlot> persistent_slots;
+    std::vector<u32> persistent_sampler_bindings;
 };
 
 /// Binding of a stage's first texture, given the stage's first binding. Texture array elements
@@ -131,7 +160,9 @@ public:
 
     /// Layout for the stages of one pipeline, in the order their SPIR-V was emitted. Null entries
     /// (absent stages) are skipped. Throws std::runtime_error if D3D12 rejects the signature.
-    const PipelineLayout& Get(std::span<const Shader::Info* const> infos, bool is_compute);
+    const PipelineLayout& Get(std::span<const Shader::Info* const> infos, bool is_compute,
+                              bool persistent = false);
+    static bool CanUsePersistent(std::span<const Shader::Info* const> infos);
 
 private:
     void CreateCommandSignatures(PipelineLayout& layout, bool is_compute);
@@ -140,6 +171,7 @@ private:
     std::mutex mutex;
     std::unordered_map<u64, std::vector<std::pair<std::vector<u32>, std::unique_ptr<PipelineLayout>>>>
         layouts;
+    ComPtr<ID3D12RootSignature> persistent_signature;
 };
 
 } // namespace D3D12

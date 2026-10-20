@@ -167,6 +167,16 @@ struct GPU::Impl {
         WaitForSyncOperation(fence);
     }
 
+    void RequestFlushCommands() {
+        if (shutting_down.load(std::memory_order_acquire) ||
+            progress_request_pending.exchange(true, std::memory_order_acq_rel)) return;
+        static_cast<void>(RequestSyncOperation([this] {
+            progress_request_pending.store(false, std::memory_order_release);
+            FlushCommands();
+        }));
+        gpu_thread.TickGPU(true);
+    }
+
     /// Tick pending requests within the GPU.
     void TickWork() {
         // Called after every draw: with no request since the last one, skip the lock.
@@ -288,7 +298,9 @@ struct GPU::Impl {
         gpu_thread.FlushAndInvalidateRegion(addr, size, is_async);
     }
 
-    void RequestComposite(std::vector<Tegra::FramebufferConfig>&& layers, std::vector<Service::Nvidia::NvFence>&& fences) {
+    void RequestComposite(std::vector<Tegra::FramebufferConfig>&& layers,
+                          std::vector<Service::Nvidia::NvFence>&& fences,
+                          u32 consumer_syncpoint, u32 consumer_value) {
         const size_t num_fences{fences.size()};
         size_t current_request_counter{};
         if (num_fences != 0) {
@@ -315,15 +327,18 @@ struct GPU::Impl {
         };
         pending_composite_fence = RequestSyncOperation(
             [this, current_request_counter, num_fences, composite_layers = std::move(layers),
-             composite_fences = std::move(fences), record_latency] {
+             composite_fences = std::move(fences), record_latency, consumer_syncpoint, consumer_value] {
                 if (num_fences == 0) {
                     record_latency();
-                    renderer->Composite(composite_layers);
+                    if (consumer_syncpoint) {
+                        renderer->CompositeWithFence(composite_layers, consumer_syncpoint, consumer_value);
+                        system.Host1x().GetSyncpointManager().CompleteGuest(consumer_syncpoint, consumer_value);
+                    } else renderer->Composite(composite_layers);
                     return;
                 }
                 auto& syncpoint_manager = system.Host1x().GetSyncpointManager();
                 const auto executer = [this, current_request_counter, composite_layers,
-                                       record_latency]() {
+                                       record_latency, consumer_syncpoint, consumer_value]() {
                     {
                         std::unique_lock<std::mutex> lk(request_swap_mutex);
                         if (--request_swap_counters[current_request_counter] != 0) {
@@ -332,7 +347,10 @@ struct GPU::Impl {
                         free_swap_counters.push_back(current_request_counter);
                     }
                     record_latency();
-                    renderer->Composite(composite_layers);
+                    if (consumer_syncpoint) {
+                        renderer->CompositeWithFence(composite_layers, consumer_syncpoint, consumer_value);
+                        system.Host1x().GetSyncpointManager().CompleteGuest(consumer_syncpoint, consumer_value);
+                    } else renderer->Composite(composite_layers);
                 };
                 for (size_t i = 0; i < num_fences; i++) {
                     syncpoint_manager.RegisterGuestAction(composite_fences[i].id,
@@ -379,6 +397,7 @@ struct GPU::Impl {
     VideoCore::ShaderNotify shader_notify;
     /// When true, we are about to shut down emulation session, so terminate outstanding tasks
     std::atomic_bool shutting_down{};
+    std::atomic_bool progress_request_pending{};
 
     std::array<std::atomic<u32>, Service::Nvidia::MaxSyncPoints> syncpoints{};
 
@@ -522,8 +541,9 @@ const VideoCore::ShaderNotify& GPU::ShaderNotify() const {
 }
 
 void GPU::RequestComposite(std::vector<Tegra::FramebufferConfig>&& layers,
-                           std::vector<Service::Nvidia::NvFence>&& fences) {
-    impl->RequestComposite(std::move(layers), std::move(fences));
+                           std::vector<Service::Nvidia::NvFence>&& fences,
+                           u32 consumer_syncpoint, u32 consumer_value) {
+    impl->RequestComposite(std::move(layers), std::move(fences), consumer_syncpoint, consumer_value);
 }
 
 void GPU::WaitForComposite() {
@@ -564,6 +584,10 @@ void GPU::WaitForIdle() {
 
 void GPU::RunOnGpuThread(std::function<void()> action) {
     impl->RunOnGpuThread(std::move(action));
+}
+
+void GPU::RequestFlushCommands() {
+    impl->RequestFlushCommands();
 }
 
 void GPU::ObtainContext() {

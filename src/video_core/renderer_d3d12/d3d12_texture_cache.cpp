@@ -30,6 +30,31 @@ namespace D3D12 {
 
 using namespace TextureDetail;
 
+namespace {
+std::atomic_bool copy_plan_cache_enabled{};
+std::atomic_bool readback_coalescing_enabled{true};
+std::atomic_bool gc_readback_batching_enabled{true};
+}
+
+void SetReadbackCoalescing(bool enabled) {
+    readback_coalescing_enabled.store(enabled, std::memory_order_relaxed);
+}
+
+bool ReadbackCoalescingEnabled() {
+    return readback_coalescing_enabled.load(std::memory_order_relaxed);
+}
+
+void SetGcReadbackBatching(bool enabled) {
+    gc_readback_batching_enabled.store(enabled, std::memory_order_relaxed);
+}
+
+bool GcReadbackBatchingEnabled() {
+    return gc_readback_batching_enabled.load(std::memory_order_relaxed);
+}
+void SetCopyPlanCache(bool enabled) {
+    copy_plan_cache_enabled.store(enabled, std::memory_order_relaxed);
+}
+
 bool TextureCacheRuntime::CanCheckpointImage(
     const Image& image, std::span<const VideoCommon::BufferImageCopy> copies) const {
     constexpr u64 Limit = 8ULL * 1024 * 1024;
@@ -107,7 +132,8 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
                                          CpuDescriptorAllocator& dsvs)
     : device{device_}, scheduler{scheduler_}, staging{staging_}, view_descriptors{views},
       sampler_descriptors{samplers}, rtv_descriptors{rtvs}, dsv_descriptors{dsvs},
-      texture_allocator{device_, scheduler_}, transfer_buffers{transfer_buffers_} {
+      texture_allocator{device_, scheduler_}, transfer_buffers{transfer_buffers_},
+      cache_copy_plans{copy_plan_cache_enabled.load(std::memory_order_relaxed)} {
     transfer_buffers.SetReclaimer([this] { texture_allocator.TrimEmptyHeaps(true); });
     null_rtv = rtv_descriptors.Allocate();
     D3D12_RENDER_TARGET_VIEW_DESC null_desc{
@@ -137,6 +163,8 @@ TextureCacheRuntime::~TextureCacheRuntime() {
     LOG_INFO(Render, "D3D12: GC readbacks queued {}, ready {}, stale {}, sync {}, pending {} KiB, peak {} KiB",
              gc_queued, gc_ready, gc_stale, gc_sync, gc_pending_bytes / 1024,
              gc_peak_pending_bytes / 1024);
+    LOG_INFO(Render, "SeriesX GC readback batches {}, images {}, synchronous waits {}",
+             gc_batches, gc_batch_images, gc_batch_waits);
 }
 
 FormatInfo TextureCacheRuntime::Format(PixelFormat format) const { return NativeFormat(format); }
@@ -155,7 +183,7 @@ StagingBufferRef TextureCacheRuntime::UploadStagingBuffer(size_t size, bool defe
     return staging.Request(size, MemoryUsage::Upload, deferred);
 }
 StagingBufferRef TextureCacheRuntime::DownloadStagingBuffer(size_t size, bool deferred) {
-    return staging.Request(size, MemoryUsage::Download, deferred);
+    return staging.Request(size, MemoryUsage::Download, deferred, ReadbackSource::Texture);
 }
 void TextureCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) { staging.FreeDeferred(ref); }
 void TextureCacheRuntime::ReleaseGcReadback(StagingBufferRef& map) {
@@ -172,8 +200,9 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
         VideoCore::FrameTrace::Event::TextureGcPrepare, image.gpu_addr};
     constexpr u64 PendingBudget = 8ULL * 1024 * 1024;
     constexpr u64 RecoveryHeadroom = 64ULL * 1024 * 1024;
-    const bool recover_now = pressure_snapshot.app_limit != 0 &&
-                             pressure_snapshot.AppFree() < RecoveryHeadroom;
+    const bool recover_now = GcReadbackBatchingEnabled()
+        ? CachePressureController::RequiresImmediateRecovery(pressure_snapshot)
+        : pressure_snapshot.app_limit != 0 && pressure_snapshot.AppFree() < RecoveryHeadroom;
     auto& pending = image.gc_readback;
     if (pending && (pending->modification_tick != image.modification_tick ||
                     pending->write_version != image.write_version ||
@@ -185,8 +214,10 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
     if (True(image.flags & VideoCommon::ImageFlagBits::CpuModified)) return false;
     if (pending) {
         if (!scheduler.IsFree(pending->tick)) {
-            if (!recover_now) return false;
+            if (!recover_now || gc_prefetching) return false;
             VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcSyncReason, 0, image.gpu_addr);
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcWaitRequest,
+                                       pending->map.capacity, pending->tick);
             {
                 const VideoCore::FrameTrace::ScopedSpan trace_wait{
                     VideoCore::FrameTrace::Event::TextureGcWait, image.gpu_addr};
@@ -221,13 +252,14 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
     const u64 size = image.unswizzled_size_bytes;
     // Large/unsupported transfers and real allocation emergencies preserve the original
     // recovery path. Bound pinned readback memory by the dedicated pool's actual power-of-two size.
-    if (recover_now || size > PendingBudget || !image.CanTransfer()) {
+    if (gc_prefetching && (size > PendingBudget || !image.CanTransfer())) return false;
+    if ((recover_now && !gc_prefetching) || size > PendingBudget || !image.CanTransfer()) {
         VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcSyncReason,
                                     recover_now ? 1 : size > PendingBudget ? 2 : 3, image.gpu_addr);
         {
             const VideoCore::FrameTrace::ScopedSpan trace_staging{
                 VideoCore::FrameTrace::Event::TextureGcStaging, image.gpu_addr};
-            map = DownloadStagingBuffer(size);
+            map = staging.Request(size, MemoryUsage::Download, false, ReadbackSource::TextureGc);
         }
         {
             const VideoCore::FrameTrace::ScopedSpan trace_copy{
@@ -237,6 +269,8 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
         {
             const VideoCore::FrameTrace::ScopedSpan trace_wait{
                 VideoCore::FrameTrace::Event::TextureGcWait, image.gpu_addr};
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcWaitRequest,
+                                       map.capacity, scheduler.CurrentTick());
             Finish();
         }
         ++gc_sync;
@@ -257,7 +291,13 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
     {
         const VideoCore::FrameTrace::ScopedSpan trace_staging{
             VideoCore::FrameTrace::Event::TextureGcStaging, image.gpu_addr};
-        readback->map = DownloadStagingBuffer(allocation_size, true);
+        readback->map = staging.Request(allocation_size, MemoryUsage::Download, true,
+                                        ReadbackSource::TextureGc);
+    }
+    if (readback->map.capacity > PendingBudget - gc_pending_bytes) {
+        staging.FreeDeferred(readback->map);
+        readback->map.buffer = nullptr;
+        return false;
     }
     gc_pending_bytes += readback->map.capacity;
     gc_peak_pending_bytes = std::max(gc_peak_pending_bytes, gc_pending_bytes);
@@ -282,6 +322,44 @@ bool TextureCacheRuntime::PrepareGcDownload(Image& image,
     return false;
 }
 
+void TextureCacheRuntime::PrefetchGcDownloads(std::span<Image*> images) {
+    if (!GcReadbackBatchingEnabled() || images.empty()) return;
+    const auto previous_queued = gc_queued;
+    u64 latest_tick{};
+    {
+        gc_prefetching = true;
+        SCOPE_EXIT { gc_prefetching = false; };
+        for (auto* image : images) {
+            if (image->gc_readback) {
+                latest_tick = std::max(latest_tick, image->gc_readback->tick);
+                continue;
+            }
+            const auto copies = FixSmallVectorADL(VideoCommon::FullDownloadCopies(image->info));
+            StagingBufferRef ignored{};
+            PrepareGcDownload(*image, copies, ignored);
+            if (image->gc_readback) latest_tick = std::max(latest_tick, image->gc_readback->tick);
+        }
+    }
+    if (gc_queued != previous_queued) {
+        ++gc_batches;
+        gc_batch_images += gc_queued - previous_queued;
+        VideoCore::Perf::Add(VideoCore::Perf::Counter::GcReadbackBatchImages, gc_queued - previous_queued);
+        VideoCore::Perf::Add(VideoCore::Perf::Counter::GcReadbackBatches, 1);
+    }
+    if (!latest_tick) return;
+    if (CachePressureController::RequiresImmediateRecovery(pressure_snapshot)) {
+        if (!scheduler.IsFree(latest_tick)) {
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcSyncReason, 4);
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureGcWaitRequest,
+                                       gc_pending_bytes, latest_tick);
+            scheduler.Wait(latest_tick);
+            ++gc_batch_waits;
+        }
+    } else if (gc_queued != previous_queued) {
+        scheduler.Flush();
+    }
+}
+
 void TextureCacheRuntime::CompleteGcDownload(Image& image) {
     image.gc_readback.reset();
 }
@@ -297,7 +375,13 @@ void TextureCacheRuntime::TickFrame() {
     // system refuses still reclaims everything (TransferBufferPool::ReclaimAfterOutOfMemory).
     const bool release_idle = pressure_level >= CachePressure::Critical;
     texture_allocator.TrimEmptyHeaps(release_idle);
-    transfer_buffers.Trim(release_idle);
+    if (release_idle) {
+        transfer_buffers.TrimForPressure(
+            CachePressureController::RequiresImmediateRecovery(pressure_snapshot));
+    } else {
+        transfer_buffers.Trim(false);
+    }
+    transfer_buffers.TickStatistics();
     if (VideoCore::FrameTrace::Active()) {
         const auto stats = texture_allocator.GetStats();
         VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::TextureHeapUsage,
@@ -321,8 +405,11 @@ std::optional<VideoCommon::TextureGcPolicy> TextureCacheRuntime::GetTextureGcPol
                                     static_cast<u64>(pressure_level));
     }
     if (!pressure_snapshot.Known()) return std::nullopt;
-    return CachePressureController::Policy(pressure_level, second_pass,
-        CachePressureController::RequiresImmediateRecovery(pressure_snapshot));
+    const bool immediate = CachePressureController::RequiresImmediateRecovery(pressure_snapshot);
+    auto policy = CachePressureController::Policy(pressure_level, second_pass, immediate);
+    if (GcReadbackBatchingEnabled() && policy.aggressive && !immediate)
+        policy.max_downloads = 4;
+    return policy;
 }
 u64 TextureCacheRuntime::GetDeviceLocalMemory() const { return device.CacheMemoryBudget(); }
 u64 TextureCacheRuntime::GetDeviceMemoryUsage() const {
@@ -438,8 +525,17 @@ Image::Image(TextureCacheRuntime& runtime_, const VideoCommon::ImageInfo& info_,
     }
     // Multisampled resources cannot have UAVs.
     // The ASTC decoder writes through an R8G8B8A8_UNORM UAV, sRGB images included.
+    // SeriesX modification: the integer BC1 decoder also writes encoded sRGB bytes through
+    // an UNORM UAV of this typeless RGBA8 resource. The SRGB view itself is not a UAV format.
+    const bool bc1_array_decoder =
+        format.converted && info_.type == ImageType::e2D && info_.resources.layers > 1 &&
+        info_.size.depth == 1 && info_.num_samples == 1 &&
+        info_.size.width % 4 == 0 && info_.size.height % 4 == 0 &&
+        converted_size_bytes >= (32U << 20) &&
+        (info_.format == PixelFormat::BC1_RGBA_UNORM || info_.format == PixelFormat::BC1_RGBA_SRGB) &&
+        runtime->blit_helper && runtime->blit_helper->CanDecodeBc1();
     const bool decoder_writes_image =
-        gpu_decoded && format.copy_format == PixelFormat::A8B8G8R8_UNORM;
+        (gpu_decoded && format.copy_format == PixelFormat::A8B8G8R8_UNORM) || bc1_array_decoder;
     if (is_color && !is_msaa &&
         (decoder_writes_image || runtime->SupportsView(format.view, D3D12_FORMAT_SUPPORT1_NONE,
                                               D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE))) {
@@ -463,7 +559,7 @@ Image::Image(TextureCacheRuntime& runtime_, const VideoCommon::ImageInfo& info_,
         .SampleDesc = {.Count = info_.num_samples, .Quality = 0},
         .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN, .Flags = resource_flags,
     };
-    {
+    try {
         VideoCore::Perf::ScopedTimer timer{VideoCore::Perf::Counter::ResourceCreateUs,
                                            VideoCore::Perf::Counter::ResourcesCreated};
         auto allocated = runtime->texture_allocator.Create(desc, D3D12_RESOURCE_STATE_COMMON);
@@ -475,6 +571,15 @@ Image::Image(TextureCacheRuntime& runtime_, const VideoCommon::ImageInfo& info_,
         if (!resource) {
             throw std::runtime_error("D3D12: texture allocator returned no resource");
         }
+    } catch (const std::exception& error) {
+        // SeriesX modification: resource OOM is distinct from upload staging OOM.
+        LOG_ERROR(Render, "Texture resource creation failed: {}x{}x{} type={} format={} "
+                          "levels={} layers={} converted={} native_blocks={} dxgi={} flags={:x}: {}",
+                  info_.size.width, info_.size.height, info_.size.depth,
+                  static_cast<u32>(info_.type), static_cast<u32>(info_.format),
+                  info_.resources.levels, info_.resources.layers, format.converted, native_blocks,
+                  static_cast<u32>(desc.Format), static_cast<u32>(desc.Flags), error.what());
+        throw;
     }
     CheckRemovedAfter(runtime->device.Get(), [&] {
         return fmt::format("creating image {} ({} dim {} {}x{}x{} levels {} samples {} flags 0x{:x})",
@@ -755,15 +860,12 @@ void Image::CopyThroughBuffer(ID3D12Resource* src, ID3D12Resource* dst) {
     // src in COPY_SOURCE and dst in COPY_DEST.
     const D3D12_RESOURCE_DESC src_desc = src->GetDesc();
     const DXGI_FORMAT dst_format = dst->GetDesc().Format;
-    const u32 count =
-        src_desc.MipLevels * (src_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D
-                                  ? 1U
-                                  : src_desc.DepthOrArraySize);
-    std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(count);
-    u64 total_bytes = 0;
-    runtime->device.Get()->GetCopyableFootprints(&src_desc, 0, count, 0, footprints.data(),
-                                                 nullptr, nullptr, &total_bytes);
-    ComPtr<ID3D12Resource> transfer = runtime->transfer_buffers.Acquire(total_bytes);
+    CopyFootprintCache::Plan uncached;
+    const auto& plan = runtime->copy_plans.Get(runtime->device.Get(), src_desc,
+                                              runtime->cache_copy_plans, uncached);
+    const auto& footprints = plan.footprints;
+    const u32 count = static_cast<u32>(footprints.size());
+    ComPtr<ID3D12Resource> transfer = runtime->transfer_buffers.AcquireCopy(plan.bytes);
     auto* const commands = runtime->scheduler.CommandList();
     for (u32 subresource = 0; subresource < count; ++subresource) {
         const D3D12_TEXTURE_COPY_LOCATION from{
@@ -787,7 +889,7 @@ void Image::CopyThroughBuffer(ID3D12Resource* src, ID3D12Resource* dst) {
             .SubresourceIndex = subresource};
         commands->CopyTextureRegion(&to, 0, 0, 0, &from, nullptr);
     }
-    runtime->transfer_buffers.Release(std::move(transfer));
+    runtime->transfer_buffers.ReleaseCopy(std::move(transfer));
 }
 
 void Image::RefreshSliceArray() {
@@ -799,12 +901,11 @@ void Image::RefreshSliceArray() {
     const D3D12_RESOURCE_DESC desc = slice_array->GetDesc();
     const u32 levels = desc.MipLevels;
     const u32 layers = desc.DepthOrArraySize;
-    const u32 count = levels * layers;
-    std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(count);
-    u64 total_bytes = 0;
-    runtime->device.Get()->GetCopyableFootprints(&desc, 0, count, 0, footprints.data(), nullptr,
-                                                 nullptr, &total_bytes);
-    ComPtr<ID3D12Resource> transfer = runtime->transfer_buffers.Acquire(total_bytes);
+    CopyFootprintCache::Plan uncached;
+    const auto& plan = runtime->copy_plans.Get(runtime->device.Get(), desc,
+                                              runtime->cache_copy_plans, uncached);
+    const auto& footprints = plan.footprints;
+    ComPtr<ID3D12Resource> transfer = runtime->transfer_buffers.AcquireCopy(plan.bytes);
     auto* const commands = runtime->scheduler.CommandList();
     Transition(D3D12_RESOURCE_STATE_COPY_SOURCE);
     const auto slices = [&](u32 level) { return std::min(layers, std::max(1U, layers >> level)); };
@@ -844,7 +945,7 @@ void Image::RefreshSliceArray() {
                         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
     TransitionBuffer(commands, slice_array.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
                      slice_array_state);
-    runtime->transfer_buffers.Release(std::move(transfer));
+    runtime->transfer_buffers.ReleaseCopy(std::move(transfer));
     slice_array_version = write_version;
 }
 void TextureCacheRuntime::TransitionImageLayout(Image& image) {

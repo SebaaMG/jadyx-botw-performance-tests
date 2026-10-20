@@ -73,9 +73,9 @@ public:
         uncommitted_operations.emplace_back(std::move(func));
     }
 
-    void SignalFence(std::function<void()>&& func) {
-        const bool delay_fence = Settings::IsGPUFenceBehaviorDefault() ? Settings::IsGPULevelHigh() : Settings::IsGPUFenceBehaviorBalanced() || Settings::IsGPUFenceBehaviorAccurate();
-        const bool should_flush = ShouldFlush();
+    void SignalFence(std::function<void()>&& func, bool force_wait = false) {
+        const bool delay_fence = force_wait || (Settings::IsGPUFenceBehaviorDefault() ? Settings::IsGPULevelHigh() : Settings::IsGPUFenceBehaviorBalanced() || Settings::IsGPUFenceBehaviorAccurate());
+        const bool should_flush = force_wait || ShouldFlush();
         if constexpr (!can_async_check) {
             TryReleasePendingFences<false>();
         }
@@ -109,6 +109,14 @@ public:
         syncpoint_manager.IncrementGuest(value);
         std::function<void()> func([this, value] { syncpoint_manager.IncrementHost(value); });
         SignalFence(std::move(func));
+    }
+
+    void SignalConsumerFence(u32 syncpoint, u32 target) {
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::ConsumerFenceQueued, syncpoint, target);
+        SignalFence([this, syncpoint, target] {
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::ConsumerFenceReady, syncpoint, target);
+            syncpoint_manager.CompleteHost(syncpoint, target);
+        }, true);
     }
 
     void WaitPendingFences([[maybe_unused]] bool force) {

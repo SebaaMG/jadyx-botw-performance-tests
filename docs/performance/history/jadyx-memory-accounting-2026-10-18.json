@@ -1,0 +1,596 @@
+{
+  "captured_at_utc": "2026-10-18T09:55:22.455086+00:00",
+  "status": "working-set-confusion-resolved-owner-confirms-both-transitions-pass-with-higher-pc-hard-cap-xbox-equivalence-unverified",
+  "upstream_base": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+  "source_patches": [
+    {
+      "path": "patches/jadyx/0001-texture-gc-budget-and-oom-context.patch",
+      "bytes": 7839,
+      "sha256": "12d8d788fdaa6f980dab961970a4b52fa2be9c629053fcfefd743d6770f4fc52"
+    },
+    {
+      "path": "patches/jadyx/0002-bc1-array-gpu-upload.patch",
+      "bytes": 26319,
+      "sha256": "b33bba79c94a122255e751776a834dcf1be7ff8c568d19de01564ac1c150534c"
+    },
+    {
+      "path": "patches/jadyx/0003-windows-memory-accounting.patch",
+      "bytes": 6387,
+      "sha256": "4d0433deaf2c0cab8ed81d889c22c5c6f8380e0fc381c46793cecd33eb1174d7"
+    },
+    {
+      "path": "patches/jadyx/0004-separate-pc-cache-budget-and-process-cap.patch",
+      "bytes": 3184,
+      "sha256": "2cfa02909118038f268e9f8f6532e74e9bac79f3a039099feeb7a436d961ccb6"
+    }
+  ],
+  "sequential_clean_index_patch_check": true,
+  "tools": [
+    {
+      "path": "tools/jadyx/tests/memory-accounting.cpp",
+      "sha256": "998093940ec8031bf6e38e392e824a5291ab710d0208c169868fdf2b15c2ed44"
+    },
+    {
+      "path": "tools/jadyx/run-memory-accounting-probe.ps1",
+      "sha256": "c0381db8616bc2bb19a622e691e366171d9f53ec46632b687e720153cf036847"
+    },
+    {
+      "path": "tools/jadyx/watch-windows-memory.ps1",
+      "sha256": "d4cedd4e8037b518c9bfeb579ffbe9fabc5718a7fe067353819ee1f1f51f6a37"
+    }
+  ],
+  "component": {
+    "scope": "Desktop diagnostic against production UWP D3D12 device/libraries on RX 580; not Xbox or gameplay.",
+    "device_removed": false,
+    "runs": [
+      {
+        "name": "uncapped",
+        "stdout_sha256": "00444cb7b11274a0abfb027add1c60da30e0beaeb7fb1860ce965f3af2fd1ee8",
+        "stderr_bytes": 0,
+        "gpu_heaps_created": 8,
+        "requested_gpu_bytes": 536870912,
+        "deltas": {
+          "process_private": 537927680,
+          "working_set": 61440,
+          "app_total": 538976256,
+          "dxgi_local": 536870912
+        },
+        "last_heap_sample": {
+          "stage": "default_heap_added",
+          "process_private": 615231488,
+          "working_set": 52035584,
+          "peak_working_set": 186195968,
+          "app_usage": 978702336,
+          "app_private": 912658432,
+          "app_total": 978702336,
+          "app_total_limit": 37011517440,
+          "dxgi_local": 539361280,
+          "dxgi_budget": 7725735936,
+          "payload": 536870912,
+          "allocation": 536870912,
+          "objects": 8
+        },
+        "allocation_refusal": null,
+        "small_upload_sample": {
+          "stage": "small_uploads_512",
+          "process_private": 280375296,
+          "working_set": 55676928,
+          "peak_working_set": 186195968,
+          "app_usage": 642797568,
+          "app_private": 577802240,
+          "app_total": 642797568,
+          "app_total_limit": 37011517440,
+          "dxgi_local": 2490368,
+          "dxgi_budget": 7725735936,
+          "payload": 2097152,
+          "allocation": 33554432,
+          "objects": 512
+        },
+        "job_peak": null
+      },
+      {
+        "name": "job-384",
+        "stdout_sha256": "98347bdf69493f3c8776fa8f5784297f9e8f94b328647aac63e7d518210842ae",
+        "stderr_bytes": 0,
+        "gpu_heaps_created": 4,
+        "requested_gpu_bytes": 268435456,
+        "deltas": {
+          "process_private": 268967936,
+          "working_set": 61440,
+          "app_total": 268967936,
+          "dxgi_local": 268435456
+        },
+        "last_heap_sample": {
+          "stage": "default_heap_added",
+          "process_private": 346292224,
+          "working_set": 52035584,
+          "peak_working_set": 186195968,
+          "app_usage": 393519104,
+          "app_private": 346292224,
+          "app_total": 393519104,
+          "app_total_limit": 37011517440,
+          "dxgi_local": 270925824,
+          "dxgi_budget": 7725735936,
+          "payload": 268435456,
+          "allocation": 268435456,
+          "objects": 4
+        },
+        "allocation_refusal": {
+          "stage": "default_heap_refused",
+          "hr": 2147942414,
+          "completed_heaps": 4
+        },
+        "small_upload_sample": {
+          "stage": "small_uploads_512",
+          "process_private": 280358912,
+          "working_set": 55767040,
+          "peak_working_set": 186195968,
+          "app_usage": 327585792,
+          "app_private": 280358912,
+          "app_total": 327585792,
+          "app_total_limit": 37011517440,
+          "dxgi_local": 2490368,
+          "dxgi_budget": 7725735936,
+          "payload": 2097152,
+          "allocation": 33554432,
+          "objects": 512
+        },
+        "job_peak": {
+          "stage": "job_peak",
+          "peak_process": 346292224
+        }
+      },
+      {
+        "name": "job-2048",
+        "stdout_sha256": "a8d7c32d666019b705a00bed1616a8c0951c72e8b1bfbb5be7ed5eb3959cce7f",
+        "stderr_bytes": 0,
+        "gpu_heaps_created": 8,
+        "requested_gpu_bytes": 536870912,
+        "deltas": {
+          "process_private": 537931776,
+          "working_set": 61440,
+          "app_total": 538980352,
+          "dxgi_local": 536870912
+        },
+        "last_heap_sample": {
+          "stage": "default_heap_added",
+          "process_private": 615325696,
+          "working_set": 52088832,
+          "peak_working_set": 186249216,
+          "app_usage": 663601152,
+          "app_private": 615325696,
+          "app_total": 663601152,
+          "app_total_limit": 37011517440,
+          "dxgi_local": 539361280,
+          "dxgi_budget": 7725735936,
+          "payload": 536870912,
+          "allocation": 536870912,
+          "objects": 8
+        },
+        "allocation_refusal": null,
+        "small_upload_sample": {
+          "stage": "small_uploads_512",
+          "process_private": 280436736,
+          "working_set": 55713792,
+          "peak_working_set": 186249216,
+          "app_usage": 327663616,
+          "app_private": 280436736,
+          "app_total": 327663616,
+          "app_total_limit": 37011517440,
+          "dxgi_local": 2490368,
+          "dxgi_budget": 7725735936,
+          "payload": 2097152,
+          "allocation": 33554432,
+          "objects": 512
+        },
+        "job_peak": {
+          "stage": "job_peak",
+          "peak_process": 615325696
+        }
+      }
+    ],
+    "layouts": [
+      {
+        "stage": "bc1_array_layout",
+        "extent": 512,
+        "layers": 83,
+        "flags": 0,
+        "allocation": 179044352,
+        "alignment": 65536
+      },
+      {
+        "stage": "bc1_array_layout",
+        "extent": 512,
+        "layers": 83,
+        "flags": 1,
+        "allocation": 180748288,
+        "alignment": 65536
+      },
+      {
+        "stage": "bc1_array_layout",
+        "extent": 512,
+        "layers": 83,
+        "flags": 4,
+        "allocation": 179044352,
+        "alignment": 65536
+      },
+      {
+        "stage": "bc1_array_layout",
+        "extent": 512,
+        "layers": 83,
+        "flags": 5,
+        "allocation": 179044352,
+        "alignment": 65536
+      },
+      {
+        "stage": "bc1_array_layout",
+        "extent": 1024,
+        "layers": 83,
+        "flags": 0,
+        "allocation": 715915264,
+        "alignment": 65536
+      },
+      {
+        "stage": "bc1_array_layout",
+        "extent": 1024,
+        "layers": 83,
+        "flags": 1,
+        "allocation": 718340096,
+        "alignment": 65536
+      },
+      {
+        "stage": "bc1_array_layout",
+        "extent": 1024,
+        "layers": 83,
+        "flags": 4,
+        "allocation": 715915264,
+        "alignment": 65536
+      },
+      {
+        "stage": "bc1_array_layout",
+        "extent": 1024,
+        "layers": 83,
+        "flags": 5,
+        "allocation": 715915264,
+        "alignment": 65536
+      }
+    ],
+    "uncapped_scope_limit": "Unpackaged component WinRT report can include parent-group accounting; isolated 2048 MiB job is the main control. Do not compare absolute uncapped and job totals as the same scope."
+  },
+  "accounting_candidate": {
+    "final_build_exit_code": 0,
+    "package": {
+      "name": "jadyx.appx",
+      "bytes": 15037495,
+      "sha256": "d9ecbbaa1c555a55e955337c2bffd4a7de01e56ce17d95a1c310392d2b0a00af",
+      "version": "0.2.93.14",
+      "architecture": "x64",
+      "zip_crc_verified": true,
+      "packaged_exe_matches_build": true,
+      "packaged_mesa_matches_build": true,
+      "exe_sha256": "cb8db5513629cbea4afc0a040e41643ede21590c90d18a680b3988b763e22e06",
+      "mesa_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+      "boot_cfg": [
+        "memory_limit_mib=5120",
+        "library=1",
+        "play=1"
+      ],
+      "no_games_keys_or_firmware_bundled": true,
+      "package_members": 29,
+      "layout_payload_matches_appx": true,
+      "layout_members_verified": 25,
+      "vclibs_dependency_present": true
+    },
+    "signature": {
+      "accepted": true,
+      "native_hresult": "0x800B0109",
+      "signature_status": "UntrustedRoot",
+      "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+      "signer_matches_expected": true,
+      "signer_time_valid": true,
+      "chain_error_status": "0x00000020",
+      "integrity_verified": true,
+      "integrity_verification": "WinVerifyTrust/WINTRUST_ACTION_GENERIC_VERIFY_V2",
+      "system_trusted": false,
+      "revocation_checked": false,
+      "trust_policy": "PinnedSignerAllowUntrustedRoot"
+    },
+    "runtime": {
+      "source_version": "0.2.93.14",
+      "candidate_revision": "seriesx-memory-accounting-1",
+      "source_patch_sha256": "4d0433deaf2c0cab8ed81d889c22c5c6f8380e0fc381c46793cecd33eb1174d7",
+      "identity": "SeriesX.JadyxBinaryProbe",
+      "diagnostic_package_version": "1.0.0.4",
+      "runtime_layout": "[local path or personal identifier omitted for public archive]",
+      "previous_runtime_preserved": "[local path or personal identifier omitted for public archive]",
+      "local_state_preserved": true,
+      "local_state_files_verified": 45,
+      "payload_files_verified_before_diagnostic_manifest_change": 25,
+      "executable_sha256": "cb8db5513629cbea4afc0a040e41643ede21590c90d18a680b3988b763e22e06",
+      "mesa_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+      "activation_requested": true,
+      "activation_pid": 13072
+    }
+  },
+  "accounting_gameplay": {
+    "owner_report": "Inventory then B caused a memory failure.",
+    "manual_runs": 1,
+    "assistant_sent_gameplay_inputs": false,
+    "independent_input_timestamp": false,
+    "source_version": "0.2.93.14",
+    "game_version": "1.9.0",
+    "hard_job_cap_mib": 5120,
+    "logical_cache_budget_mib": 5120,
+    "representative_sample": {
+      "at_ms": 88531,
+      "working_set_mib": 2971,
+      "winrt_total_commit_mib": 4964,
+      "process_private_commit_mib": 4888,
+      "winrt_private_commit_mib": 4888,
+      "winrt_shared_commit_mib": 75
+    },
+    "failure": {
+      "log_seconds": 159.599683,
+      "width": 512,
+      "height": 512,
+      "layers": 83,
+      "levels": 10,
+      "guest_format_ordinal": 23,
+      "guest_format": "BC1_RGBA_UNORM",
+      "converted": true,
+      "dxgi_format_ordinal": 27,
+      "flags": 5,
+      "allocation_bytes": 179044352,
+      "hresult": "0x8007000E",
+      "kind": "Texture final resource heap and committed fallback",
+      "stack": [
+        "TextureResourceAllocator::Create",
+        "Image::Image",
+        "TextureCache::JoinImages",
+        "TextureCache::InsertImage",
+        "TextureCache::CreateImageView",
+        "GraphicsPipeline::Configure"
+      ]
+    },
+    "recovery": {
+      "at_ms": 159906,
+      "total_commit_mib": 5049,
+      "headroom_mib": 70,
+      "working_set_mib": 3099,
+      "private_commit_mib": 4972
+    },
+    "library": {
+      "return_code": 15,
+      "at_ms": 162109,
+      "total_commit_mib": 426,
+      "working_set_mib": 181
+    },
+    "external_samples_count": 39,
+    "external_max_private_sample": {
+      "kind": "sample",
+      "utc": "2026-10-18T09:44:52.3378220Z",
+      "pid": 13072,
+      "working_set_bytes": 3145482240,
+      "process_private_commit_bytes": 5227347968,
+      "cpu_total_seconds": 136.296875,
+      "gpu_counters_available": true,
+      "gpu_instances": [
+        {
+          "name": "pid_13072_luid_0x00000000_0x00015BB0_phys_0",
+          "dedicated_bytes": 1880358912,
+          "shared_bytes": 22523904,
+          "total_committed_bytes": 1902886912
+        }
+      ]
+    },
+    "external_max_working_set_sample": {
+      "kind": "sample",
+      "utc": "2026-10-18T09:46:07.8102060Z",
+      "pid": 13072,
+      "working_set_bytes": 3249283072,
+      "process_private_commit_bytes": 5213773824,
+      "cpu_total_seconds": 286.984375,
+      "gpu_counters_available": true,
+      "gpu_instances": [
+        {
+          "name": "pid_13072_luid_0x00000000_0x00015BB0_phys_0",
+          "dedicated_bytes": 1847705600,
+          "shared_bytes": 137367552,
+          "total_committed_bytes": 1985073152
+        }
+      ]
+    },
+    "private_snapshot": {
+      "captured_at_utc": "2026-10-18T09:47:08.048781+00:00",
+      "files": [
+        {
+          "name": "jadyx_log.txt",
+          "bytes": 840782,
+          "sha256": "fb2f89d8e9b1e93de648351731d3150a740504e674b8e5c5d643566f5255f9a2"
+        },
+        {
+          "name": "jadyx_diag.txt",
+          "bytes": 181763,
+          "sha256": "42c91d3c23f31689c7e47c62c85804150e9009e99778d99c4eaeb19edfbb1745"
+        },
+        {
+          "name": "runtime-13072.jsonl",
+          "bytes": 14252,
+          "sha256": "7124ea73b3691c530b7be84c66060b4ac6f61b3e3cc0ce16cf056732070a3681"
+        }
+      ],
+      "raw_committed": false
+    }
+  },
+  "contrast_candidate": {
+    "final_build_exit_code": 0,
+    "package": {
+      "name": "jadyx.appx",
+      "bytes": 15037655,
+      "sha256": "83095f5643d9bc060cd196c4b6c2a61bc379057eca5ecc189a4108277968ee99",
+      "version": "0.2.93.14",
+      "architecture": "x64",
+      "zip_crc_verified": true,
+      "packaged_exe_matches_build": true,
+      "packaged_mesa_matches_build": true,
+      "exe_sha256": "ef69b9fec4e25c8f139f1a80c3d9ebc97da82d7acd8d1c4c64bcb2f2f4a59cd2",
+      "mesa_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+      "boot_cfg": [
+        "memory_limit_mib=5120",
+        "library=1",
+        "play=1"
+      ],
+      "no_games_keys_or_firmware_bundled": true,
+      "package_members": 29,
+      "layout_payload_matches_appx": true,
+      "layout_members_verified": 25,
+      "vclibs_dependency_present": true
+    },
+    "signature": {
+      "accepted": true,
+      "native_hresult": "0x800B0109",
+      "signature_status": "UntrustedRoot",
+      "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+      "signer_matches_expected": true,
+      "signer_time_valid": true,
+      "chain_error_status": "0x00000020",
+      "integrity_verified": true,
+      "integrity_verification": "WinVerifyTrust/WINTRUST_ACTION_GENERIC_VERIFY_V2",
+      "system_trusted": false,
+      "revocation_checked": false,
+      "trust_policy": "PinnedSignerAllowUntrustedRoot"
+    },
+    "runtime": {
+      "source_version": "0.2.93.14",
+      "candidate_revision": "seriesx-memory-budget-contrast",
+      "source_patch_sha256": "2cfa02909118038f268e9f8f6532e74e9bac79f3a039099feeb7a436d961ccb6",
+      "identity": "SeriesX.JadyxBinaryProbe",
+      "diagnostic_package_version": "1.0.0.5",
+      "runtime_layout": "[local path or personal identifier omitted for public archive]",
+      "previous_runtime_preserved": "[local path or personal identifier omitted for public archive]",
+      "local_state_preserved": true,
+      "local_state_files_verified": 45,
+      "payload_files_verified_before_diagnostic_manifest_change": 25,
+      "executable_sha256": "ef69b9fec4e25c8f139f1a80c3d9ebc97da82d7acd8d1c4c64bcb2f2f4a59cd2",
+      "mesa_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+      "activation_requested": true,
+      "activation_pid": 17508,
+      "pc_hard_cap_mib": 8192,
+      "logical_cache_budget_mib": 5120,
+      "runtime_boot_cfg_modified_for_pc_diagnostic": true
+    }
+  },
+  "contrast_gameplay": {
+    "owner_test_requested": true,
+    "owner_result_pending": false,
+    "hard_job_cap_mib": 8192,
+    "logical_cache_budget_mib": 5120,
+    "canonical_appx_uses_original_5120": true,
+    "windows_runtime_only_boot_cfg": [
+      "memory_limit_mib=8192",
+      "pc_memory_budget_mib=5120",
+      "library=1",
+      "play=1"
+    ],
+    "xbox_platform_cap_unchanged_by_code": true,
+    "no_fps_or_memory_saving_claim": true,
+    "owner_test_started": true,
+    "manual_run_still_open": true,
+    "run_return_recorded": false,
+    "heartbeat_count": 55,
+    "max_total_commit_sample": {
+      "at_ms": 513016,
+      "total_commit_mib": 5401,
+      "working_set_mib": 3189,
+      "private_commit_mib": 5323,
+      "emulated_dram_mib": 1982
+    },
+    "last_heartbeat": {
+      "at_ms": 553000,
+      "total_commit_mib": 5325,
+      "working_set_mib": 3188,
+      "private_commit_mib": 5247,
+      "emulated_dram_mib": 1986
+    },
+    "private_snapshot": {
+      "captured_at_utc": "2026-10-18T09:59:07.230502+00:00",
+      "files": [
+        {
+          "name": "jadyx_log.txt",
+          "bytes": 1649690,
+          "sha256": "1ac749c0e331caad33e512687269036db645642ef265f93f3d66440f438fc729"
+        },
+        {
+          "name": "jadyx_diag.txt",
+          "bytes": 221340,
+          "sha256": "cc99c2cb863f34cf3dd7536c0aee4765671cd4559f81f3aa57782dc9891f97a1"
+        },
+        {
+          "name": "runtime-17508.jsonl",
+          "bytes": 29406,
+          "sha256": "1bafbe1209adc03b4a289dfaf1d6403a605d5d5998c6c9117dabfb46354eb998"
+        }
+      ],
+      "raw_committed": false
+    },
+    "owner_report": "Both inventory then B and scope mode work.",
+    "owner_actions_confirmed": true,
+    "independent_input_timestamp": false,
+    "gpu_failure_in_diagnostic": false,
+    "private_snapshot_confirmed": {
+      "captured_at_utc": "2026-10-18T10:01:59.375281+00:00",
+      "files": [
+        {
+          "name": "jadyx_log.txt",
+          "bytes": 2700558,
+          "sha256": "b55e9a04367278fece80bc7b0bc3ef4ed0221af2720a47163f92d786cc3d7965"
+        },
+        {
+          "name": "jadyx_diag.txt",
+          "bytes": 238006,
+          "sha256": "056805283ca10295730644f9d8ca545818011895ae6fbb17fd7d5a8cc242dcd4"
+        },
+        {
+          "name": "runtime-17508.jsonl",
+          "bytes": 45729,
+          "sha256": "dfea439f1ffdc96c97c28e425521f430943c1ceebacd65b1fe4ebbd92befeb26"
+        }
+      ],
+      "raw_committed": false
+    }
+  },
+  "comparison_to_published_test": {
+    "system": "Series X",
+    "test_version": "0.2.90.3",
+    "game": "Unnamed original open-world adventure; exact title/game version not confirmed by public metadata",
+    "peak_commit_sampled_mib": 4476,
+    "reported_dense_fps": 19.497,
+    "normal_library_return_code": 10,
+    "same_game_build_confirmed": false,
+    "same_save_confirmed": false,
+    "same_emulator_build_confirmed": false,
+    "working_interpretation": "Published evidence points to frame rate, rather than habitual memory failures, as the original adventure's issue on Xbox. The normal return and below-limit samples support this interpretation.",
+    "korok_forest_scene_confirmed": false,
+    "crash_free_complete_game_claim": false,
+    "url": "https://github.com/JulianDr14/jadyx/blob/068d86bc21a2807cda95c3699a8792dfc8c2769d/docs/xbox/xbox_draw_preparation.md"
+  },
+  "limits": [
+    "The working-set/commit discrepancy is reproduced; the full cause of the difference from the published Xbox run is not yet established.",
+    "GPU allocation and private commit overlap on this driver; summing DXGI usage and process commit double-counts part of the allocation.",
+    "The ledger rest field is not a CPU-only leak census.",
+    "Increasing the PC hard cap is a diagnostic contrast, not an Xbox memory optimization.",
+    "No Xbox test or measured FPS improvement.",
+    "Final texture allocation sizes were measured on RX 580 only."
+  ],
+  "private_material_committed": false,
+  "updated_at_utc": "2026-10-18T10:01:59.375281+00:00",
+  "conclusion": {
+    "measured": "WS and committed memory are different; RX 580 DEFAULT heaps charge private commit. Both owner-reported actions pass with the Windows Job enlarged and the same 5120 MiB logical budget.",
+    "scope": "PC hard-cap contrast only. Cache warming, manual timing, different diagnostic EXE and host driver/layout remain confounders for a full comparison to the published Xbox run.",
+    "not_established": [
+      "That total Xbox memory will match this PC run.",
+      "That either transition fits a native 5120 MiB Xbox budget.",
+      "A reduction in emulator memory consumption or an FPS gain."
+    ]
+  }
+}

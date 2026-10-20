@@ -24,6 +24,10 @@
 namespace D3D12 {
 namespace {
 std::atomic_bool uniform_upload_copy_enabled{};
+std::atomic_bool coherent_uniform_cache_enabled{};
+}
+void SetCoherentUniformCache(bool enabled) {
+    coherent_uniform_cache_enabled.store(enabled, std::memory_order_relaxed);
 }
 void SetUniformUploadCopy(bool enabled) {
     uniform_upload_copy_enabled.store(enabled, std::memory_order_relaxed);
@@ -129,7 +133,7 @@ u32 IndexSize(IndexFormat format) {
 
 Buffer::Buffer(BufferCacheRuntime& runtime, VideoCommon::NullBufferParams params)
     : VideoCommon::BufferBase(params), scheduler{&runtime.scheduler},
-      id{runtime.next_buffer_id++}, buffer{runtime.CreateDefaultBuffer(4)}, address{buffer ? buffer->GetGPUVirtualAddress() : 0},
+      id{runtime.next_buffer_id++}, buffer{runtime.CreateDefaultBuffer(4, allocation)}, address{buffer ? buffer->GetGPUVirtualAddress() : 0},
       tracker{4096}, charge{Common::MemoryAccount::BufferCache, 4} {}
 
 Buffer::Buffer(BufferCacheRuntime& runtime, VAddr cpu_addr, u64 size_bytes, bool)
@@ -137,26 +141,27 @@ Buffer::Buffer(BufferCacheRuntime& runtime, VAddr cpu_addr, u64 size_bytes, bool
       id{runtime.next_buffer_id++},
       // Whole 256-byte blocks: a guest cbuf ending with the buffer still fits a CBV.
       buffer{runtime.CreateDefaultBuffer(
-          Common::AlignUp(size_bytes, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT))},
+          Common::AlignUp(size_bytes, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT), allocation)},
       address{buffer ? buffer->GetGPUVirtualAddress() : 0}, tracker{size_bytes},
       charge{Common::MemoryAccount::BufferCache,
              Common::AlignUp(size_bytes, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT)} {}
 
 Buffer::~Buffer() {
     if (scheduler && buffer) {
-        scheduler->DeferRelease(std::move(buffer));
+        TextureResourceAllocator::DeferRelease(*scheduler, {std::move(buffer), std::move(allocation)});
     }
 }
 
 Buffer& Buffer::operator=(Buffer&& other) noexcept {
     if (this != &other) {
         if (scheduler && buffer) {
-            scheduler->DeferRelease(std::move(buffer));
+            TextureResourceAllocator::DeferRelease(*scheduler, {std::move(buffer), std::move(allocation)});
         }
         static_cast<VideoCommon::BufferBase&>(*this) = std::move(other);
         scheduler = other.scheduler;
         id = other.id;
         generation = other.generation;
+        allocation = std::move(other.allocation);
         buffer = std::move(other.buffer);
         address = std::exchange(other.address, 0);
         tracker = std::move(other.tracker);
@@ -207,12 +212,53 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, Scheduler& schedul
                                        Tegra::MaxwellDeviceMemoryManager& device_memory_)
     : device{device_}, scheduler{scheduler_}, staging{staging_},
       transfer_buffers{transfer_buffers_}, device_memory{device_memory_},
-      uniform_upload_copy{uniform_upload_copy_enabled.load(std::memory_order_relaxed)} {
+      buffer_allocator{device_, scheduler_, true},
+      uniform_upload_copy{uniform_upload_copy_enabled.load(std::memory_order_relaxed)},
+      coherent_uniform_cache{coherent_uniform_cache_enabled.load(std::memory_order_relaxed)},
+      incremental_uniform_bindings{IncrementalUniformBindingsEnabled()} {
     LOG_INFO(Render, "D3D12: buffer cache runtime ready (short uniform upload copy {})", uniform_upload_copy ? "on" : "off");
 
 }
 
-ComPtr<ID3D12Resource> BufferCacheRuntime::CreateDefaultBuffer(u64 size) {
+BufferCacheRuntime::~BufferCacheRuntime() {
+    RetirePersistentUploads();
+    if (zero_buffer) scheduler.DeferRelease(std::move(zero_buffer));
+}
+
+ComPtr<ID3D12Resource> BufferCacheRuntime::CreateDefaultBuffer(
+    u64 size, std::shared_ptr<TextureResourceAllocator::Allocation>& allocation) {
+    if (PersistentResourcesSupported(device.Get())) {
+        D3D12_RESOURCE_DESC desc{};
+        desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        desc.Width = size;
+        desc.Height = desc.DepthOrArraySize = desc.MipLevels = 1;
+        desc.SampleDesc.Count = 1;
+        desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        auto resource = buffer_allocator.Create(desc, D3D12_RESOURCE_STATE_COMMON);
+        if (resource.placed) {
+            constexpr u64 ZERO_SIZE = 4 * 1024 * 1024;
+            if (!zero_buffer) {
+                std::span<u8> mapped;
+                zero_buffer = CreateMappedBuffer(device.Get(), ZERO_SIZE, D3D12_HEAP_TYPE_UPLOAD, mapped);
+                std::memset(mapped.data(), 0, mapped.size());
+            }
+            auto* cmd = scheduler.CommandList();
+            const D3D12_RESOURCE_BARRIER alias{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_ALIASING,
+                .Aliasing = {.pResourceBefore = nullptr, .pResourceAfter = resource.resource.Get()}};
+            cmd->ResourceBarrier(1, &alias);
+            TransitionResource(cmd, resource.resource.Get(), D3D12_RESOURCE_STATE_COMMON,
+                               D3D12_RESOURCE_STATE_COPY_DEST);
+            for (u64 offset = 0; offset < size; offset += ZERO_SIZE)
+                cmd->CopyBufferRegion(resource.resource.Get(), offset, zero_buffer.Get(), 0,
+                                      std::min(ZERO_SIZE, size - offset));
+            TransitionResource(cmd, resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                               D3D12_RESOURCE_STATE_COMMON);
+        }
+        allocation = std::move(resource.allocation);
+        return std::move(resource.resource);
+    }
     // Storage buffers and image buffers are UAVs.
     HRESULT hr = S_OK;
     const auto create = [&] {
@@ -236,6 +282,33 @@ ComPtr<ID3D12Resource> BufferCacheRuntime::CreateDefaultBuffer(u64 size) {
 }
 
 void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& buffers) noexcept {
+    RetirePersistentUploads();
+    ++stats_frame;
+    if (incremental_uniform_bindings && stats_frame % 300 == 0 && descriptor_queue) {
+        const auto stats = descriptor_queue->GetUniformBindingStats();
+        LOG_INFO(Render, "SeriesX incremental uniforms: hits {}, creates {}, evictions {}, "
+                 "table_hits {}, table_misses {}, copy_calls {}, sync_skips {} (cumulative)",
+                 stats.hits, stats.creates, stats.evictions, stats.table_hits, stats.table_misses,
+                 stats.copy_calls, clean_uniform_sync_skips);
+    }
+    if (coherent_uniform_cache && stats_frame % 300 == 0) {
+        const auto stats = uniform_cache_policy.GetStatistics();
+        LOG_INFO(Render, "SeriesX coherent uniforms: clean {}, streamed {}, probes {}, "
+                 "backoffs {} (cumulative)", stats.clean, stats.streamed, stats.probes, stats.backoffs);
+    }
+    if (PersistentResourcesSupported(device.Get())) {
+        buffer_allocator.TrimEmptyHeaps(false);
+        if (stats_frame % 300 == 0 && uniform_content) {
+            const auto stats = uniform_content->GetStats();
+            LOG_INFO(Render, "SeriesX persistent uniforms: hits={} misses={} saved_bytes={} heaps={}",
+                     stats.hits, stats.misses, stats.saved_bytes, buffer_allocator.Report());
+            if (descriptor_queue) {
+                const auto descriptors = descriptor_queue->GetPersistentStats();
+                LOG_INFO(Render, "SeriesX persistent descriptors: hits={} misses={} evictions={} waits={}",
+                         descriptors.hits, descriptors.misses, descriptors.evictions, descriptors.waits);
+            }
+        }
+    }
     for (auto it = buffers.begin(); it != buffers.end(); ++it) {
         it->ResetUsageTracking();
     }
@@ -251,8 +324,38 @@ u64 BufferCacheRuntime::GetDeviceLocalMemory() const {
 u64 BufferCacheRuntime::GetDeviceMemoryUsage() const {
     return device.CacheMemoryUsage();
 }
+std::optional<VideoCommon::BufferGcPolicy> BufferCacheRuntime::GetBufferGcPolicy() {
+    buffer_pressure_snapshot = device.QueryCacheMemoryPressure();
+    buffer_pressure_known |= buffer_pressure_snapshot.Known();
+    if (!buffer_pressure_known) return std::nullopt;
+    buffer_pressure_level = buffer_pressure.Update(buffer_pressure_snapshot);
+    return CachePressureController::BufferPolicy(buffer_pressure_level,
+        CachePressureController::RequiresImmediateRecovery(buffer_pressure_snapshot));
+}
+void BufferCacheRuntime::RecordBufferGc(const VideoCommon::BufferGcStatistics& stats) {
+    buffer_gc_stats.passes += stats.passes;
+    buffer_gc_stats.visits += stats.visits;
+    buffer_gc_stats.evictions += stats.evictions;
+    buffer_gc_stats.dirty_deferred += stats.dirty_deferred;
+    buffer_gc_stats.downloads += stats.downloads;
+    buffer_gc_stats.download_bytes += stats.download_bytes;
+    buffer_gc_stats.download_us += stats.download_us;
+    buffer_gc_stats.elapsed_us += stats.elapsed_us;
+    if (stats_frame % 300 != 0) return;
+    LOG_INFO(Render, "SeriesX buffer GC: passes {}, visits {}, evictions {}, dirty deferred {}, "
+             "downloads {} ({} KiB, {:.3f} ms), total {:.3f} ms; pressure {}, app free {} KiB "
+             "/ limit {} MiB, GPU {} / {} MiB (cumulative)",
+             buffer_gc_stats.passes, buffer_gc_stats.visits, buffer_gc_stats.evictions,
+             buffer_gc_stats.dirty_deferred, buffer_gc_stats.downloads,
+             buffer_gc_stats.download_bytes >> 10, buffer_gc_stats.download_us / 1000.0,
+             buffer_gc_stats.elapsed_us / 1000.0, static_cast<u32>(buffer_pressure_level),
+             buffer_pressure_snapshot.AppFree() >> 10, buffer_pressure_snapshot.app_limit >> 20,
+             buffer_pressure_snapshot.gpu_used >> 20, buffer_pressure_snapshot.gpu_budget >> 20);
+}
 StagingBufferRef BufferCacheRuntime::UploadStagingBuffer(size_t size) { return staging.Request(size, MemoryUsage::Upload); }
-StagingBufferRef BufferCacheRuntime::DownloadStagingBuffer(size_t size, bool deferred) { return staging.Request(size, MemoryUsage::Download, deferred); }
+StagingBufferRef BufferCacheRuntime::DownloadStagingBuffer(size_t size, bool deferred) {
+    return staging.Request(size, MemoryUsage::Download, deferred, ReadbackSource::Buffer);
+}
 void BufferCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) { staging.FreeDeferred(ref); }
 
 void BufferCacheRuntime::Copy(Buffer* dst, ID3D12Resource* dst_raw, Buffer* src,
@@ -522,7 +625,7 @@ std::span<u8> BufferCacheRuntime::BindMappedUniformBuffer(size_t, u32, u32 size)
     const UniformUpload upload = uniform_stream.Request(size, scheduler.CurrentTick(),
         [this](size_t bytes) {
             const auto ref = staging.Request(bytes, MemoryUsage::Upload);
-            return UniformUpload{ref.mapped_span, ref.buffer->GetGPUVirtualAddress() + ref.offset};
+            return UniformUpload{ref.mapped_span, ref.buffer->GetGPUVirtualAddress() + ref.offset, ref.identity};
         });
     if (trace_buffers) {
         trace_buffers->push_back({.kind = TracedBuffer::Kind::StreamedUniform,
@@ -530,7 +633,7 @@ std::span<u8> BufferCacheRuntime::BindMappedUniformBuffer(size_t, u32, u32 size)
                                   .mapped = upload.mapped.data()});
     }
     if (descriptor_queue) {
-        descriptor_queue->AddConstantBuffer(upload.address, size);
+        descriptor_queue->AddConstantBuffer(upload.address, size, upload.identity);
     }
     return upload.mapped.first(size);
 }
@@ -560,7 +663,7 @@ void BufferCacheRuntime::BindUniformBuffer(Buffer& buffer, u32 offset, u32 size)
     }
     VideoCore::Perf::AddDetailed(VideoCore::Perf::Counter::CbvPersistent, 1);
     buffer.Transition(D3D12_RESOURCE_STATE_GENERIC_READ);
-    descriptor_queue->AddConstantBuffer(buffer.Address() + offset, size);
+    descriptor_queue->AddConstantBuffer(buffer.Address() + offset, size, (1ull << 62) | buffer.Id());
 }
 
 void BufferCacheRuntime::BindStorageBuffer(Buffer& buffer, u32 offset, u32 size,
@@ -574,7 +677,7 @@ void BufferCacheRuntime::BindStorageBuffer(Buffer& buffer, u32 offset, u32 size,
                                  : D3D12_RESOURCE_STATE_GENERIC_READ);
     const u64 available = buffer.SizeBytes() > offset ? buffer.SizeBytes() - offset : 0;
     const u32 clamped = static_cast<u32>(std::min<u64>(size, available));
-    descriptor_queue->AddStorageBuffer(clamped != 0 ? buffer.Handle() : nullptr, offset, clamped);
+    descriptor_queue->AddStorageBuffer(clamped != 0 ? buffer.Handle() : nullptr, offset, clamped, (1ull << 62) | buffer.Id());
 }
 
 void BufferCacheRuntime::BindTextureBuffer(Buffer& buffer, u32 offset, u32 size,
@@ -584,7 +687,7 @@ void BufferCacheRuntime::BindTextureBuffer(Buffer& buffer, u32 offset, u32 size,
     }
     buffer.Transition(D3D12_RESOURCE_STATE_GENERIC_READ);
     descriptor_queue->AddTexelBuffer(buffer.Handle(), offset, size, SurfaceFormat(format).view,
-                                     VideoCore::Surface::BytesPerBlock(format), false);
+                                     VideoCore::Surface::BytesPerBlock(format), false, (1ull << 62) | buffer.Id());
 }
 
 void BufferCacheRuntime::BindImageBuffer(Buffer& buffer, u32 offset, u32 size,
@@ -594,7 +697,53 @@ void BufferCacheRuntime::BindImageBuffer(Buffer& buffer, u32 offset, u32 size,
     }
     buffer.Transition(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     descriptor_queue->AddTexelBuffer(buffer.Handle(), offset, size, SurfaceFormat(format).view,
-                                     VideoCore::Surface::BytesPerBlock(format), true);
+                                     VideoCore::Surface::BytesPerBlock(format), true, (1ull << 62) | buffer.Id());
+}
+
+UniformUpload BufferCacheRuntime::UploadPersistentBytes(std::span<const u8> bytes) {
+    if (!uniform_content) uniform_content = std::make_unique<UniformContentCache>();
+    return uniform_content->Upload(bytes, scheduler.CurrentTick(), [this](size_t size) {
+        constexpr size_t PAGE_SIZE = 65536;
+        const size_t aligned = Common::AlignUp(size, size_t{256});
+        const u64 tick = scheduler.CurrentTick();
+        if (persistent_block_tick != tick || persistent_block.mapped.empty() ||
+            aligned > persistent_block.mapped.size() - persistent_block_used) {
+            const auto ref = staging.Request(std::max(PAGE_SIZE, aligned), MemoryUsage::Upload, true);
+            persistent_uploads.push_back(ref);
+            persistent_block = {ref.mapped_span, ref.buffer->GetGPUVirtualAddress() + ref.offset, ref.identity};
+            persistent_block_used = 0;
+            persistent_block_tick = tick;
+        }
+        const UniformUpload upload{persistent_block.mapped.subspan(persistent_block_used, size),
+            persistent_block.address + persistent_block_used, persistent_block.identity};
+        persistent_block_used += aligned;
+        return upload;
+    });
+}
+
+void BufferCacheRuntime::RetirePersistentUploads() {
+    if (uniform_content) uniform_content->Invalidate();
+    persistent_block = {};
+    persistent_block_used = 0;
+    // FreeDeferred assigns the CURRENT tick, which covers the draws actually recorded after
+    // any helper flushes. The staging pool still waits for that tick's GPU fence before reuse.
+    for (auto& ref : persistent_uploads) staging.FreeDeferred(ref);
+    persistent_uploads.clear();
+}
+
+bool BufferCacheRuntime::BindPersistentUniformBuffer(DAddr address, u32 size) {
+    if (!descriptor_queue || !descriptor_queue->IsPersistent() || trace_buffers ||
+        size == 0 || size > UniformContentCache::MAX_SIZE) return false;
+    device_memory.ReadBlockUnsafe(address, uniform_scratch.data(), size);
+    const auto upload = UploadPersistentBytes({uniform_scratch.data(), size});
+    descriptor_queue->AddConstantBuffer(upload.address, size, upload.identity);
+    return true;
+}
+
+D3D12_GPU_VIRTUAL_ADDRESS BufferCacheRuntime::UploadPersistentIndexMap(
+    std::span<const PersistentBindingRow> rows) {
+    const auto* data = reinterpret_cast<const u8*>(rows.data());
+    return UploadPersistentBytes({data, rows.size_bytes()}).address;
 }
 
 template class VideoCommon::BufferCache<BufferCacheParams>;

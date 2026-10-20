@@ -24,6 +24,7 @@
 #include "video_core/perf_counters.h"
 #include "video_core/frame_trace.h"
 #include "video_core/texture_cache/blit_coverage.h"
+#include "video_core/texture_cache/gc_budget.h"
 #include "video_core/texture_cache/gc_policy.h"
 #include "video_core/texture_cache/image_view_base.h"
 #include "video_core/texture_cache/samples_helper.h"
@@ -128,6 +129,7 @@ void TextureCache<P>::RunGarbageCollector() {
     bool aggressive_mode = false;
     u64 ticks_to_destroy = 0;
     size_t num_iterations = 0;
+    TextureGcBudget budget;
     size_t downloads_left = SIZE_MAX;
     u64 time_budget_us = 0;
     bool backend_policy = false;
@@ -150,14 +152,15 @@ void TextureCache<P>::RunGarbageCollector() {
                 downloads_left = policy->max_downloads;
             }
         }
+        budget.BeginPass(num_iterations, backend_policy);
     };
-    const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode,
+    const auto Cleanup = [this, &budget, &high_priority_mode, &aggressive_mode,
                           &downloads_left, &time_budget_us, &backend_policy, &gc_start](ImageId image_id) {
-        if (num_iterations == 0 || (time_budget_us != 0 &&
-            std::chrono::steady_clock::now() - gc_start >= std::chrono::microseconds{time_budget_us})) {
+        if ((time_budget_us != 0 &&
+             std::chrono::steady_clock::now() - gc_start >= std::chrono::microseconds{time_budget_us}) ||
+            !budget.Visit()) {
             return true;
         }
-        --num_iterations;
         auto& image = slot_images[image_id];
         if (True(image.flags & ImageFlagBits::IsDecoding)) {
             return false;
@@ -206,20 +209,42 @@ void TextureCache<P>::RunGarbageCollector() {
         }
         UnregisterImage(image_id);
         DeleteImage(image_id, image.scale_tick > frame_tick + 5);
+        budget.Evicted();
         if (!backend_policy && aggressive_mode && total_used_memory < critical_memory) {
-            num_iterations >>= 2;
+            budget.Reduce(2);
             aggressive_mode = false;
         } else if (!backend_policy && high_priority_mode && total_used_memory < expected_memory) {
-            num_iterations >>= 1;
+            budget.Reduce(1);
             high_priority_mode = false;
         }
         return false;
     };
+    const auto Prefetch = [&] {
+        if constexpr (requires { runtime.PrefetchGcDownloads(std::span<Image*>{}); }) {
+            if (!high_priority_mode || !downloads_left || frame_tick < ticks_to_destroy) return;
+            std::array<Image*, 4> images{};
+            size_t selected{}, inspected{};
+            lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, [&](ImageId image_id) {
+                if (inspected++ >= num_iterations || selected >= std::min(images.size(), downloads_left))
+                    return true;
+                auto& image = slot_images[image_id];
+                if (True(image.flags & ImageFlagBits::IsDecoding) ||
+                    (!aggressive_mode && True(image.flags & ImageFlagBits::CostlyLoad)) ||
+                    !IsDownloadable(image) || True(image.flags & ImageFlagBits::BadOverlap))
+                    return false;
+                images[selected++] = &image;
+                return false;
+            });
+            runtime.PrefetchGcDownloads(std::span<Image*>{images.data(), selected});
+        }
+    };
     Configure(false);
+    Prefetch();
     if (frame_tick >= ticks_to_destroy)
         lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
     if (backend_policy || total_used_memory >= critical_memory) {
         Configure(true);
+        Prefetch();
         if (aggressive_mode && frame_tick >= ticks_to_destroy)
             lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
     }
@@ -275,6 +300,7 @@ void TextureCache<P>::MarkModification(ImageId id) noexcept {
 
 template <class P>
 void TextureCache<P>::FillImageViews(std::span<ImageViewInOut> views, bool compute, bool blacklist) {
+    graphics_binding_cookie = 0;
     bool has_blacklisted = false;
     do {
         has_deleted_images = false;
@@ -293,6 +319,66 @@ void TextureCache<P>::FillImageViews(std::span<ImageViewInOut> views, bool compu
             }
         }
     } while (has_deleted_images || (blacklist && has_blacklisted));
+}
+
+template <class P>
+bool TextureCache<P>::CaptureGraphicsBindings(std::span<const ImageViewInOut> views,
+                                             std::span<const SamplerId> samplers,
+                                             std::span<const u32> sampler_indices,
+                                             GraphicsBindingSnapshot& snapshot) const {
+    const auto& images = channel_state->graphics_image_table;
+    const auto& sampler_table = channel_state->graphics_sampler_table;
+    return snapshot.Capture(views, samplers, sampler_indices, graphics_binding_generation,
+        [&](const ImageViewInOut& view) -> std::optional<GraphicsBindingSnapshot::Image> {
+            if (view.index > images.current_limit ||
+                (images.read_descriptors[view.index / 64] & (1ULL << (view.index % 64))) == 0)
+                return std::nullopt;
+            const auto found = channel_state->image_view_ids.find(view.index);
+            if (found == channel_state->image_view_ids.end() || found->second != view.id)
+                return std::nullopt;
+            return GraphicsBindingSnapshot::Image{view, images.descriptors[view.index]};
+        },
+        [&](u32 source, SamplerId id) -> std::optional<GraphicsBindingSnapshot::Sampler> {
+            if (source > sampler_table.current_limit ||
+                (sampler_table.read_descriptors[source / 64] & (1ULL << (source % 64))) == 0)
+                return std::nullopt;
+            const auto found = channel_state->sampler_ids.find(source);
+            if (found == channel_state->sampler_ids.end() || found->second != id)
+                return std::nullopt;
+            return GraphicsBindingSnapshot::Sampler{source, id, sampler_table.descriptors[source]};
+        });
+}
+
+template <class P>
+bool TextureCache<P>::ValidateGraphicsBindings(const GraphicsBindingSnapshot& snapshot) const {
+    const auto& images = channel_state->graphics_image_table;
+    const auto& samplers = channel_state->graphics_sampler_table;
+    return snapshot.Validate([&] { return graphics_binding_generation; },
+        [&](u32 index) -> std::optional<TICEntry> {
+            if (index > images.current_limit) return std::nullopt;
+            TICEntry descriptor;
+            gpu_memory->ReadBlockUnsafe(images.current_gpu_addr + index * sizeof(TICEntry),
+                                        &descriptor, sizeof(descriptor));
+            return descriptor;
+        },
+        [&](u32 index) -> std::optional<TSCEntry> {
+            if (index > samplers.current_limit) return std::nullopt;
+            TSCEntry descriptor;
+            gpu_memory->ReadBlockUnsafe(samplers.current_gpu_addr + index * sizeof(TSCEntry),
+                                        &descriptor, sizeof(descriptor));
+            return descriptor;
+        });
+}
+
+template <class P>
+bool TextureCache<P>::PrepareGraphicsBindings(const GraphicsBindingSnapshot& snapshot) {
+    if (!snapshot.Prepare([&] { return graphics_binding_generation; },
+                          [&](ImageViewId id) { PrepareImageView(id, false, false); })) return false;
+    if (graphics_binding_cookie != snapshot.cookie) {
+        ++texture_bindings_serial;
+        graphics_binding_cookie = snapshot.cookie;
+    }
+    return true;
 }
 
 template <class P>
@@ -1340,10 +1426,44 @@ void TextureCache<P>::RefreshContents(Image& image, ImageId image_id) {
         return;
     }
     VideoCore::Perf::LapTimer timer;
+    // SeriesX modification: supported D3D12 BC1 arrays can decode directly in GPU compute while
+    // retaining the Xbox array workaround. Merely splitting CPU uploads would accumulate the
+    // same expanded staging bytes in an unsubmitted command list.
+    if constexpr (requires { image.CanUploadConvertedBcArray(); }) {
+        if (image.converted_size_bytes >= (32U << 20) &&
+            True(image.flags & ImageFlagBits::Converted) &&
+            False(image.flags & ImageFlagBits::AcceleratedUpload) &&
+            image.CanUploadConvertedBcArray()) {
+            Tegra::Memory::GpuGuestMemory<u8, Tegra::Memory::GuestMemoryFlags::UnsafeRead>
+                swizzled(*gpu_memory, image.gpu_addr, image.guest_size_bytes,
+                         &swizzle_data_buffer);
+            unswizzle_data_buffer.resize_destructive(image.unswizzled_size_bytes);
+            const auto copies = FixSmallVectorADL(UnswizzleImage(
+                *gpu_memory, image.gpu_addr, image.info, swizzled, unswizzle_data_buffer));
+            timer.Lap(VideoCore::Perf::Counter::TextureCacheUnswizzleNs);
+            image.UploadConvertedBcArray(unswizzle_data_buffer, copies);
+            timer.Lap(VideoCore::Perf::Counter::TextureCacheBackendUploadNs);
+            runtime.InsertUploadMemoryBarrier();
+            return;
+        }
+    }
     auto staging = [&] {
         const VideoCore::FrameTrace::ScopedSpan span{
             VideoCore::FrameTrace::Event::TextureUploadStaging, image.gpu_addr};
-        return runtime.UploadStagingBuffer(MapSizeBytes(image));
+        const auto bytes = MapSizeBytes(image);
+        try {
+            return runtime.UploadStagingBuffer(bytes);
+        } catch (const std::exception& error) {
+            LOG_ERROR(Render,
+                      "Texture upload staging failed: {}x{}x{} type={} format={} levels={} layers={} "
+                      "guest={} unswizzled={} converted={} request={} flags={:x}: {}",
+                      image.info.size.width, image.info.size.height, image.info.size.depth,
+                      static_cast<u32>(image.info.type), static_cast<u32>(image.info.format),
+                      image.info.resources.levels, image.info.resources.layers,
+                      image.guest_size_bytes, image.unswizzled_size_bytes,
+                      image.converted_size_bytes, bytes, static_cast<u32>(image.flags), error.what());
+            throw;
+        }
     }();
     timer.Lap(VideoCore::Perf::Counter::TextureCacheStagingNs);
     UploadImageContents(image, staging);
@@ -2747,6 +2867,8 @@ void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete) {
 
 template <class P>
 void TextureCache<P>::RemoveImageViewReferences(std::span<const ImageViewId> removed_views) {
+    ++graphics_binding_generation;
+    graphics_binding_cookie = 0;
     for (size_t c : active_channel_ids) {
         auto& channel_info = channel_storage[c];
         auto it = channel_info.image_views.begin();

@@ -139,6 +139,7 @@ public:
     void End() const {
         if (offset != bytes.size()) throw std::invalid_argument("Pulse: trailing service state");
     }
+    size_t Remaining() const { return bytes.size() - offset; }
 
 private:
     u64 Get(size_t width) {

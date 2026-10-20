@@ -1,0 +1,189 @@
+{
+  "scope": "Retrospective fixed-window readback and frame-chain audit; no new gameplay",
+  "captures": {
+    "25": {
+      "selection_sha256": "5b2dab8c4b238e127e374e2895dab751d40e6035d0d906c514682ea6c1f5ad3d",
+      "log_sha256": "71796b3718bce20f2eb06bbad78d0bd64f0fda1484d4408c15dccea3ea469edd",
+      "frames": 1200,
+      "start_seconds": 119.928863,
+      "end_seconds": 169.842555,
+      "mean_ms": 41.594166666666666,
+      "metrics": {
+        "staging_creates": 2215,
+        "staging_mib": 1134.6,
+        "downloads": 7540,
+        "download_mib": 1205.16,
+        "fence_waits": 1482,
+        "fence_ms": 11085.4
+      },
+      "readback_logged_creations": [
+        {
+          "usage": "readback",
+          "reserved_bytes": 1179648,
+          "requested_bytes": 1050496,
+          "count": 491
+        },
+        {
+          "usage": "readback",
+          "reserved_bytes": 1179648,
+          "requested_bytes": 1050752,
+          "count": 243
+        },
+        {
+          "usage": "readback",
+          "reserved_bytes": 1310720,
+          "requested_bytes": 1181568,
+          "count": 2
+        },
+        {
+          "usage": "readback",
+          "reserved_bytes": 1310720,
+          "requested_bytes": 1181824,
+          "count": 2
+        }
+      ],
+      "composite_latency_ms": 16.3,
+      "late_composites": 574,
+      "readback_wait_subinterval": {
+        "start_seconds": 123.866048,
+        "end_seconds": 167.490265,
+        "calls": 622,
+        "elapsed_ms": 9136.533,
+        "mean_ms_per_call": 14.688959807073955,
+        "aligned_to_full_capture": false
+      }
+    },
+    "17_best": {
+      "selection_sha256": "3fd0e3b9d3f12d0509e4ab131908cfd203e30ffd6fc1d7bd9f1246c452caf4dc",
+      "log_sha256": "2924e2a2e3bb802aca4af13e3b54ff5607da440d79638c294136d67c9bb0b8c4",
+      "frames": 1200,
+      "start_seconds": 137.598085,
+      "end_seconds": 181.298489,
+      "mean_ms": 36.4175,
+      "metrics": {
+        "staging_creates": 207,
+        "staging_mib": 53.2,
+        "downloads": 7321,
+        "download_mib": 1205.05,
+        "fence_waits": 159,
+        "fence_ms": 868.5
+      },
+      "readback_logged_creations": [
+        {
+          "usage": "readback",
+          "reserved_bytes": 1179648,
+          "requested_bytes": 1050496,
+          "count": 17
+        },
+        {
+          "usage": "readback",
+          "reserved_bytes": 1179648,
+          "requested_bytes": 1050752,
+          "count": 9
+        },
+        {
+          "usage": "readback",
+          "reserved_bytes": 1310720,
+          "requested_bytes": 1181824,
+          "count": 4
+        }
+      ],
+      "composite_latency_ms": 9.95,
+      "late_composites": 193
+    },
+    "17_repeat": {
+      "selection_sha256": "16efc6588fe128ce300e21b515dbcbbb89249c775a26a8ea753f41a7534ba15f",
+      "log_sha256": "571e1a1b89cab4432c0dd127912bbbd6561bff314898474ba498cf345b0a6854",
+      "frames": 1200,
+      "start_seconds": 110.397701,
+      "end_seconds": 158.218692,
+      "mean_ms": 39.850833333333334,
+      "metrics": {
+        "staging_creates": 146,
+        "staging_mib": 16.08,
+        "downloads": 7288,
+        "download_mib": 1205.04,
+        "fence_waits": 41,
+        "fence_ms": 506.4
+      },
+      "readback_logged_creations": [
+        {
+          "usage": "readback",
+          "reserved_bytes": 1310720,
+          "requested_bytes": 1181568,
+          "count": 4
+        }
+      ],
+      "composite_latency_ms": 14.2,
+      "late_composites": 434
+    },
+    "24_off": {
+      "selection_sha256": "20e6d55b68ef0283d0e849151458f40d7cb14aed1a7ba32eb780c546ebe9878b",
+      "log_sha256": "40071b17c52bb18b5b75c81e743c332590101156271d3c350d5239ee11463bdb",
+      "frames": 1200,
+      "start_seconds": 100.227502,
+      "end_seconds": 152.612488,
+      "mean_ms": 43.65416666666667,
+      "metrics": {
+        "staging_creates": 562,
+        "staging_mib": 306.4,
+        "downloads": 7549,
+        "download_mib": 1205.6299999999999,
+        "fence_waits": 910,
+        "fence_ms": 2670.8999999999996
+      },
+      "readback_logged_creations": [
+        {
+          "usage": "readback",
+          "reserved_bytes": 1179648,
+          "requested_bytes": 1050496,
+          "count": 132
+        },
+        {
+          "usage": "readback",
+          "reserved_bytes": 1179648,
+          "requested_bytes": 1050752,
+          "count": 68
+        },
+        {
+          "usage": "readback",
+          "reserved_bytes": 1310720,
+          "requested_bytes": 1181568,
+          "count": 3
+        },
+        {
+          "usage": "readback",
+          "reserved_bytes": 1310720,
+          "requested_bytes": 1181824,
+          "count": 1
+        }
+      ],
+      "composite_latency_ms": 18.175,
+      "late_composites": 697
+    }
+  },
+  "research_date_local": "2026-10-20",
+  "source_revisions": {
+    "jadyx_upstream": "e137cf1e92795dfd3ddda521f371add756982974",
+    "jadyx_texture_heap_growth": "9b17c0300fec1be650afa9c1abc2793fd62c422e",
+    "jadyx_backing_maintenance": "28d5b90e6b8473cd0ffe20a6458ceb6d9b5434d3",
+    "prospero_eden": "a26ba788222465ec7fb94dc813958fc749734e07",
+    "eden_compositor": "989768aa46720e3fcab9e2111e3ddd70819c382b",
+    "ryujinx_reference": "534f92506bf8c6aba29bb86917bf10954a360d8e",
+    "candidate_25_tree": "4bb9d39294631a1d7860646444a4b3b894430c6e"
+  },
+  "interpretation_limits": [
+    "All rows use the original four selected perf windows; archived pacing timestamps are matched to actual perf timestamps before selection.",
+    "Staging-created counts include dedicated upload and readback resources and are distinct from the GPU-only transfer pool.",
+    "Large-allocation log counts only include logged creations; small dedicated buffers are not exhaustively logged.",
+    "Texture-download MiB counters exclude buffer-cache downloads and do not identify the caller or necessity of every transfer.",
+    "Allocation totals are cumulative churn, not simultaneous committed memory.",
+    "Fence wait elapsed time is the recording-thread scope, not an independently additive or fully recoverable component of frame duration.",
+    "The measured pressure-readback wait subinterval is shorter than the 1200-frame capture; its mean per call is not a per-frame metric.",
+    "Historical comparisons establish different runtime behavior, not a controlled causal effect of patch 0020.",
+    "Composite latency is an average rounded in the original log, not an additional duration to add to frame time.",
+    "The contiguous-row copy inefficiency is verified in source and unchanged from .17; its frequency and cost in BOTW remain unmeasured.",
+    "Upstream changes were inspected but not integrated, compiled or benchmarked in this research turn.",
+    "No raw logs, credentials, game paths, guest code or generated binaries included."
+  ]
+}

@@ -1,0 +1,169 @@
+{
+  "same_exe_sha256": "ea05f8e531d47d60850c502218be64a4dba4811e6003686629d104430446910c",
+  "mod_sha256": "4702d7e6339a7b9cf15562963ae0bb863b4a2e9cf69fe00c4bac64f909c75928",
+  "order": "combined, control, combined repeat",
+  "reports": {
+    "combined": {
+      "frames": 1200,
+      "wall_ms": 35641,
+      "mean_frame_ms": 29.700833333333332,
+      "fps": 33.66908897056761,
+      "p99_window_ms": [
+        41.32,
+        39.32,
+        40.95,
+        41.09
+      ],
+      "totals": {
+        "gpu_thread_idle_ms": 5436.400000000001,
+        "fence_wait_ms": 1.1,
+        "resource_create_ms": 798.2,
+        "resource_creations": 2466.0,
+        "gpu_busy_ms": 17778.2,
+        "submissions": 13601.0,
+        "draws": 3248245.0,
+        "uploads": 733.0,
+        "dedicated_staging_creations": 347.0,
+        "staging_waits": 0.0
+      },
+      "per_frame": {
+        "gpu_thread_idle_ms": 4.530333333333334,
+        "fence_wait_ms": 0.0009166666666666668,
+        "resource_create_ms": 0.6651666666666667,
+        "resource_creations": 2.055,
+        "gpu_busy_ms": 14.815166666666668,
+        "submissions": 11.334166666666667,
+        "draws": 2706.8708333333334,
+        "uploads": 0.6108333333333333,
+        "dedicated_staging_creations": 0.2891666666666667,
+        "staging_waits": 0.0
+      },
+      "p50_window_ms": [
+        28.68,
+        29.2,
+        28.66,
+        29.13
+      ],
+      "p95_window_ms": [
+        37.7,
+        36.34,
+        37.31,
+        37.65
+      ]
+    },
+    "control": {
+      "frames": 1200,
+      "wall_ms": 37814,
+      "mean_frame_ms": 31.511666666666667,
+      "fps": 31.734278309620777,
+      "p99_window_ms": [
+        40.77,
+        39.87,
+        40.99,
+        40.82
+      ],
+      "totals": {
+        "gpu_thread_idle_ms": 5204.5,
+        "fence_wait_ms": 1.1,
+        "resource_create_ms": 826.6999999999999,
+        "resource_creations": 2353.0,
+        "gpu_busy_ms": 18129.8,
+        "submissions": 14371.0,
+        "draws": 3246654.0,
+        "uploads": 732.0,
+        "dedicated_staging_creations": 60.0,
+        "staging_waits": 0.0
+      },
+      "per_frame": {
+        "gpu_thread_idle_ms": 4.337083333333333,
+        "fence_wait_ms": 0.0009166666666666668,
+        "resource_create_ms": 0.6889166666666666,
+        "resource_creations": 1.9608333333333334,
+        "gpu_busy_ms": 15.108166666666666,
+        "submissions": 11.975833333333334,
+        "draws": 2705.545,
+        "uploads": 0.61,
+        "dedicated_staging_creations": 0.05,
+        "staging_waits": 0.0
+      },
+      "p50_window_ms": [
+        30.78,
+        31.34,
+        31.16,
+        30.15
+      ],
+      "p95_window_ms": [
+        38.62,
+        35.78,
+        39.27,
+        38.41
+      ]
+    },
+    "combined_repeat": {
+      "frames": 1200,
+      "wall_ms": 35925,
+      "mean_frame_ms": 29.9375,
+      "fps": 33.40292275574113,
+      "p99_window_ms": [
+        39.12,
+        43.11,
+        40.36,
+        40.46
+      ],
+      "totals": {
+        "gpu_thread_idle_ms": 5753.1,
+        "fence_wait_ms": 1.1,
+        "resource_create_ms": 665.0,
+        "resource_creations": 2061.0,
+        "gpu_busy_ms": 18356.4,
+        "submissions": 13555.0,
+        "draws": 3271677.0,
+        "uploads": 731.0,
+        "dedicated_staging_creations": 60.0,
+        "staging_waits": 0.0
+      },
+      "per_frame": {
+        "gpu_thread_idle_ms": 4.79425,
+        "fence_wait_ms": 0.0009166666666666668,
+        "resource_create_ms": 0.5541666666666667,
+        "resource_creations": 1.7175,
+        "gpu_busy_ms": 15.297,
+        "submissions": 11.295833333333333,
+        "draws": 2726.3975,
+        "uploads": 0.6091666666666666,
+        "dedicated_staging_creations": 0.05,
+        "staging_waits": 0.0
+      },
+      "p50_window_ms": [
+        28.82,
+        29.06,
+        29.11,
+        29.17
+      ],
+      "p95_window_ms": [
+        37.04,
+        38.49,
+        37.37,
+        37.25
+      ]
+    }
+  },
+  "repeat_mean_frame_ms_advantage": 1.5741666666666667,
+  "repeat_mean_frame_ms_reduction_percent": 4.995504310572807,
+  "repeat_fps_increase_percent": 5.258176757132915,
+  "pooled_on_mean_frame_ms": 29.819166666666668,
+  "pooled_on_fps": 33.53547774082665,
+  "repeat_draw_count_relative_to_control": 1.0077073195973454,
+  "same_direction_in_both_on_runs": true,
+  "repeat_transition_check_and_exit_pending": true,
+  "repeat_exit_observed": true,
+  "repeat_owner_transition_check_confirmed": false,
+  "final_runtime_application_closed": true,
+  "limits": [
+    "one owner-confirmed fixed-view ON-OFF-ON sequence, not a general performance guarantee",
+    "same executable, configuration base and 60-FPS mod; dynamic workload counters reported for comparison",
+    "percentiles remain per-window, not pooled; arithmetic pooling applies only to mean frame time and FPS",
+    "counter scopes may overlap; no exclusive CPU-time or per-flag causal attribution",
+    "earlier capped results are not a causal baseline for uncapped runs"
+  ]
+}

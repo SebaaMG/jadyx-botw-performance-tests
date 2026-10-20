@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace Dynarmic::A32 {
 struct UserCallbacks;
 struct UserConfig;
@@ -23,6 +25,9 @@ class Block;
 }
 
 namespace Dynarmic::Optimization {
+
+struct PageReuseCounters { std::uint64_t groups{}, accesses{}; };
+PageReuseCounters GetPageReuseCounters();
 
 struct PolyfillOptions {
     bool sha256 = false;

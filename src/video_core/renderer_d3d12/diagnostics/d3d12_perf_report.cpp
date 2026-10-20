@@ -102,7 +102,7 @@ std::string DescribePerf(const VideoCore::Perf::Snapshot& d, double interval_ms)
         "guest flushes {} ({:.1f} ms), new resources {} ({:.1f} ms), CPU texture decode {:.1f} ms, "
         "residual estimate {:.1f} ms (scopes may overlap) | GPU busy {:.1f} ms, {} submits | {} draws, {} dispatches | "
         "uploads {} ({:.2f} MiB, {} GPU-decoded), downloads {} ({:.2f} MiB) | staging: {} "
-        "dedicated ({:.2f} MiB), {} ring waits",
+        "dedicated ({:.2f} MiB), {} staging waits",
         idle, get(Counter::FenceWaits), fence, get(Counter::PipelineStalls), pipelines,
         get(Counter::GpuThreadFlushes), flushes, get(Counter::ResourcesCreated), creates, decodes,
         work,
@@ -390,6 +390,12 @@ void RendererD3D12::ReportPerfWindow(u32 frames, double total_ms) {
                  t.late_max_ns / 1e3, t.durations[0], t.durations[1], t.durations[2], t.durations[3]);
     }
     LOG_INFO(Render, "D3D12 frame chain: {}", DescribeFrameChain(delta));
+    LOG_INFO(Render, "SeriesX readback copies: bulk {}, row {}, rows merged {}; GC batches {}, images {}",
+             VideoCore::Perf::Get(delta, Counter::TextureReadbackBulkCopies),
+             VideoCore::Perf::Get(delta, Counter::TextureReadbackRowCopies),
+             VideoCore::Perf::Get(delta, Counter::TextureReadbackRowsMerged),
+             VideoCore::Perf::Get(delta, Counter::GcReadbackBatches),
+             VideoCore::Perf::Get(delta, Counter::GcReadbackBatchImages));
     LOG_INFO(Render,
              "D3D12 pipeline preparation: frontend {:.1f} ms, dependent waits {} / {:.1f} ms; "
              "host PSO requests {}, hits {}, shared in-flight {}, capacity bypasses {}, "
@@ -451,7 +457,8 @@ void RendererD3D12::ReportPerfWindow(u32 frames, double total_ms) {
     }
     const DXGI_QUERY_VIDEO_MEMORY_INFO video = device.QueryVideoMemory();
     LOG_INFO(Render,
-             "D3D12 memory: GPU {} MiB, DXGI budget {} MiB, cache budget {} MiB, caches see {} MiB used",
+             "D3D12 memory: GPU {} MiB, DXGI budget {} MiB, cache budget {} MiB, caches see {} MiB used "
+             "(legacy proxy; buffer GC uses independent app/GPU pressure)",
              video.CurrentUsage >> 20, video.Budget >> 20, device.CacheMemoryBudget() >> 20,
              device.CacheMemoryUsage() >> 20);
 }

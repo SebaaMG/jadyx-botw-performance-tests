@@ -19,6 +19,7 @@
 
 #include "video_core/renderer_d3d12/d3d12_command_stream.h"
 #include "video_core/renderer_d3d12/d3d12_device.h"
+#include "video_core/renderer_d3d12/d3d12_partial_submit.h"
 
 namespace D3D12 {
 
@@ -26,6 +27,8 @@ namespace D3D12 {
 /// (boot.cfg "async_record=1"), so the GPU thread only records them. Off: the GPU thread makes
 /// every call itself, as the renderer did before the recorder.
 void SetAsyncRecording(bool enabled);
+void SetPartialSubmission(bool enabled);
+void SetContinuousSubmission(bool enabled);
 
 /// Owns the direct command list and tracks GPU progress with monotonically increasing ticks, the
 /// same model as the Vulkan backend's scheduler: CurrentTick() is the value the list being recorded
@@ -68,6 +71,22 @@ public:
 
     /// Submits the recorded work; returns the tick it signals.
     u64 Flush();
+
+    bool SubmitWorkIfNeeded();
+    void BeginFrame();
+    void RecordCompletedOperation() { ++pending_operations; }
+    void SetSubmissionUploadSize(std::function<u64()>&& provider) {
+        submission_upload_size = std::move(provider);
+    }
+    struct SubmissionStatistics {
+        u64 partial_submits{}, clock_checks{}, backpressure_skips{};
+        u64 drained_queue_submits{}, queued_work_submits{};
+        u64 recorder_backlog_skips{}, native_backlog_skips{};
+    };
+    SubmissionStatistics ReadSubmissionStatistics() const { return submission_stats; }
+    bool ContinuousSubmissionEnabled() const {
+        return partial_submission_enabled && continuous_submission_enabled;
+    }
 
     [[nodiscard]] bool HasGpuTimestamps() const noexcept {
         return timestamp_data != nullptr;
@@ -142,6 +161,7 @@ public:
     void ClearSubmissionCallbacks() {
         on_submit.clear();
         on_reset.clear();
+        submission_upload_size = {};
     }
 
     /// Frees retired allocators and released objects; called on every flush and frame.
@@ -167,7 +187,11 @@ private:
 
     /// Closes the list, submits it to signal tick and resets it for the next one. Recorded by
     /// Flush, so it runs where the list is recorded (the worker or the recording thread).
-    void SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick);
+    struct SubmissionTrace {
+        u32 capture{};
+        u64 work{}, operations{}, upload_bytes{};
+    };
+    void SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick, SubmissionTrace trace);
     /// On the worker after a recorded call threw: releases every waiter, so the recording thread
     /// reaches its next Flush or Wait, which rethrows the error.
     void ReleaseWaitersAfterError() noexcept;
@@ -228,6 +252,13 @@ private:
     std::atomic<u64> current_tick{1};
     std::atomic<u64> submitted_tick{0};
     mutable std::atomic<u64> known_gpu_tick{0};
+    const bool partial_submission_enabled;
+    const bool continuous_submission_enabled;
+    PartialSubmitPolicy partial_submit;
+    SubmissionStatistics submission_stats;
+    u64 submission_frames{};
+    u64 pending_operations{};
+    std::function<u64()> submission_upload_size;
 };
 
 } // namespace D3D12

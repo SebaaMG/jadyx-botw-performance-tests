@@ -148,8 +148,7 @@ struct Painter : UiPainter {
             brush->SetColor(D2D1::ColorF(Palette::Backdrop, 1 - fade));
             surface->FillRectangle(D2D1::RectF(0, 0, L::Width, L::Height), brush.Get());
         }
-        // A text the system's fallback font cannot draw spoils the frame, not the game.
-        (void)target->EndDraw();
+        winrt::check_hresult(target->EndDraw());
         return Pixels();
     }
 

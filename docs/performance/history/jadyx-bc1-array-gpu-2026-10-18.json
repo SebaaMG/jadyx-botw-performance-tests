@@ -1,0 +1,445 @@
+{
+  "captured_at_utc": "2026-10-18T09:07:57.518347+00:00",
+  "status": "uwp-built-packaged-registered-gpu-gates-pass-two-botw-runs-hit-memory-pressure",
+  "source": {
+    "repository": "https://github.com/JulianDr14/jadyx",
+    "upstream_base_commit": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+    "upstream_version": "0.2.93.14",
+    "candidate_revision": "seriesx-bc1-array-gpu-1",
+    "local_branch": "codex/bc-array-gpu-upload",
+    "local_gc_commit": "19bc38e1f6549dcd3a5c01f454395a86997cf7a7",
+    "prerequisite_patch": "patches/jadyx/0001-texture-gc-budget-and-oom-context.patch",
+    "prerequisite_patch_sha256": "12d8d788fdaa6f980dab961970a4b52fa2be9c629053fcfefd743d6770f4fc52",
+    "patch": "patches/jadyx/0002-bc1-array-gpu-upload.patch",
+    "patch_sha256": "b33bba79c94a122255e751776a834dcf1be7ff8c568d19de01564ac1c150534c",
+    "patch_bytes": 26319,
+    "changed_files": [
+      "src/video_core/host_shaders/CMakeLists.txt",
+      "src/video_core/host_shaders/d3d12_bc1_decoder.comp",
+      "src/video_core/renderer_d3d12/d3d12_blit_compute.cpp",
+      "src/video_core/renderer_d3d12/d3d12_blit_image.cpp",
+      "src/video_core/renderer_d3d12/d3d12_blit_image.h",
+      "src/video_core/renderer_d3d12/d3d12_image_transfer.cpp",
+      "src/video_core/renderer_d3d12/d3d12_texture_cache.cpp",
+      "src/video_core/renderer_d3d12/d3d12_texture_cache.h",
+      "src/video_core/texture_cache/texture_cache.h"
+    ],
+    "own_source_changes": true,
+    "sequential_clean_base_patch_check": true,
+    "current_checkout_reverse_patch_check": true
+  },
+  "change": {
+    "selection": "Converted BC1 UNORM/sRGB 2D arrays, depth 1, no MSAA, base multiple of four, expanded size >=32 MiB, compute pipeline and UAV available.",
+    "upload": "Unswizzle compressed input as before; preserve original BC blocks; pin and reuse that compressed upload as source of integer compute decode directly into existing RGBA8 array.",
+    "precision": "CPU-equivalent integer endpoint expansion/interpolation/transparency; encoded sRGB bytes through UNORM UAV.",
+    "lifetime": "Pin source across descriptor submissions, retire at last consumer tick; bounded RAW SRVs with 16-byte aligned base and first-word adjustment; UAV barriers and block-shadow final version.",
+    "additional_diagnostic": "Failure-only metadata for final texture resource creation, distinct from staging OOM.",
+    "ui_changed": false,
+    "guest_resolution_reduced": false,
+    "recompression": false
+  },
+  "shader_validation": {
+    "glslang_compile_passed": true,
+    "spirv_validation_passed": true,
+    "target": "spirv1.3",
+    "shader_source_sha256": "1640bb0bf2b285b473f961d481e9d3eadbc403de34b9b4ff7be57b1c0f5390f1",
+    "standalone_spirv_sha256": "64720c756179170d8713d8b50fd7397694cc1c3f90325496de80c86b08b8c2e8"
+  },
+  "gpu_component_gate": {
+    "passed": true,
+    "scope": "Desktop component executable linked against modified production UWP libraries; same qualified Mesa. Not gameplay or Xbox.",
+    "source": "tools/jadyx/tests/bc-array-gpu-upload.cpp",
+    "source_sha256": "0d93fb80230834b216561dc3218aa415f8850d08d81b4ecfa3be683fe31ce5de",
+    "runner": "tools/jadyx/run-bc-array-gpu-test.ps1",
+    "runner_sha256": "340a6f4e9811f04f2ca62e673c06226da6ae119cd39c1ece64f7c81abee4302c",
+    "exe_sha256": "08624a88d7aebbb175e5d1a2f923f5df099585d5461e7ed06d79f3d9cba85492",
+    "modes": [
+      {
+        "recorder": "inline",
+        "arrays": 4,
+        "decoded_components_exact": 928525792,
+        "original_bc_bytes_exact": 116068320,
+        "in_upload_submissions": 8,
+        "debug": "clean"
+      },
+      {
+        "recorder": "worker",
+        "arrays": 4,
+        "decoded_components_exact": 928525792,
+        "original_bc_bytes_exact": 116068320,
+        "in_upload_submissions": 8,
+        "debug": "clean"
+      }
+    ],
+    "descriptor_ring_capacity": 8,
+    "source_truncation_rejected_before_commands": true,
+    "fallback_checks": [
+      "single layer",
+      "NPOT base",
+      "BC3"
+    ],
+    "cases": [
+      {
+        "format": "BC1_RGBA_UNORM",
+        "width": 8,
+        "height": 8,
+        "levels": 4,
+        "layers": 3
+      },
+      {
+        "format": "BC1_RGBA_UNORM",
+        "width": 64,
+        "height": 32,
+        "levels": 7,
+        "layers": 17
+      },
+      {
+        "format": "BC1_RGBA_UNORM",
+        "width": 1024,
+        "height": 1024,
+        "levels": 11,
+        "layers": 83
+      },
+      {
+        "format": "BC1_RGBA_SRGB",
+        "width": 1024,
+        "height": 1024,
+        "levels": 11,
+        "layers": 83
+      }
+    ],
+    "large_case_dedicated_upload_ledger_bytes": 58753280,
+    "old_failed_staging_reservation_bytes": 469762048,
+    "comparison_limit": "Buffer-size comparison: new total includes earlier small-case upload buffers. Not total process-memory savings, 5 GiB gameplay, or FPS measurement.",
+    "stdout_sha256": "8655839c6ffc114fb229e294bf5a6ebd702871753051521b32d2fb8f2ac0e51d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "build": {
+    "uwp_x64_completed": true,
+    "store_crt_checked": true,
+    "production_library_build_exit_code": 0,
+    "app_objects_and_core_archive_exit_code": 0,
+    "full_jadyx_ninja_invocation_exit_code": 0,
+    "final_full_target_actions": 1,
+    "final_full_target_scope": "After production libraries and app objects/core archive built, final normal Ninja jadyx target linked canonical HDD bin; no manual SSD link used for this candidate.",
+    "pe_x64_verified": true,
+    "pe_appcontainer_verified": true,
+    "exe_bytes": 34528768,
+    "exe_sha256": "c4972d6173cbd87493c448fc087f2ac37e4202c823c45db2ef83ead769918660",
+    "pdb_sha256": "b89da3b08f5ee9e6c1d75bdf054fa1f46178f3beec920ccc66139542410718a0",
+    "final_build_log_sha256": "c1d79f608867b994dddc71425fa7d2c1fe9865ea5918b2e537d99da178f16224",
+    "response_file_sha256": "e9e168d205a2e0eeb7c5e88da232dcae11124969b13a67a01d8d2625671e2091"
+  },
+  "package": {
+    "name": "jadyx.appx",
+    "bytes": 15036220,
+    "sha256": "c033f68d2f44dd0ce36dafca87fccfb6fe1b3c82fd8942f72dc80e8fda146146",
+    "version": "0.2.93.14",
+    "architecture": "x64",
+    "zip_crc_verified": true,
+    "packaged_exe_matches_build": true,
+    "packaged_mesa_matches_build": true,
+    "exe_sha256": "c4972d6173cbd87493c448fc087f2ac37e4202c823c45db2ef83ead769918660",
+    "mesa_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+    "boot_cfg": [
+      "memory_limit_mib=5120",
+      "library=1",
+      "play=1"
+    ],
+    "no_games_keys_or_firmware_bundled": true,
+    "package_members": 29,
+    "layout_payload_matches_appx": true,
+    "layout_members_verified": 25,
+    "vclibs_dependency_present": true
+  },
+  "signature": {
+    "accepted": true,
+    "native_hresult": "0x800B0109",
+    "signature_status": "UntrustedRoot",
+    "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+    "signer_matches_expected": true,
+    "signer_time_valid": true,
+    "chain_error_status": "0x00000020",
+    "integrity_verified": true,
+    "integrity_verification": "WinVerifyTrust/WINTRUST_ACTION_GENERIC_VERIFY_V2",
+    "system_trusted": false,
+    "revocation_checked": false,
+    "trust_policy": "PinnedSignerAllowUntrustedRoot"
+  },
+  "runtime": {
+    "source_commit": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+    "source_version": "0.2.93.14",
+    "candidate_revision": "seriesx-bc1-array-gpu-1",
+    "own_source_changes": true,
+    "source_patch_sha256": "b33bba79c94a122255e751776a834dcf1be7ff8c568d19de01564ac1c150534c",
+    "identity": "SeriesX.JadyxBinaryProbe",
+    "diagnostic_package_version": "1.0.0.3",
+    "runtime_layout": "[local path or personal identifier omitted for public archive]",
+    "previous_runtime_preserved": "[local path or personal identifier omitted for public archive]",
+    "local_state_preserved": true,
+    "private_keys_preserved_without_printing": true,
+    "local_state_files_verified": 45,
+    "payload_files_verified_before_diagnostic_manifest_change": 25,
+    "executable_sha256": "c4972d6173cbd87493c448fc087f2ac37e4202c823c45db2ef83ead769918660",
+    "mesa_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+    "activation_requested": true,
+    "botw_retested": true,
+    "activation_pid": 19676,
+    "local_state_backup_verified_outside_git": true,
+    "library_visual_observed": false,
+    "visual_observation_limit": "Computer Use returned the Jadyx window tree but the screenshot was occluded by Codex; no library/gameplay visual fidelity claim.",
+    "assistant_sent_gameplay_inputs": false,
+    "previous_library_process_closed_intentionally_for_update": true,
+    "xbox_tested": false,
+    "controlled_fps_comparison": false,
+    "library_waiting_log_observed": true,
+    "candidate_game_started_by_owner": true,
+    "process_present_at_final_snapshot": false,
+    "final_snapshot_utc": "2026-10-18T09:12:50.847063+00:00",
+    "runtime_replaced_after_owner_started_playing": false
+  },
+  "limits": [
+    "Both candidate BOTW runs still failed under memory pressure; this is not a stable build certification.",
+    "Owner scope/automatic-zoom trigger has no independent timestamp; map then B was not tested in this candidate.",
+    "The second run has no clean return and no confirmed terminal exception attribution from its final first-chance AV.",
+    "The GPU gate is a component comparison, not an in-game visual oracle.",
+    "Dedicated-upload buffer sizes are not total process-memory savings or a measured FPS gain.",
+    "Final GPU allocations, CPU allocations and readback OOM remain separate from the removed expanded upload.",
+    "Windows UWP on RX 580 is not a Series X runtime measurement.",
+    "Shared machine-code JIT, partial refresh and descriptor redesign are not included; no 60 FPS certification."
+  ],
+  "private_material_committed": false,
+  "updated_at_utc": "2026-10-18T09:16:23.646645+00:00",
+  "gameplay": {
+    "manual_owner_started_runs": 2,
+    "game_version": "1.9.0",
+    "pc_test_memory_budget_mib": 5120,
+    "assistant_sent_gameplay_inputs": false,
+    "new_bc1_gpu_route_observed_in_both_runs": true,
+    "new_uploads_each_run": [
+      {
+        "format": "BC1 UNORM or sRGB; successful-upload log does not distinguish them",
+        "width": 1024,
+        "height": 1024,
+        "levels": 11,
+        "layers": 83,
+        "compressed_bytes": 58022312,
+        "expanded_bytes": 464169532
+      },
+      {
+        "format": "BC1 UNORM or sRGB; successful-upload log does not distinguish them",
+        "width": 512,
+        "height": 512,
+        "levels": 10,
+        "layers": 83,
+        "compressed_bytes": 14506408,
+        "expanded_bytes": 116042300
+      }
+    ],
+    "owner_report": {
+      "action": "Slate scope: after aiming, crash when automatic zoom began.",
+      "map_then_b_tested": false,
+      "independent_input_timestamp": false,
+      "second_run_action_identified": false
+    },
+    "runs": [
+      {
+        "run": 1,
+        "system_run_ms": 31796,
+        "new_gpu_upload_log_seconds": [
+          63.191537,
+          63.622743
+        ],
+        "allocation_retries": [
+          {
+            "at_log_seconds": 144.630243,
+            "kind": "transfer buffer",
+            "bytes": 3014656,
+            "created_after_reclaim": true
+          },
+          {
+            "at_log_seconds": 144.67292,
+            "kind": "cached buffer",
+            "bytes": 65536,
+            "created_after_reclaim": true
+          }
+        ],
+        "terminating_game_error": "std::bad_alloc",
+        "throw_ms": 144937,
+        "throw_stack_scope": "RVA symbols resolved from matching build EXE/PDB; no source line returned. Optimized frames can be inlined and the stack does not expose the allocation size.",
+        "throw_stack_key_frames": [
+          {
+            "rva": "0x24182c",
+            "function": "operator new"
+          },
+          {
+            "rva": "0xa409b8",
+            "function": "VideoCommon::GenericEnvironment::Analyze"
+          },
+          {
+            "rva": "0xa4a6f8",
+            "function": "VideoCommon::ShaderCache::MakeShaderInfo"
+          },
+          {
+            "rva": "0xa4af71",
+            "function": "VideoCommon::ShaderCache::RefreshStages"
+          },
+          {
+            "rva": "0x98cfd3",
+            "function": "D3D12::PipelineCache::CurrentGraphicsPipeline"
+          }
+        ],
+        "memory_at_recovery_request": {
+          "at_ms": 145015,
+          "commit_reported_mib": 5196,
+          "headroom_reported_mib": 0
+        },
+        "last_memory_owner_sample": {
+          "at_ms": 138203,
+          "commit_reported_mib": 5067,
+          "emulated_dram_mib": 1940,
+          "jit_code_mib": 288,
+          "texture_heap_mib": 1451,
+          "staging_ring_mib": 32,
+          "dedicated_upload_payload_mib": 8,
+          "dedicated_upload_buffers": 2222,
+          "readback_payload_mib": 3,
+          "resident_pso_count": 821,
+          "rest_reported_mib": 2746
+        },
+        "run_return_code": 15,
+        "returned_to_library_ms": 147296,
+        "library_commit_mib": 417
+      },
+      {
+        "run": 2,
+        "system_run_ms": 237312,
+        "new_gpu_upload_log_seconds": [
+          268.573782,
+          269.053003
+        ],
+        "first_staging_failure_log_seconds": 311.18964,
+        "failed_usage": "readback",
+        "deferred": false,
+        "request_bytes": 22282240,
+        "reserved_bytes": 23068672,
+        "allocation_bytes": 23068672,
+        "alignment_bytes": 65536,
+        "memory_at_failure": {
+          "app_used_bytes": 5429456896,
+          "effective_app_limit_bytes": 5368709120,
+          "app_free_bytes": 0,
+          "gpu_used_bytes": 2075107328,
+          "gpu_budget_bytes": 7725735936,
+          "tick": 3593,
+          "completed_tick": 3592
+        },
+        "throw_stack_key_frames": [
+          {
+            "rva": "0xa138b9",
+            "function": "D3D12::CreateMappedBuffer"
+          },
+          {
+            "rva": "0xa13b4b",
+            "function": "D3D12::StagingBufferPool::CreateStagingBuffer"
+          },
+          {
+            "rva": "0xa14d32",
+            "function": "D3D12::StagingBufferPool::Request"
+          },
+          {
+            "rva": "0x9cef0c",
+            "function": "D3D12::TextureCacheRuntime::PrepareGcDownload"
+          },
+          {
+            "rva": "0x9b87e5",
+            "function": "LRU visitor for TextureCache::RunGarbageCollector"
+          },
+          {
+            "rva": "0x9d391d",
+            "function": "VideoCommon::TextureCache::TickFrame"
+          },
+          {
+            "rva": "0x97c59a",
+            "function": "D3D12::RendererD3D12::Composite"
+          }
+        ],
+        "frame_tick_failure_repetitions": 4,
+        "last_memory_owner_sample": {
+          "at_ms": 304093,
+          "commit_reported_mib": 4994,
+          "emulated_dram_mib": 1853,
+          "jit_code_mib": 252,
+          "texture_heap_mib": 1387,
+          "staging_ring_mib": 64,
+          "dedicated_upload_payload_mib": 7,
+          "dedicated_upload_buffers": 1814,
+          "readback_payload_mib": 0,
+          "readback_buffers": 10,
+          "resident_pso_count": 468,
+          "rest_reported_mib": 2770
+        },
+        "final_diagnostic": {
+          "at_ms": 313046,
+          "kind": "First-chance access violation",
+          "operation": "write",
+          "target": "reserved private DRAM region",
+          "instruction": "committed private RX region",
+          "causal_or_terminal_exception_confirmed": false
+        },
+        "clean_shutdown_recorded": false,
+        "process_present_at_final_snapshot": false,
+        "run_return_code": null
+      }
+    ],
+    "private_snapshots": [
+      {
+        "snapshot": "attempt06",
+        "captured_at_utc": "2026-10-18T09:09:04.627581+00:00",
+        "files": [
+          {
+            "name": "jadyx_log.txt",
+            "bytes": 2007041,
+            "sha256": "d7b16ace644d578b6826359d8c19537fb7f68c7168928b2721871e3bd84a548d"
+          },
+          {
+            "name": "jadyx_diag.txt",
+            "bytes": 150737,
+            "sha256": "abaef6a80cff761d1df168ef479ae47fa7c48fb752db2c2a9b135b9a211a35c1"
+          }
+        ],
+        "raw_logs_committed": false,
+        "scope": "Finite append-log prefixes include earlier history; candidate runtime section and game runs identified by BootView and system.Run markers."
+      },
+      {
+        "snapshot": "attempt07",
+        "captured_at_utc": "2026-10-18T09:12:50.847063+00:00",
+        "files": [
+          {
+            "name": "jadyx_log.txt",
+            "bytes": 2210977,
+            "sha256": "ea5695e0ece209b376f493cb5e599cb8a3817ff018c3ae291ac7120b180b3140"
+          },
+          {
+            "name": "jadyx_diag.txt",
+            "bytes": 161558,
+            "sha256": "84e2885b7050afd5819743134b6354fd9d238feeca45c6fb42daf89382afdd19"
+          }
+        ],
+        "raw_logs_committed": false,
+        "scope": "Finite append-log prefixes include earlier history; candidate runtime section and game runs identified by BootView and system.Run markers."
+      }
+    ],
+    "gameplay_visual_fidelity_verified": false,
+    "stable_gameplay_verified": false,
+    "controlled_fps_comparison": false,
+    "xbox_tested": false
+  },
+  "follow_up": {
+    "implemented_in_this_patch": false,
+    "readback": "PrepareGcDownload emergency/large-image fallback requires a full synchronous readback. Investigate bounded readback/reserved recovery margin while preserving GPU-modified data.",
+    "accounting": "Thousands of committed dedicated uploads have small logical payloads. Measure actual allocation and object overhead; do not attribute all unclassified commit to them.",
+    "recovery": "Composite catches frame-tick allocation failure and continues; inspect controlled library recovery before another guest-memory commit fails.",
+    "larger_performance_work": "Shared machine-code JIT, dirty-region refresh, binding work and targeted LTO remain separate candidates from inspected emulator sources."
+  }
+}

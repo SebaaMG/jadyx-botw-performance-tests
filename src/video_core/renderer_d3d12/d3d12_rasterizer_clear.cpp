@@ -12,6 +12,7 @@
 #include "video_core/renderer_d3d12/d3d12_log.h"
 #include "video_core/renderer_d3d12/d3d12_rasterizer.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
+#include "video_core/renderer_d3d12/d3d12_partial_submit_scope.h"
 
 // Clears and DrawTexture.
 
@@ -20,6 +21,7 @@ namespace D3D12 {
 void RasterizerD3D12::DrawTexture() {
     ++draw_counter;
     HuntScope hunt{draw_hunt, Hunt::Kind::DrawTexture};
+    PartialSubmitScope partial{scheduler, draw_counter};
     SCOPE_EXIT {
         gpu.TickWork();
     };
@@ -65,6 +67,7 @@ void RasterizerD3D12::DrawTexture() {
         {framebuffer->ColorTargets()[0], framebuffer->ColorFormat(0), framebuffer->Samples()},
         texture.Handle(Shader::TextureType::Color2D), {sampler.Handle(), sampler.Key()},
         dst_region, src_region, {texture.size.width, texture.size.height});
+    partial.Recorded();
     hunt.Recorded();
     InvalidateGraphicsState();
 }
@@ -72,6 +75,7 @@ void RasterizerD3D12::DrawTexture() {
 void RasterizerD3D12::Clear(u32 layer_count) {
     ++draw_counter;
     HuntScope hunt{draw_hunt, Hunt::Kind::Clear};
+    PartialSubmitScope partial{scheduler, draw_counter};
     VideoCore::Perf::ScopedNsTimer clear_timer{VideoCore::Perf::Counter::ClearNs};
     ApplyPendingStateInvalidation();
     gpu_memory->FlushCaching();
@@ -177,6 +181,7 @@ void RasterizerD3D12::Clear(u32 layer_count) {
                 blit_helper.ClearColor({color_target, framebuffer->ColorFormat(color_attachment),
                                         framebuffer->Samples()},
                                        mask, regs.clear_color, rect);
+                partial.Recorded();
                 InvalidateGraphicsState();
             }
         } else {
@@ -200,6 +205,7 @@ void RasterizerD3D12::Clear(u32 layer_count) {
                 }
             }
             cmd->ClearRenderTargetView(color_target, color.data(), 1, &rect);
+            partial.Recorded();
         }
     }
     const D3D12_CPU_DESCRIPTOR_HANDLE depth = depth_target;
@@ -217,6 +223,7 @@ void RasterizerD3D12::Clear(u32 layer_count) {
                 {depth, framebuffer->DepthFormat(), framebuffer->Samples()}, use_depth,
                 regs.clear_depth, static_cast<u8>(regs.stencil_front_mask),
                 static_cast<u8>(regs.clear_stencil), rect);
+            partial.Recorded();
             InvalidateGraphicsState();
             clear_flags = {};
         } else if (use_stencil && framebuffer->HasStencil()) {
@@ -225,6 +232,7 @@ void RasterizerD3D12::Clear(u32 layer_count) {
         if (clear_flags != 0) {
             cmd->ClearDepthStencilView(depth, clear_flags, regs.clear_depth,
                                        static_cast<u8>(regs.clear_stencil), 1, &rect);
+            partial.Recorded();
         }
     }
     hunt.Recorded();

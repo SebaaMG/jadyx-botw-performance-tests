@@ -36,6 +36,7 @@
 #include "video_core/engines/fermi_2d.h"
 #include "video_core/surface.h"
 #include "video_core/texture_cache/descriptor_table.h"
+#include "video_core/texture_cache/graphics_binding_snapshot.h"
 #include "video_core/texture_cache/image_base.h"
 #include "video_core/texture_cache/image_info.h"
 #include "video_core/texture_cache/image_view_base.h"
@@ -55,12 +56,6 @@ using Tegra::Texture::TICEntry;
 using Tegra::Texture::TSCEntry;
 using VideoCore::Surface::PixelFormat;
 using namespace Common::Literals;
-
-struct ImageViewInOut {
-    u32 index{};
-    bool blacklist{};
-    ImageViewId id{};
-};
 
 struct AsyncDecodeContext {
     ImageId image_id;
@@ -184,6 +179,14 @@ public:
 
     /// Fill image_view_ids with the graphics/compute images in indices
     void FillImageViews(std::span<ImageViewInOut> views, bool compute, bool blacklist = true);
+
+    u64 GraphicsBindingGeneration() const { return graphics_binding_generation; }
+    bool CaptureGraphicsBindings(std::span<const ImageViewInOut> views,
+                                 std::span<const SamplerId> samplers,
+                                 std::span<const u32> sampler_indices,
+                                 GraphicsBindingSnapshot& snapshot) const;
+    bool ValidateGraphicsBindings(const GraphicsBindingSnapshot& snapshot) const;
+    bool PrepareGraphicsBindings(const GraphicsBindingSnapshot& snapshot);
 
     /// Handle feedback loops during draws.
     void CheckFeedbackLoop(std::span<const ImageViewInOut> views);
@@ -470,6 +473,8 @@ private:
     std::array<ImageId, 8> rt_image_id{};
     ImageId rt_depth_image_id{};
     u64 texture_bindings_serial = 0;
+    u64 graphics_binding_generation = 1;
+    u64 graphics_binding_cookie = 0;
     u64 last_feedback_loop_serial = 0;
     u64 last_feedback_texture_serial = 0;
     bool last_feedback_loop_result = false;

@@ -38,6 +38,8 @@ nvhost_ctrl::~nvhost_ctrl() {
         if (!event.registered) {
             continue;
         }
+        system.Host1x().GetSyncpointManager().DeregisterHostAction(event.assigned_syncpt,
+                                                                 event.wait_handle);
         events_interface.FreeEvent(event.kevent);
     }
 }
@@ -155,7 +157,8 @@ NvResult nvhost_ctrl::IocCtrlEventWait(IocCtrlEventWaitParams& params, bool is_a
     bool must_unmark_fail = !is_allocation;
     const u32 event_id = params.value.raw;
     SCOPE_EXIT {
-        if (must_unmark_fail) {
+        if (must_unmark_fail && event_id < MaxNvEvents) {
+            auto event_lock = NvEventsLock();
             events[event_id].fails = 0;
         }
     };
@@ -191,6 +194,12 @@ NvResult nvhost_ctrl::IocCtrlEventWait(IocCtrlEventWaitParams& params, bool is_a
     auto& host1x_syncpoint_manager = system.Host1x().GetSyncpointManager();
     const u32 target_value = params.fence.value;
 
+    if (nonblocking_waits && params.timeout == 0) {
+        must_unmark_fail = false;
+        if (is_allocation) params.value.raw = 0;
+        return NvResult::Timeout;
+    }
+
     auto lock = NvEventsLock();
 
     u32 slot = [&]() {
@@ -203,23 +212,40 @@ NvResult nvhost_ctrl::IocCtrlEventWait(IocCtrlEventWaitParams& params, bool is_a
     }();
 
     must_unmark_fail = false;
+    bool request_progress{};
 
     const auto check_failing = [&]() {
         if (events[slot].fails > 2) {
+            if (nonblocking_waits) {
+                request_progress = true;
+                events[slot].fails = 0;
+                ++recovery_requests;
+                VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::NvEventRecovery,
+                    static_cast<u64>(fence_id) | (static_cast<u64>(target_value) << 32),
+                    params.timeout);
+                return false;
+            }
             // The wait below blocks nvservices until the GPU reaches the value; one it never
             // reaches stalls the guest, so the values are kept in the log.
             LOG_WARNING(Service_NVDRV,
                         "blocking on syncpt_id={} threshold={} (event {}): host {}, guest {}, "
-                        "min {}, max {}",
+                        "min {}, max {}, timeout {}, cancellations {}",
                         fence_id, target_value, slot,
                         host1x_syncpoint_manager.GetHostSyncpointValue(fence_id),
                         host1x_syncpoint_manager.GetGuestSyncpointValue(fence_id),
                         syncpoint_manager.ReadSyncpointMinValue(fence_id),
-                        syncpoint_manager.GetSyncpointFence(fence_id).value);
+                        syncpoint_manager.GetSyncpointFence(fence_id).value,
+                        params.timeout, events[slot].fails);
             {
+                const auto started = std::chrono::steady_clock::now();
+                const VideoCore::FrameTrace::ScopedSpan recovery_span{
+                    VideoCore::FrameTrace::Event::NvEventRecoveryLong,
+                    static_cast<u64>(fence_id) | (static_cast<u64>(target_value) << 32)};
                 auto lk = system.StallApplication();
                 host1x_syncpoint_manager.WaitHost(fence_id, target_value);
                 system.UnstallApplication();
+                LOG_INFO(Service_NVDRV, "blocking syncpoint recovery completed after {} us",
+                         VideoCore::Perf::ElapsedUs(started));
             }
             params.value.raw = target_value;
             return true;
@@ -293,6 +319,8 @@ NvResult nvhost_ctrl::IocCtrlEventWait(IocCtrlEventWaitParams& params, bool is_a
             }
             event_.status.store(EventState::Signalled, std::memory_order_release);
         });
+    lock.unlock();
+    if (request_progress) system.GPU().RequestFlushCommands();
     return NvResult::Timeout;
 }
 
@@ -369,13 +397,14 @@ NvResult nvhost_ctrl::IocCtrlClearEventWait(IocCtrlEventClearParams& params) {
     auto lock = NvEventsLock();
 
     auto& event = events[event_id];
-    if (event.status.exchange(EventState::Cancelling, std::memory_order_acq_rel) ==
-        EventState::Waiting) {
-        auto& host1x_syncpoint_manager = system.Host1x().GetSyncpointManager();
-        host1x_syncpoint_manager.DeregisterHostAction(event.assigned_syncpt, event.wait_handle);
+    if (!event.registered) return NvResult::BadParameter;
+    const auto previous = event.status.exchange(EventState::Cancelling, std::memory_order_acq_rel);
+    auto& host1x_syncpoint_manager = system.Host1x().GetSyncpointManager();
+    host1x_syncpoint_manager.DeregisterHostAction(event.assigned_syncpt, event.wait_handle);
+    if (previous == EventState::Waiting || previous == EventState::Signalling) {
         syncpoint_manager.UpdateMin(event.assigned_syncpt);
-        event.wait_handle = {};
     }
+    event.wait_handle = {};
     event.fails++;
     event.status.store(EventState::Cancelled, std::memory_order_release);
     event.kevent->Clear(system.Kernel());
@@ -432,6 +461,9 @@ void nvhost_ctrl::FreeNvEvent(u32 event_id) {
     ASSERT(event.kevent);
     ASSERT(event.registered);
     ASSERT(!event.IsBeingUsed());
+    system.Host1x().GetSyncpointManager().DeregisterHostAction(event.assigned_syncpt,
+                                                             event.wait_handle);
+    event.wait_handle = {};
     events_interface.FreeEvent(event.kevent);
     event.kevent = nullptr;
     event.status = EventState::Available;

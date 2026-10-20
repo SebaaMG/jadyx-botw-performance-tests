@@ -4,6 +4,83 @@ Cuaderno de trabajo del port: cómo compilar, en qué fase vamos y lo que hemos 
 Los docs "de verdad" son [`uwp_build.md`](uwp_build.md) (toolchain) y [`xbox_deploy.md`](xbox_deploy.md)
 (empaquetar y desplegar). Aquí va el resumen rápido y todo lo que no cabe en ellos.
 
+20 oct 2026, candidato privado SeriesX .30: contratos EventWait contrastados con
+nvservices 22.5.0; sondeo no bloqueante, recuperación sin StallApplication,
+handles estables y callbacks fuera del mutex global. Fence real de consumidor
+integrada en el submit de composición, no en trabajo privado del presenter;
+targets exactos y frontera contigua protegen frames que terminan fuera de orden.
+Tres flags independientes; fuente por defecto OFF. Build UWP y54Python pasan;
+gate FirmwareSync inline/async pasa con bytes exactos y debug limpio. Incluye
+cancelación durante Signal y solicitud de progreso sin esperar el hilo GPU,
+incluso en emulación síncrona. Revisión Dewey añade cancelación anidada de
+ancestros y ready serializado en modo detached; ambas corregidas y gateadas.
+Build finalv6 y regresión ContinuousSubmit inline/async pasan. EXEea05f8...6910c.
+Entrega/paquete en evidencia del propietario; sin FPS .30 medidos.
+Diseño y estado en [xbox_firmware_sync.md](xbox_firmware_sync.md).
+
+20oct2026 privado SeriesX.29: continuous_submit sincuotaporframe; intervalos2/4ms
+segúntickspendientes, min128/reloj64 ybackpressure>=2. coalesce_fence_flush
+limpia contador de drawsdespués deFlushdefence real, no en todoslosreset.
+Flagsindependientes paracontrol.28/solocontinuo/solofences/combinado.
+Contadorlogmidenotificaciones, no ahorros. Política512cortes sinBeginFrame,
+51Python ypolítica pasan. Queries continuas pliegan prefijos terminados sinesperar,
+lectura/destrucción iterativas yguard reentrante; legacy intacto. Tañade operaciones,
+bytes staging, Close/reset yprogreso nativo porlista, agrupados porTickFrame.
+No confundir scheduler drenado con cola física ociosa. Build final71ops y GPU
+legacy/ampliado inline-async pasan, bytes/contadores exactos y debug limpio.
+Fixture corregido: main anidado y geometría12/12 incompatible con Map pequeño;
+16/12 yBindInterface restauran construcción legítima, sin parche de producción.
+Paquete25files/716blocks, firma íntegra y20assets idénticos a.28. Inicio solo
+continuo; coalescencia se medirá por separado. Ver xbox_continuous_submission.md.
+Sin FPS.29medidos.
+
+20 oct 2026, candidato privado SeriesX .28: partial_submit opt-in, presupuesto4ms,
+min128operaciones, relojcada64, max3cortes/frame y2ticksanterioresen vuelo.
+Solo al terminar operaciones realmente grabadas; restaura estado/queries con
+Flush existente. Política/48Python/UWPReleaseLTO-PGOUSE/GPUinline-async pasan;
+bytes yqueries exactos, debuglimpio, backlog y ejecución temprana comprobados.
+BOTW A/B mismoEXE1200frames porvariante:42,5808ms/23,4847FPS OFF frente a
+38,7833ms/25,7843FPS ON; ahorro3,7975ms, FPS+9,7916% enestaescena. ReadbackON,
+sinT ni perfiles enmediciónnormal. Fencewait2,0532->0,4424ms/frame ycolaidle
+14,5585->11,6778; GPUbusysimilar15,62/15,67, no sumar scopes como exclusivos.
+TsoloON posterior:66453eventos/120vsyncs,152partialsubmits, primeraentrega
+mediana4,287ms en51lotes>5ms y0tras98% (.27anterior:23,119ms y46/51tras98%).
+Usuario corrigió aviso: no hizoTcontrol; no inventar esa captura. Inventario/B
+ycatalejo/zoom pasanON; ambasQ/retorno0/procesossalidos. partial_submit1
+restaurado; resultado deunA/Bsecuencial, no30FPS ni mejorauniversal. Diseño y
+fuentes en [xbox_partial_submission.md](xbox_partial_submission.md). Un envío al
+worker CPU no equivale a ejecutar la lista enGPU; no confundir Dispatch y Flush.
+Guard de operación dedicado noexcept(false): omite unwind y ticks ya enviados.
+SCOPE_EXIT tiene destructor noexcept; meter ahí un nuevo Flush que lance cerraría
+el proceso antes del manejador GPU. Nuevos cortes se ejecutan fuera de ese guard.
+Arranque UWP usa declaraciones D3D12 adelantadas y WriteDiag de un solo argumento;
+ambos detalles corregidos tras el primer gate de compilación.
+
+20 oct 2026, diagnóstico privado SeriesX .27 sobre .26: FrameTrace opt-in por T,
+120vsyncs, todos los guest IDs, IPC original, lotes software y Flush/Submit nativo
+correlacionados; colas/frame/slot y fences observados sin cambiar sus decisiones.
+Política, 48Python, GPU inline/async y enlace UWP pasan. Detalle y límites en
+[xbox_frame_chain.md](xbox_frame_chain.md). Maxwell sucede después de PopWait;
+no atribuir su espera a preparación Maxwell simultánea. Push-end puede aparecer
+después de work-begin: publicar tiene dos límites, no un timestamp inventado.
+Elapsed Run no es CPU busy; scopes IPC no usan TLS por migración/fibers. El origen
+GPU sí viaja al worker nativo con capture ID; un Flush puede agrupar trabajo de
+lotes anteriores. No cambiar release fences ni medir FPS durante el volcado.
+TmanualBOTW:66153eventos/120vsyncs/1995,260ms completos,48frames encolados.
+705,606/762,005ms deidle (92,5986%) coinciden conguest79 esperando unnv-event
+despertado porcallback de fence nativa;83 envía los lotes. Despertar→resumir
+mediana0,034ms. Dequeuewaitsin solapamiento conidle enesta captura. En46/51lotes
+>5ms, primeraSubmitobservada tras98%deltiempo; investigar entrega nativa tardía
+y solapamientoCPU/GPU, no saltarfences. Inventario/catalejo/Q pasan; biblioteca.
+
+20 oct 2026, candidato privado SeriesX .26: recuperación de readbacks, reserva
+adaptativa y agrupación GC descritas en [xbox_readback_recovery.md](xbox_readback_recovery.md).
+El gate con recorder asíncrono debe esperar WaitSubmitted antes de insertar un
+Queue::Wait externo: Flush solo encola la grabación y no garantiza ese orden.
+No confundir una barrera externa mal ordenada del harness con una espera de la
+implementación. Las propiedades de objetos se comprueban mediante estadísticas
+y las APIs reales, sin exponer ni modificar miembros privados de Image.
+
 **Reglas de la casa**
 - Los commits van solo a nuestro fork: `origin` = `JulianDr14/jadyx`, fork de
   `eden-emulator/mirror` (el espejo oficial de Eden en GitHub), rama `xbox`.
@@ -3770,78 +3847,3 @@ Series pendientes. Experimento CopyDescriptorsSimple descartado por resultados
 mixtos en RadeonPro5300M; no reemplazar batch por recomendación genérica.
 Parser ahora admite ventanas sinprofiling con Draw=null y fixtures pasan.
 Detalle/fuentes/evidencia en xbox_draw_preparation.md. Sincommit.
-
-## UI de opciones por juego — 18 octubre 2026
-
-Migrados los renders de Descargas a la UI UWP: cabecera y tarjetas de opciones,
-superficie/foco compartidos Mods/Cheats/Updates/DLC; catálogo de mods de tres
-columnas con navegación/scroll de fila incompleta verificados. Solo funciones
-existentes, confirmado por usuario; no datos ni servicios ficticios del render.
-Se conservan modelos, persistencia, workers y operaciones de contenido.
-Build incremental/link y harness mods-page/cheats-page/localization-catalogs pasan.
-No nueva versión ni commit; gate visual y Series pendientes. Paquete ruta única.
-Detalle, fuentes y alcance: xbox_frontend.md, sección migración 18oct.
-Trampa: Appx no carga desde PowerShell7 (0x80131539); local-run debe ejecutarse
-mediante System32/WindowsPowerShell/v1.0/powershell.exe (Windows PowerShell5.1).
-
-
-18oct UI, corrección solicitada tras captura: descartada la primera composición.
-El header global se reutiliza, no se copia; los gestores sustituyen el contenido
-inferior de biblioteca, sin dibujar la biblioteca detrás. La barra bajo carátula
-activa directamente Mods/Cheats/Updates/DLC/Pulse; eliminadas tarjetas y Abrir
-redundantes, Pulse único. Foco barra/gestor separado, Up devuelve desde primera
-fila; mismos modelos de instalación, toggles y doble confirmación Pulse. No
-abandonar trabajos/descargas activos, conservar invalidación de contenido al salir.
-Harness de selección directa/cinco categorías y listas pasan; enlace UWP pasa.
-Captura Windows falla timeout; visual final/Series pendientes, no certificar por
-compilar. Sin commit/versionado automático; detalle actual en xbox_frontend.md.
-
-Entrega Series18oct0.2.97.1: usuario exige nueva versión por entrega; parche en
-cuarto componente, siguiente función nueva0.2.98.0. Manifiesto sinBOM, mismo EXE
-incremental sin recompilar por versión; APPX firmado en package/jadyx.appx y
-EXE/PDB archivados en symbols/0.2.97.1. CRC/versión/identidadEXE/config correctos.
-Incluye clics reales Mods/Cheats y foco explícito Sections/ManagerTabs/Content,
-sesiones conservadas entre categorías y contadores de carga. Harness y build
-pasan. Prueba PC: juego de prueba installed0/error0, cheats0 paraB5C39B5B7C62A88E(1.0.0);
-archivos locales para2C336A9BCF79C304, no cargar cheats incompatibles. Evidencia
-build-uwp/test-results/frontend-management-20261018. Captura automática detenida
-porEsc delusuario; catálogo online/visual/Series pendientes. Sin commit/push.
-
-
-## Opciones del juego: espacio y controles por nivel (18 oct 2026, 0.2.98.0)
-
-- LB/RB (Q/E) seleccionan la categoría principal desde sus tres niveles de foco.
-  LT/RT (PgUp/PgDn) controlan las pestañas del gestor; los gatillos usan flanco
-  con histéresis y requieren liberación tras cambiar de contexto. Los diálogos y
-  operaciones ocupadas conservan sus restricciones. En el detalle de un mod,
-  LT/RT cambian sus imágenes; en el teclado virtual realizan sus acciones locales.
-- Al bajar de la barra principal a Mods o Cheats, el hero del juego se desplaza
-  156 unidades durante 180 ms. El header general reutilizado permanece visible;
-  también permanecen las dos barras. Subir hasta la barra principal restaura el
-  hero. La rueda sigue el mismo recorrido de foco. Los targets del puntero usan
-  el mismo desplazamiento y recorte que los elementos dibujados.
-- Desarrollador, versión efectiva y Build ID real se reúnen bajo el título.
-  Se elimina la versión bajo la carátula y el Build ID repetido en Cheats.
-  El catálogo usa tarjetas cuadradas de 352 × 352 con imágenes de 222 de alto;
-  la selección de filas admite nueve visibles al plegar el hero. Estados y
-  prompts inferiores permanecen fijos y separados del contenido desplazado.
-- Navegación: se admiten repeticiones de flechas del teclado; cruceta/stick del
-  gestor repiten tras 280 ms y luego cada 80 ms, sin cambiar la entrada del juego.
-  Cheats dibuja filas/pestañas/estados con layouts de texto cacheados y obtiene
-  contadores de habilitados/palabras VM cacheados en vez de recorrer todo el
-  catálogo en cada dibujo. Persistencia y compatibilidad por Build ID se conservan.
-- Gates: build incremental UWP correcto; stick-navigation, mods-page,
-  cheats-page y cheat-catalog pasan. Se comprueban histéresis, pulsación sostenida,
-  listas largas, encaje del grid/listas y 10.000 ediciones con contadores
-  contrastados contra el programa VM real. Esto no certifica fluidez medida ni
-  validación visual en Series; ambas quedan pendientes del dispositivo.
-- Versión 0.2.98.0 por nueva interacción, según la regla indicada por el usuario.
-  Entrega única en build-uwp/package/jadyx.appx; sin commit.
-
-  Cierre adicional: el catálogo mantiene también el número de entradas activas
-  por archivo; actualizar una entrada/código maestro es O(1) y una categoría es
-  O(n), sin los recorridos anidados anteriores. El gate de 10.000 ediciones
-  contrasta el maestro contra SyncMasterCheat y pasa junto a presupuesto/categorías.
-  La biblioteca de esta versión arranca en PC. Captura visual no disponible:
-  Computer Use devolvió FrameArrived timed out y window capture timed out tras
-  recuperar la ventana y reintentar. No se certifica visualmente con esa herramienta.

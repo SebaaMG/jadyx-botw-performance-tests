@@ -14,6 +14,7 @@
 #include <tuple>
 #include "common/container/unordered_map.h"
 #include "common/container/unordered_set.h"
+#include "common/jit_symbols.h"
 #include <boost/container/static_vector.hpp>
 
 #include "dynarmic/backend/block_range_information.h"
@@ -120,6 +121,10 @@ public:
 
 //data
     const A64::UserConfig conf;
+    void PublishProfilePrelude();
+    u64 profile_owner{};
+    const u8* profile_prelude{};
+    std::vector<::Common::JitSymbols::Annotation> profile_prelude_annotations;
     RegAlloc reg_alloc; //reusable reg alloc
     BlockRangeInformation<u64> block_ranges;
     std::array<FastDispatchEntry, fast_dispatch_table_size> fast_dispatch_table;

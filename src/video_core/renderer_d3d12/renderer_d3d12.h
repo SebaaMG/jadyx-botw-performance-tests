@@ -82,6 +82,9 @@ public:
     void RemoveDeviceForProbe();
 
     void Composite(std::span<const Tegra::FramebufferConfig> framebuffers) override;
+    bool SupportsCompositeFences() const override { return true; }
+    void CompositeWithFence(std::span<const Tegra::FramebufferConfig> framebuffers,
+                            u32 consumer_syncpoint, u32 consumer_value) override;
 
     std::vector<u8> GetAppletCaptureBuffer() override;
 
@@ -104,9 +107,6 @@ public:
     [[nodiscard]] std::pair<u32, u32> ScreenSize() const {
         return {swapchain.Width(), swapchain.Height()};
     }
-    /// The last guest frame composited again without the HUD or the menu and read back, never
-    /// presented. Empty when it is not a GPU image. GPU thread only, while the guest is paused.
-    [[nodiscard]] MenuImage CaptureFrame();
 
 private:
     /// Copies the frontend menu, centered, into frame (in RENDER_TARGET state, as it leaves it).
@@ -168,6 +168,8 @@ private:
 
     Tegra::MaxwellDeviceMemoryManager& device_memory;
     Tegra::GPU& gpu;
+    u32 pending_consumer_syncpoint{};
+    u32 pending_consumer_value{};
     Device device;
     Swapchain swapchain;
     ShaderCompiler shader_compiler;
@@ -211,8 +213,6 @@ private:
     bool present_failed{};
     /// The frontend menu while open, and the last framebuffer composited, to redraw it paused.
     std::optional<MenuImage> game_menu;
-    /// While CaptureFrame composites: the guest's image only, nothing drawn over it.
-    bool bare_composite{};
     std::optional<Tegra::FramebufferConfig> last_framebuffer;
     /// What the present last logged about FSR, so it logs again only when that changes.
     struct FsrLogState {

@@ -12,6 +12,7 @@
 
 #include "common/logging.h"
 #include "common/settings.h"
+#include "common/scope_exit.h"
 #include "core/frontend/emu_window.h"
 #include "core/frontend/graphics_context.h"
 #include "video_core/capture.h"
@@ -172,6 +173,15 @@ void RemoveDeviceForProbe(VideoCore::RendererBase& renderer) {
     static_cast<RendererD3D12&>(renderer).RemoveDeviceForProbe();
 }
 
+void RendererD3D12::CompositeWithFence(std::span<const Tegra::FramebufferConfig> framebuffers,
+                                      u32 consumer_syncpoint, u32 consumer_value) {
+    pending_consumer_syncpoint = consumer_syncpoint;
+    pending_consumer_value = consumer_value;
+    SCOPE_EXIT { pending_consumer_syncpoint = 0; pending_consumer_value = 0; };
+    Composite(framebuffers);
+    if (pending_consumer_syncpoint) rasterizer.SubmitCompositeFence(consumer_syncpoint, consumer_value);
+}
+
 void RendererD3D12::Composite(std::span<const Tegra::FramebufferConfig> framebuffers) {
     if (framebuffers.empty()) {
         return;
@@ -314,8 +324,15 @@ void RendererD3D12::Composite(std::span<const Tegra::FramebufferConfig> framebuf
 }
 
 void RendererD3D12::Present(FrameLease&& frame) {
-    present_manager.Present(std::move(frame));
-    staging_pool.TickFrame();
+    if (pending_consumer_syncpoint) {
+        present_manager.Present(std::move(frame), [this] {
+            const u64 tick = rasterizer.SubmitCompositeFence(pending_consumer_syncpoint, pending_consumer_value);
+            pending_consumer_syncpoint = 0;
+            return tick;
+        });
+    } else {
+        present_manager.Present(std::move(frame));
+    }
 }
 
 std::vector<u8> RendererD3D12::GetAppletCaptureBuffer() {

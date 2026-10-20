@@ -1,0 +1,73 @@
+{
+  "captured_at_utc": "2026-10-18T20:41:18.142746+00:00",
+  "status": "profiling-finished-owner-requests-structural-renderer-priority-no-new-renderer-implemented",
+  "diagnostic_version": "1.0.0.9",
+  "executable_sha256": "04a2ca78d711435603a2e9072b97ca27e1e1b292f8a6a516a622fe6132cf1c2c",
+  "pdb_sha256": "26b72e86818ec87ccc652e7619e1a479ca85f575bf4fbac03bb052e80b35d2eb",
+  "source_tree": "76eaa1ac0bbcc4d36e2293826dec8a72ab570cce",
+  "profile_scope": "Separate instrumented fixed-view Windows diagnostic. Not an FPS comparison or Xbox result.",
+  "owner_confirmed_same_view": true,
+  "owner_closed_with_Q": true,
+  "assistant_game_controls_sent": false,
+  "selected_sampling_windows": [
+    6,
+    7,
+    8
+  ],
+  "sampling_headers": [
+    "window 6 seconds 20.004 hz 125 ticks 2502 sampler_cpu_ms 203.1 suspensions 22985 suspended_us_avg 24.0 suspended_us_max 90.8 stacks 3835 dropped_samples 0",
+    "window 7 seconds 20.006 hz 125 ticks 2502 sampler_cpu_ms 140.6 suspensions 22137 suspended_us_avg 24.5 suspended_us_max 142.8 stacks 3298 dropped_samples 0",
+    "window 8 seconds 20.004 hz 125 ticks 2502 sampler_cpu_ms 125.0 suspensions 23184 suspended_us_avg 23.0 suspended_us_max 134.7 stacks 3849 dropped_samples 0"
+  ],
+  "prefix_hashes": {
+    "jadyx_log.txt": {
+      "bytes": 1641229,
+      "sha256": "77ecfc6d0addcd9aaa657232741b8473dca101918c8a669ba125453ae4505e7d"
+    },
+    "jadyx_diag.txt": {
+      "bytes": 487515,
+      "sha256": "c6b9cb967ffedf4f11d5fc777724ba5a4548d4440ecc0650ccfc60d992d01689"
+    },
+    "jadyx_profile.txt": {
+      "bytes": 5291630,
+      "sha256": "680c0cbcaf3d39610b2037e3afcb51fe67ba1e1b3c188559a7b6ba037d45aadb"
+    }
+  },
+  "private_prefix_name": "profile-fixed-view-20261018T112342Z",
+  "resolved_report_sha256": "565c4081053f184067b5dfaaf670665dd9df82487722c572356e14a1b37a9404",
+  "resolved_scope_seconds": 60.0,
+  "sampling_hz": 125,
+  "profiler_cpu_percent_one_core": 0.8,
+  "average_suspension_us": 23.8,
+  "gpu_thread_cpu_percent_one_core": 56.7,
+  "gpu_thread_sample_subsystems_percent": {
+    "buffers_uploads": 22.6,
+    "gpu_command_processing": 18.5,
+    "draw_setup": 16.6,
+    "texture_cache": 11.3,
+    "command_lists_barriers": 8.3,
+    "pipelines_shaders": 8.2,
+    "descriptors_samplers": 7.5
+  },
+  "gpu_thread_active_samples_entering_os_percent": {
+    "CreateCommittedBuffer_to_win32u": 10.1,
+    "Scheduler_CollectGarbage_to_win32u": 3.5,
+    "steady_clock_to_ntdll": 7.7,
+    "steady_clock_to_MSVCP140_APP": 2.2
+  },
+  "qualifications": [
+    "Subsystem estimates split consumed GPU-thread CPU time by sampled running stacks; not percentages of whole frame.",
+    "Inclusive stacks, per-draw timers and CPU time overlap. Do not add or subtract them to invent exclusive times.",
+    "Clock costs include the enabled detailed instrumentation.",
+    "CPU guest execution and JIT compilation are distinct; compilation is small in the steady-view pacing windows.",
+    "An RVAs-only guest JIT stack does not identify an ARM function suitable for game-specific HLE."
+  ],
+  "decisions": [
+    "Prioritize full persistent-resource bindings and selective updates, not another isolated uniform cache.",
+    "Consider placed-resource buffer allocator as supporting work, retaining initialization and fences.",
+    "Do not claim ExecuteIndirect is absent: graphics/compute support and a CPU fallback already exist.",
+    "Full bindless renderer, uniform content cache and shared host JIT remain unimplemented.",
+    "Keep the existing candidate and archived controls; no Game Vault UI changes."
+  ],
+  "design": "docs/JADYX-RENDERER-PERSISTENTE.md"
+}

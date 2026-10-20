@@ -71,6 +71,8 @@ void ThreadManager::StartThread(VideoCore::RendererBase& renderer,
                 }
                 if (VideoCore::FrameTrace::Active()) {
                     const u64 idle_us = VideoCore::Perf::ElapsedUs(idle_start);
+                    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuQueueWait,
+                                                idle_us, next.fence);
                     if (idle_us >= 200) {
                         VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuIdleEnd,
                                                     idle_us);
@@ -80,6 +82,10 @@ void ThreadManager::StartThread(VideoCore::RendererBase& renderer,
             if (stop_token.stop_requested()) {
                 break;
             }
+            const auto* submitted = std::get_if<SubmitListCommand>(&next.data);
+            const u64 metadata = (static_cast<u64>(next.data.index()) << 32) |
+                                 static_cast<u32>(submitted ? submitted->channel : -1);
+            const VideoCore::FrameTrace::ScopedGpuWork trace_work{next.fence, metadata};
             try {
                 // Continue servicing host sync requests so shutdown can wait for idle. Guest GPU
                 // commands after an exception cannot safely continue a partially executed batch.
@@ -166,9 +172,17 @@ u64 ThreadManager::PushCommand(CommandData&& command_data, bool block, bool is_a
         block = true;
     }
 
+    const auto* submitted = std::get_if<SubmitListCommand>(&command_data);
+    const u64 metadata = (static_cast<u64>(command_data.index()) << 32) |
+                         static_cast<u32>(submitted ? submitted->channel : -1);
+    VideoCore::FrameTrace::ScopedSpan trace_lock{
+        VideoCore::FrameTrace::Event::GpuQueueLockLong, metadata};
     std::unique_lock lk(state.write_lock);
+    trace_lock.Finish();
     const u64 fence{++state.last_fence};
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuQueuePushBegin, fence, metadata);
     state.queue.EmplaceWait(std::move(command_data), fence, block);
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuQueuePushEnd, fence, metadata);
 
     if (block) {
         state.cv.wait(lk, thread.get_stop_token(), [this, fence] {

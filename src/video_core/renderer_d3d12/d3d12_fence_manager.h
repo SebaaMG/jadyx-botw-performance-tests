@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include "video_core/fence_manager.h"
@@ -13,11 +14,12 @@
 namespace D3D12 {
 
 class Scheduler;
+void SetFenceFlushCoalescing(bool enabled);
 
 class InnerFence final : public VideoCommon::FenceBase {
 public:
     InnerFence(Scheduler& scheduler, bool is_stubbed);
-    void Queue();
+    void Queue(const std::function<void()>& on_submission = {});
     [[nodiscard]] bool IsSignaled() const;
     void Wait();
 
@@ -40,7 +42,8 @@ class FenceManager final : public VideoCommon::FenceManager<FenceManagerParams> 
 public:
     FenceManager(VideoCore::RasterizerInterface& rasterizer, Tegra::GPU& gpu,
                  TextureCache& texture_cache, BufferCache& buffer_cache, QueryCache& query_cache,
-                 Scheduler& scheduler);
+                 Scheduler& scheduler, std::function<void()> on_submission = {});
+    u64 SubmissionNotificationCount() const { return submission_notifications; }
 
 protected:
     Fence CreateFence(bool is_stubbed) override;
@@ -50,6 +53,9 @@ protected:
 
 private:
     Scheduler& scheduler;
+    const bool coalescing_enabled;
+    std::function<void()> on_submission;
+    u64 submission_notifications{};
 };
 
 } // namespace D3D12

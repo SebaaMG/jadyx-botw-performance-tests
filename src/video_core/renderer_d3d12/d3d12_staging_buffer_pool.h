@@ -5,6 +5,7 @@
 
 #include <array>
 #include <climits>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -13,10 +14,16 @@
 #include "common/memory_ledger.h"
 #include "video_core/renderer_d3d12/d3d12_device.h"
 #include "video_core/renderer_d3d12/d3d12_memory_guard.h"
+#include "video_core/renderer_d3d12/d3d12_readback_reserve.h"
 
 namespace D3D12 {
 
 class Scheduler;
+
+void SetReadbackReuse(bool enabled);
+bool ReadbackReuseEnabled();
+
+enum class ReadbackSource : std::size_t { Other, Buffer, Texture, TextureGc, Count };
 
 enum class MemoryUsage {
     Upload,   ///< CPU writes, GPU reads (UPLOAD heap, always GENERIC_READ)
@@ -30,6 +37,7 @@ struct StagingBufferRef {
     MemoryUsage usage;
     u32 log2_level;
     u64 index;
+    u64 identity{};
     u64 capacity; ///< Bytes the buffer was created with (dedicated buffers); what it commits.
 };
 
@@ -51,8 +59,16 @@ public:
     StagingBufferPool(const StagingBufferPool&) = delete;
     StagingBufferPool& operator=(const StagingBufferPool&) = delete;
 
-    StagingBufferRef Request(size_t size, MemoryUsage usage, bool deferred = false);
+    StagingBufferRef Request(size_t size, MemoryUsage usage, bool deferred = false,
+                             ReadbackSource source = ReadbackSource::Other);
     void FreeDeferred(StagingBufferRef& ref);
+
+    struct ReadbackStatistics {
+        u64 requests{}, reuses{}, creates{}, created_bytes{}, retired{}, retained_bytes{};
+        u64 pressure_wait_calls{}, pressure_wait_us{};
+        u64 retention_target{};
+    };
+    ReadbackStatistics GetReadbackStatistics() const;
 
     [[nodiscard]] ID3D12Resource* StreamBuffer() const noexcept {
         return stream_buffer.Get();
@@ -75,6 +91,12 @@ public:
     [[nodiscard]] u64 PendingUploadBytes() const noexcept;
 
 private:
+    enum class WaitReason : std::size_t { Ring, PressureUpload, PressureReadback, Count };
+    struct WaitStatistics {
+        u64 calls{};
+        u64 elapsed_us{};
+    };
+
     struct StagingBuffer {
         ComPtr<ID3D12Resource> buffer;
         std::span<u8> mapped_span;
@@ -83,6 +105,9 @@ private:
         u64 index;
         u64 tick = 0;
         bool deferred{};
+        u64 retention_charge{};
+        u64 last_used_frame{};
+        u32 uses{1};
         Common::MemoryCharge charge;
 
         StagingBufferRef Ref() const noexcept {
@@ -93,6 +118,7 @@ private:
                 .usage = usage,
                 .log2_level = log2_level,
                 .index = index,
+                .identity = (3ull << 62) | (index + 1),
                 .capacity = mapped_span.size(),
             };
         }
@@ -109,20 +135,28 @@ private:
 
     StagingBufferRef GetStreamBuffer(size_t size);
     bool AreRegionsActive(size_t region_begin, size_t region_end) const;
-    StagingBufferRef GetStagingBuffer(size_t size, MemoryUsage usage, bool deferred = false);
+    StagingBufferRef GetStagingBuffer(size_t size, MemoryUsage usage, bool deferred = false,
+                                      ReadbackSource source = ReadbackSource::Other);
     std::optional<StagingBufferRef> TryGetReservedBuffer(size_t size, MemoryUsage usage,
                                                          bool deferred);
-    StagingBufferRef CreateStagingBuffer(size_t size, MemoryUsage usage, bool deferred);
+    StagingBufferRef CreateStagingBuffer(size_t size, MemoryUsage usage, bool deferred,
+                                         ReadbackSource source);
     /// Called before a dedicated buffer would cross HeadroomTracker::RESERVE, or after the OS
     /// refused one. Frees every retired buffer of this kind and, on the recording thread, waits for
     /// already-submitted work (at most once per tick; the list being recorded is never flushed) so
     /// a busy buffer can be reused instead of growing. Returns a reusable buffer if one freed up.
     std::optional<StagingBufferRef> RelieveMemoryPressure(size_t size, MemoryUsage usage,
-                                                          bool deferred, bool allocation_failed);
+                                                          bool deferred, bool allocation_failed,
+                                                          ReadbackSource source);
     StagingBuffersCache& GetCache(MemoryUsage usage);
-    void ReleaseLevel(StagingBuffersCache& cache, size_t log2, size_t max_checks = 16);
-    void ReleaseAllRetired(StagingBuffersCache& cache);
+    void ReleaseLevel(StagingBuffersCache& cache, size_t log2, size_t max_checks = 16,
+                       bool forced = false);
+    void ReleaseAllRetired(StagingBuffersCache& cache, bool forced = false);
+    void TrimReadbackReserve();
+    std::optional<u64> ReusableReadbackTick(size_t size) const;
     void MeasureHeadroom();
+    void WaitForStaging(u64 tick, WaitReason reason, bool allocation_failed = false,
+                          size_t size = 0, ReadbackSource source = ReadbackSource::Other);
 
     size_t Region(size_t iter) const noexcept {
         return iter / region_size;
@@ -134,6 +168,7 @@ private:
     ComPtr<ID3D12Resource> stream_buffer;
     Common::MemoryCharge stream_charge;
     std::span<u8> stream_pointer;
+    u64 stream_identity{1};
     u64 stream_buffer_size;
     u64 region_size;
 
@@ -144,7 +179,15 @@ private:
     StagingRingController ring_guard;
     HeadroomTracker headroom;
     u64 pressure_wait_tick{};
+    std::array<WaitStatistics, static_cast<std::size_t>(WaitReason::Count)> wait_statistics{};
+    u64 allocation_failure_waits{};
+    u64 wait_report_frames{};
     unsigned guard_trim_cursor{};
+
+    mutable std::recursive_mutex readback_mutex;
+    ReadbackReserve readback_reserve;
+    ReadbackStatistics readback_statistics;
+    std::array<ReadbackStatistics, static_cast<std::size_t>(ReadbackSource::Count)> readback_sources{};
 
     StagingBuffersCache upload_cache;
     StagingBuffersCache download_cache;

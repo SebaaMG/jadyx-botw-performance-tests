@@ -13,11 +13,15 @@
 #include "core/core_timing.h"
 #include "core/hle/service/nvdrv/core/container.h"
 #include "core/hle/service/nvdrv/core/nvmap.h"
+#include "core/hle/service/nvdrv/core/syncpoint_manager.h"
 #include "core/hle/service/nvdrv/devices/nvdisp_disp0.h"
+#include "core/hle/service/pulse_service.h"
 #include "core/perf_stats.h"
 #include "video_core/gpu.h"
 #include "video_core/frame_trace.h"
 #include "video_core/perf_counters.h"
+#include "video_core/renderer_base.h"
+#include "video_core/synchronization_options.h"
 
 namespace Service::Nvidia::Devices {
 
@@ -39,7 +43,25 @@ Tegra::BlendMode ConvertBlending(Service::Nvnflinger::LayerBlending blending) {
 
 nvdisp_disp0::nvdisp_disp0(Core::System& system_, NvCore::Container& core)
     : nvdevice{system_}, container{core}, nvmap{core.GetNvMapFile()} {}
-nvdisp_disp0::~nvdisp_disp0() = default;
+nvdisp_disp0::~nvdisp_disp0() {
+    if (consumer_syncpoint) container.GetSyncpointManager().FreeSyncpoint(consumer_syncpoint);
+}
+
+bool nvdisp_disp0::PulseCapture(DeviceFD fd, Service::Pulse::StateWriter& out) const {
+    if (consumer_syncpoint) out.U32(consumer_syncpoint);
+    return true;
+}
+
+void nvdisp_disp0::PulseRestore(DeviceFD fd, Service::Pulse::StateReader& in) {
+    if (in.Remaining() == 0) return;
+    const u32 captured = in.U32();
+    auto& manager = container.GetSyncpointManager();
+    if (captured == 0 || !manager.IsSyncpointAllocated(captured)) {
+        throw std::invalid_argument("Pulse: missing display consumer syncpoint");
+    }
+    if (consumer_syncpoint && consumer_syncpoint != captured) manager.FreeSyncpoint(consumer_syncpoint);
+    consumer_syncpoint = captured;
+}
 
 NvResult nvdisp_disp0::Ioctl1(DeviceFD fd, Ioctl command, std::span<const u8> input,
                               std::span<u8> output) {
@@ -62,7 +84,7 @@ NvResult nvdisp_disp0::Ioctl3(DeviceFD fd, Ioctl command, std::span<const u8> in
 void nvdisp_disp0::OnOpen(NvCore::SessionId session_id, DeviceFD fd) {}
 void nvdisp_disp0::OnClose(DeviceFD fd) {}
 
-void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers) {
+std::optional<NvFence> nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers) {
     std::vector<Tegra::FramebufferConfig> output_layers;
     std::vector<Service::Nvidia::NvFence> output_fences;
     output_layers.reserve(sorted_layers.size());
@@ -91,11 +113,23 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
 
     VideoCore::Perf::Add(VideoCore::Perf::Counter::VsyncFrames, 1);
     VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::VsyncComposed, 1);
-    system.GPU().RequestComposite(std::move(output_layers), std::move(output_fences));
+    std::optional<NvFence> release;
+    if (!output_layers.empty() && VideoCore::GetSynchronizationOptions().consumer_release_fences &&
+        system.GPU().Renderer().SupportsCompositeFences()) {
+        auto& manager = container.GetSyncpointManager();
+        if (!consumer_syncpoint) consumer_syncpoint = manager.AllocateSyncpoint(true);
+        const u32 value = manager.IncrementSyncpointMaxExt(consumer_syncpoint, 1);
+        release = NvFence{static_cast<s32>(consumer_syncpoint), value};
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::ConsumerFence,
+            consumer_syncpoint, value);
+    }
+    system.GPU().RequestComposite(std::move(output_layers), std::move(output_fences),
+                                  release ? consumer_syncpoint : 0, release ? release->value : 0);
     Common::ADPF::ReportFrameInterval();
     system.SpeedLimiter().DoSpeedLimiting(system.CoreTiming().GetGlobalTimeUs());
     system.GetPerfStats().EndSystemFrame();
     system.GetPerfStats().BeginSystemFrame();
+    return release;
 }
 
 void nvdisp_disp0::WaitForComposite() {

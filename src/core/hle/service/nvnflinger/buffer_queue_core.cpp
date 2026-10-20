@@ -10,10 +10,11 @@
 #include "common/assert.h"
 
 #include "core/hle/service/nvnflinger/buffer_queue_core.h"
+#include "video_core/frame_trace.h"
 
 namespace Service::android {
 
-BufferQueueCore::BufferQueueCore() = default;
+BufferQueueCore::BufferQueueCore() : trace_id{VideoCore::FrameTrace::NextIdentity()} {}
 
 BufferQueueCore::~BufferQueueCore() = default;
 
@@ -52,6 +53,7 @@ void BufferQueueCore::UpdateHistory(u64 frame_number, BufferState state) {
 
 void BufferQueueCore::SignalDequeueCondition() {
     dequeue_possible.store(true);
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::BufferDequeueSignal, trace_id);
     dequeue_condition.notify_all();
 }
 

@@ -15,6 +15,7 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -31,6 +32,7 @@
 #include "common/settings.h"
 #include "common/slot_vector.h"
 #include "video_core/buffer_cache/buffer_base.h"
+#include "video_core/buffer_cache/gc_policy.h"
 #include "video_core/buffer_cache/virtual_range_cache.h"
 #include "video_core/control/channel_state_cache.h"
 #include "video_core/delayed_destruction_ring.h"
@@ -390,7 +392,7 @@ private:
                ((device_addr + size) & ~Core::DEVICE_PAGEMASK);
     }
 
-    void RunGarbageCollector();
+    void RunGarbageCollector(std::optional<BufferGcPolicy> policy = std::nullopt);
 
     void BindHostIndexBuffer();
 
@@ -476,9 +478,9 @@ private:
 
     void MappedUploadMemory(Buffer& buffer, u64 total_size_bytes, std::span<BufferCopy> copies);
 
-    void DownloadBufferMemory(Buffer& buffer_id);
+    u64 DownloadBufferMemory(Buffer& buffer_id);
 
-    void DownloadBufferMemory(Buffer& buffer_id, DAddr device_addr, u64 size);
+    u64 DownloadBufferMemory(Buffer& buffer_id, DAddr device_addr, u64 size);
 
     void DeleteBuffer(BufferId buffer_id, bool do_not_mark = false);
 

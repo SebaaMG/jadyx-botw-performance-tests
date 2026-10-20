@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <limits>
 #include <stdexcept>
 
@@ -13,6 +15,7 @@
 #include "video_core/renderer_d3d12/d3d12_resource_utils.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
 #include "video_core/perf_counters.h"
+#include "video_core/frame_trace.h"
 #include "video_core/renderer_d3d12/d3d12_staging_buffer_pool.h"
 
 namespace D3D12 {
@@ -35,7 +38,28 @@ constexpr u64 MAX_STREAM_REQUEST = 32_MiB;
 /// allocating a dedicated buffer; smaller ones never stall the CPU.
 constexpr u64 WAIT_FOR_STREAM_SIZE = 1_MiB;
 
+std::atomic_bool readback_reuse_enabled{true};
+
 } // Anonymous namespace
+
+void SetReadbackReuse(bool enabled) {
+    readback_reuse_enabled.store(enabled, std::memory_order_relaxed);
+}
+
+bool ReadbackReuseEnabled() {
+    return readback_reuse_enabled.load(std::memory_order_relaxed);
+}
+
+StagingBufferPool::ReadbackStatistics StagingBufferPool::GetReadbackStatistics() const {
+    std::scoped_lock lock{readback_mutex};
+    auto result = readback_statistics;
+    result.retained_bytes = readback_reserve.Bytes();
+    result.retention_target = readback_reserve.Target();
+    const auto& waits = wait_statistics[static_cast<std::size_t>(WaitReason::PressureReadback)];
+    result.pressure_wait_calls = waits.calls;
+    result.pressure_wait_us = waits.elapsed_us;
+    return result;
+}
 
 ComPtr<ID3D12Resource> CreateMappedBuffer(ID3D12Device* device, u64 size,
                                           D3D12_HEAP_TYPE heap_type, std::span<u8>& mapped) {
@@ -76,7 +100,8 @@ StagingBufferPool::StagingBufferPool(const Device& device_, Scheduler& scheduler
 
 StagingBufferPool::~StagingBufferPool() = default;
 
-StagingBufferRef StagingBufferPool::Request(size_t size, MemoryUsage usage, bool deferred) {
+StagingBufferRef StagingBufferPool::Request(size_t size, MemoryUsage usage, bool deferred,
+                                           ReadbackSource source) {
     // The generic caches may ask for zero bytes (e.g. a download batch with no images); hand out a
     // minimal allocation rather than throwing on what may be Eden's fence thread.
     size = std::max<size_t>(size, 1);
@@ -92,10 +117,26 @@ StagingBufferRef StagingBufferPool::Request(size_t size, MemoryUsage usage, bool
         stream_buffer && !ring_guard.Retiring() && size <= stream_buffer_size) {
         return GetStreamBuffer(size);
     }
-    return GetStagingBuffer(size, usage, deferred);
+    if (usage != MemoryUsage::Download) return GetStagingBuffer(size, usage, deferred, source);
+    std::scoped_lock lock{readback_mutex};
+    auto& origin = readback_sources[static_cast<std::size_t>(source)];
+    ++origin.requests;
+    ++readback_statistics.requests;
+    const auto previous_creates = readback_statistics.creates;
+    auto result = GetStagingBuffer(size, usage, deferred, source);
+    if (readback_statistics.creates == previous_creates) {
+        ++origin.reuses;
+        ++readback_statistics.reuses;
+    } else {
+        ++origin.creates;
+        origin.created_bytes += result.capacity;
+    }
+    return result;
 }
 
 void StagingBufferPool::FreeDeferred(StagingBufferRef& ref) {
+    std::unique_lock lock{readback_mutex, std::defer_lock};
+    if (ref.usage == MemoryUsage::Download) lock.lock();
     auto& entries = GetCache(ref.usage)[ref.log2_level].entries;
     const auto it = std::find_if(entries.begin(), entries.end(), [&ref](const StagingBuffer& e) {
         return e.index == ref.index;
@@ -107,13 +148,40 @@ void StagingBufferPool::FreeDeferred(StagingBufferRef& ref) {
 }
 
 void StagingBufferPool::TickFrame() {
+    std::scoped_lock lock{readback_mutex};
     current_delete_level = (current_delete_level + 1) % NUM_LEVELS;
     ReleaseLevel(upload_cache, current_delete_level);
     ReleaseLevel(download_cache, current_delete_level);
+    TrimReadbackReserve();
+    if (++wait_report_frames % 300 == 0) {
+        const auto& ring = wait_statistics[static_cast<std::size_t>(WaitReason::Ring)];
+        const auto& upload = wait_statistics[static_cast<std::size_t>(WaitReason::PressureUpload)];
+        const auto& readback = wait_statistics[static_cast<std::size_t>(WaitReason::PressureReadback)];
+        LOG_INFO(Render, "SeriesX staging wait calls: ring {} ({:.3f} ms), pressure upload {} "
+                 "({:.3f} ms), pressure readback {} ({:.3f} ms), allocation failures {} "
+                 "(subset of pressure calls; cumulative)",
+                 ring.calls, ring.elapsed_us / 1000.0, upload.calls, upload.elapsed_us / 1000.0,
+                 readback.calls, readback.elapsed_us / 1000.0, allocation_failure_waits);
+        LOG_INFO(Render, "SeriesX readback pool: requests {}, reuses {}, creates {}, created {} KiB, "
+                 "retired {}, retained {} KiB, retention target {} KiB (cumulative)",
+                 readback_statistics.requests, readback_statistics.reuses,
+                 readback_statistics.creates, readback_statistics.created_bytes / 1024,
+                 readback_statistics.retired, readback_reserve.Bytes() / 1024,
+                 readback_reserve.Target() / 1024);
+        for (std::size_t source = 0; source < readback_sources.size(); ++source) {
+            const auto& stats = readback_sources[source];
+            LOG_INFO(Render, "SeriesX readback origin {}: requests {}, reuses {}, creates {}, "
+                     "created {} KiB (0=other, 1=buffer, 2=texture, 3=texture GC; cumulative)",
+                     source, stats.requests, stats.reuses, stats.creates, stats.created_bytes / 1024);
+        }
+    }
 }
 
 bool StagingBufferPool::GuardMemory(const CacheMemorySnapshot& snapshot) {
+    std::scoped_lock lock{readback_mutex};
     headroom.Measured(snapshot.app_used, snapshot.app_limit);
+    readback_reserve.Configure(snapshot.AppFree(), snapshot.app_limit != 0);
+    TrimReadbackReserve();
     const auto plan = ring_guard.BeginFrame(snapshot.app_used, snapshot.app_limit,
                                             stream_buffer ? stream_buffer_size : 0);
     if (plan.target != plan.previous_target) {
@@ -143,6 +211,7 @@ bool StagingBufferPool::GuardMemory(const CacheMemorySnapshot& snapshot) {
     if (const u64 wanted = ring_guard.WantedRing(stream_buffer ? stream_buffer_size : 0,
                                                  snapshot.app_used, snapshot.app_limit)) {
         try {
+            ++stream_identity;
             stream_buffer = CreateMappedBuffer(device.Get(), wanted, D3D12_HEAP_TYPE_UPLOAD,
                                                stream_pointer);
             stream_buffer_size = wanted;
@@ -163,7 +232,8 @@ bool StagingBufferPool::GuardMemory(const CacheMemorySnapshot& snapshot) {
         for (unsigned i = 0; i < (plan.emergency ? NUM_LEVELS : 4); ++i) {
             const auto level = NUM_LEVELS - 1 - guard_trim_cursor++ % NUM_LEVELS;
             ReleaseLevel(upload_cache, level);
-            ReleaseLevel(download_cache, level);
+            ReleaseLevel(download_cache, level, 16,
+                         CachePressureController::RequiresImmediateRecovery(snapshot));
         }
     }
     return released_ring;
@@ -198,8 +268,7 @@ StagingBufferRef StagingBufferPool::GetStreamBuffer(size_t size) {
             !scheduler.IsRecordingThread()) {
             return GetStagingBuffer(size, MemoryUsage::Upload);
         }
-        scheduler.Wait(busy_tick);
-        VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingStreamWaits, 1);
+        WaitForStaging(busy_tick, WaitReason::Ring, false, size);
     }
 
     std::fill(sync_ticks.begin() + first_region, sync_ticks.begin() + end_region,
@@ -218,6 +287,7 @@ StagingBufferRef StagingBufferPool::GetStreamBuffer(size_t size) {
         .usage = MemoryUsage::Upload,
         .log2_level{},
         .index{},
+        .identity = (2ull << 62) | stream_identity,
         .capacity = size,
     };
 }
@@ -236,11 +306,11 @@ bool StagingBufferPool::AreRegionsActive(size_t region_begin, size_t region_end)
 }
 
 StagingBufferRef StagingBufferPool::GetStagingBuffer(size_t size, MemoryUsage usage,
-                                                     bool deferred) {
+                                                     bool deferred, ReadbackSource source) {
     if (const std::optional<StagingBufferRef> ref = TryGetReservedBuffer(size, usage, deferred)) {
         return *ref;
     }
-    return CreateStagingBuffer(size, usage, deferred);
+    return CreateStagingBuffer(size, usage, deferred, source);
 }
 
 std::optional<StagingBufferRef> StagingBufferPool::TryGetReservedBuffer(size_t size,
@@ -267,11 +337,15 @@ std::optional<StagingBufferRef> StagingBufferPool::TryGetReservedBuffer(size_t s
     cache_level.iterate_index = std::distance(entries.begin(), it) + 1;
     it->tick = deferred ? std::numeric_limits<u64>::max() : scheduler.CurrentTick();
     it->deferred = deferred;
+    it->last_used_frame = wait_report_frames;
+    if (it->uses != std::numeric_limits<u32>::max()) ++it->uses;
+    if (usage == MemoryUsage::Download && ReadbackReuseEnabled() && !it->retention_charge)
+        it->retention_charge = readback_reserve.Retain(it->mapped_span.size());
     return it->Ref();
 }
 
 StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage usage,
-                                                        bool deferred) {
+                                                        bool deferred, ReadbackSource source) {
     const u32 log2 = static_cast<u32>(Common::Log2Ceil<u64>(size));
     if (log2 >= NUM_LEVELS) {
         throw std::length_error("D3D12: staging request is too large");
@@ -281,7 +355,7 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
         MeasureHeadroom();
     }
     if (!headroom.Fits(bytes)) {
-        if (const auto ref = RelieveMemoryPressure(size, usage, deferred, false)) {
+        if (const auto ref = RelieveMemoryPressure(size, usage, deferred, false, source)) {
             return *ref;
         }
     }
@@ -294,15 +368,40 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
     } catch (const StagingOutOfMemory& e) {
         // The commit limit refused it. Crossing the limit is what the platform punishes, so give
         // back what submitted work no longer needs and try exactly once more.
+        // Failure-only diagnostics: do not query allocation size or memory on each upload.
+        const auto report_failure = [&](const char* attempt) {
+            const auto desc = BufferDesc(bytes);
+            const auto allocation = device.Get()->GetResourceAllocationInfo(0, 1, &desc);
+            const auto snapshot = device.QueryCacheMemoryPressure();
+            LOG_WARNING(Render,
+                        "D3D12 staging allocation {} failed: usage={} deferred={} request={} "
+                        "reserved={} allocation={} alignment={} app_used={} app_limit={} "
+                        "app_free={} gpu_used={} gpu_budget={} tick={} completed={}",
+                        attempt, usage == MemoryUsage::Download ? "readback" : "upload", deferred,
+                        size, bytes, allocation.SizeInBytes, allocation.Alignment,
+                        snapshot.app_used, snapshot.app_limit, snapshot.AppFree(),
+                        snapshot.gpu_used, snapshot.gpu_budget, scheduler.CurrentTick(),
+                        scheduler.KnownGpuTick());
+        };
+        report_failure("initial");
         LOG_WARNING(Render, "D3D12: {}; reclaiming and retrying", e.what());
-        if (const auto ref = RelieveMemoryPressure(size, usage, deferred, true)) {
+        if (const auto ref = RelieveMemoryPressure(size, usage, deferred, true, source)) {
             return *ref;
         }
-        buffer = CreateMappedBuffer(device.Get(), bytes, heap_type, mapped);
+        try {
+            buffer = CreateMappedBuffer(device.Get(), bytes, heap_type, mapped);
+        } catch (const StagingOutOfMemory&) {
+            report_failure("retry");
+            throw;
+        }
     }
     headroom.Created(bytes);
     VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingDedicated, 1);
     VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingDedicatedBytes, bytes);
+    if (usage == MemoryUsage::Download) {
+        ++readback_statistics.creates;
+        readback_statistics.created_bytes += bytes;
+    }
     StagingBuffer& entry = GetCache(usage)[log2].entries.emplace_back(StagingBuffer{
         .buffer = std::move(buffer),
         .mapped_span = mapped,
@@ -311,6 +410,9 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
         .index = unique_ids++,
         .tick = deferred ? std::numeric_limits<u64>::max() : scheduler.CurrentTick(),
         .deferred = deferred,
+        .retention_charge = usage == MemoryUsage::Download && ReadbackReuseEnabled()
+                                ? readback_reserve.Retain(bytes) : 0,
+        .last_used_frame = wait_report_frames,
         .charge{usage == MemoryUsage::Download ? Common::MemoryAccount::StagingReadback
                                                : Common::MemoryAccount::StagingUpload,
                 bytes},
@@ -329,10 +431,24 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
 std::optional<StagingBufferRef> StagingBufferPool::RelieveMemoryPressure(size_t size,
                                                                          MemoryUsage usage,
                                                                          bool deferred,
-                                                                         bool allocation_failed) {
+                                                                         bool allocation_failed,
+                                                                         ReadbackSource source) {
     // Only this usage's cache: the other may belong to a thread holding the other cache's mutex.
     StagingBuffersCache& cache = GetCache(usage);
-    ReleaseAllRetired(cache);
+    if (usage == MemoryUsage::Download && ReadbackReuseEnabled() && !allocation_failed) {
+        ReleaseAllRetired(cache);
+        if (auto result = TryGetReservedBuffer(size, usage, deferred)) return result;
+        if (scheduler.IsRecordingThread()) {
+            if (const auto candidate_tick = ReusableReadbackTick(size)) {
+                WaitForStaging(*candidate_tick, WaitReason::PressureReadback, false, size, source);
+                scheduler.CollectGarbage();
+                if (auto result = TryGetReservedBuffer(size, usage, deferred)) return result;
+            }
+        }
+        MeasureHeadroom();
+        return std::nullopt;
+    }
+    ReleaseAllRetired(cache, allocation_failed);
     // Wait only on submitted work, so a draw being recorded is never split, and proactively once
     // per tick: under sustained pressure each command list stalls at most once, not per allocation.
     // A refused allocation always reclaims (a repeated wait on a passed tick returns at once).
@@ -341,15 +457,16 @@ std::optional<StagingBufferRef> StagingBufferPool::RelieveMemoryPressure(size_t 
     if (scheduler.IsRecordingThread() && (allocation_failed || submitted > pressure_wait_tick)) {
         pressure_wait_tick = submitted;
         if (allocation_failed || !scheduler.IsFree(submitted)) {
-            scheduler.Wait(submitted);
-            VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingStreamWaits, 1);
+            WaitForStaging(submitted, usage == MemoryUsage::Upload ? WaitReason::PressureUpload
+                                                                  : WaitReason::PressureReadback,
+                           allocation_failed, size, source);
         }
         // Deferred releases (textures, buffers) return their memory once their tick has passed.
         scheduler.CollectGarbage();
         if (auto ref = TryGetReservedBuffer(size, usage, deferred)) {
             return ref;
         }
-        ReleaseAllRetired(cache);
+        ReleaseAllRetired(cache, allocation_failed);
     }
     MeasureHeadroom();
     return std::nullopt;
@@ -358,6 +475,24 @@ std::optional<StagingBufferRef> StagingBufferPool::RelieveMemoryPressure(size_t 
 void StagingBufferPool::MeasureHeadroom() {
     const CacheMemorySnapshot snapshot = device.QueryCacheMemoryPressure();
     headroom.Measured(snapshot.app_used, snapshot.app_limit);
+}
+
+void StagingBufferPool::WaitForStaging(u64 tick, WaitReason reason, bool allocation_failed,
+                                      size_t size, ReadbackSource source) {
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::StagingWaitRequest, size, tick);
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::StagingWaitReason,
+        static_cast<u64>(reason) | (u64{allocation_failed} << 8), static_cast<u64>(source));
+    const VideoCore::FrameTrace::ScopedSpan trace_wait{
+        VideoCore::FrameTrace::Event::StagingWaitLong, tick};
+    const auto started = std::chrono::steady_clock::now();
+    scheduler.Wait(tick);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - started).count();
+    auto& stats = wait_statistics[static_cast<std::size_t>(reason)];
+    ++stats.calls;
+    stats.elapsed_us += elapsed;
+    if (allocation_failed) ++allocation_failure_waits;
+    VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingStreamWaits, 1);
 }
 
 u64 StagingBufferPool::PendingUploadBytes() const noexcept {
@@ -369,15 +504,27 @@ StagingBufferPool::StagingBuffersCache& StagingBufferPool::GetCache(MemoryUsage 
 }
 
 void StagingBufferPool::ReleaseLevel(StagingBuffersCache& cache, size_t log2,
-                                     size_t max_checks) {
+                                     size_t max_checks, bool forced) {
+    std::unique_lock lock{readback_mutex, std::defer_lock};
+    const bool download = &cache == &download_cache;
+    if (download) lock.lock();
     auto& staging = cache[log2];
     if (staging.entries.empty()) {
         return;
     }
     const u64 completed = scheduler.KnownGpuTick();
     if (ReclaimRetiredStaging(staging.entries, staging.delete_index,
-                             [completed](const StagingBuffer& entry) {
-                                 return !entry.deferred && entry.tick <= completed;
+                             [this, completed, download, forced](const StagingBuffer& entry) {
+                                 if (entry.deferred || entry.tick > completed) return false;
+                                 if (download && entry.retention_charge) {
+                                     if (ReadbackReserve::Keep(entry.last_used_frame,
+                                             wait_report_frames, forced || !ReadbackReuseEnabled(),
+                                             entry.uses))
+                                         return false;
+                                     readback_reserve.Release(entry.retention_charge);
+                                 }
+                                 if (download) ++readback_statistics.retired;
+                                 return true;
                              },
                              max_checks)) {
         staging.iterate_index = 0;
@@ -385,14 +532,52 @@ void StagingBufferPool::ReleaseLevel(StagingBuffersCache& cache, size_t log2,
 }
 
 void StagingBufferPool::ReleaseRetiredDownloads() {
-    ReleaseAllRetired(download_cache);
+    std::scoped_lock lock{readback_mutex};
+    ReleaseAllRetired(download_cache, true);
 }
 
-void StagingBufferPool::ReleaseAllRetired(StagingBuffersCache& cache) {
+void StagingBufferPool::TrimReadbackReserve() {
+    if (readback_reserve.Bytes() <= readback_reserve.Target()) return;
+    const auto completed = scheduler.KnownGpuTick();
+    while (readback_reserve.Bytes() > readback_reserve.Target()) {
+        StagingBuffer* victim{};
+        StagingBuffers* selected{};
+        for (auto& level : download_cache) {
+            for (auto& entry : level.entries) {
+                if (!entry.retention_charge || entry.deferred || entry.tick > completed) continue;
+                if (!victim || entry.uses < victim->uses ||
+                    (entry.uses == victim->uses && entry.last_used_frame < victim->last_used_frame)) {
+                    victim = &entry;
+                    selected = &level;
+                }
+            }
+        }
+        if (!victim) return;
+        readback_reserve.Release(victim->retention_charge);
+        if (victim != &selected->entries.back()) *victim = std::move(selected->entries.back());
+        selected->entries.pop_back();
+        selected->iterate_index = selected->delete_index = 0;
+        ++readback_statistics.retired;
+    }
+}
+
+void StagingBufferPool::ReleaseAllRetired(StagingBuffersCache& cache, bool forced) {
     for (size_t level = 0; level < NUM_LEVELS; ++level) {
         cache[level].delete_index = 0;
-        ReleaseLevel(cache, level, std::numeric_limits<size_t>::max());
+        ReleaseLevel(cache, level, std::numeric_limits<size_t>::max(), forced);
     }
+}
+
+std::optional<u64> StagingBufferPool::ReusableReadbackTick(size_t size) const {
+    const auto level = static_cast<u32>(Common::Log2Ceil<u64>(size));
+    if (level >= NUM_LEVELS) return std::nullopt;
+    std::optional<u64> result;
+    const auto current = scheduler.CurrentTick();
+    for (const auto& entry : download_cache[level].entries) {
+        if (entry.deferred || entry.mapped_span.size() < size || entry.tick >= current) continue;
+        if (!result || entry.tick < *result) result = entry.tick;
+    }
+    return result;
 }
 
 } // namespace D3D12

@@ -8,9 +8,12 @@
 #include <condition_variable>
 #include <functional>
 #include <list>
+#include <memory>
 #include <mutex>
+#include <vector>
 
 #include "common/common_types.h"
+#include "video_core/synchronization_options.h"
 
 namespace Tegra {
 
@@ -27,12 +30,21 @@ public:
     }
 
     struct RegisteredAction {
+        enum class State { Pending, Running, Completed, Cancelled };
         explicit RegisteredAction(u32 expected_value_, std::function<void()>&& action_)
             : expected_value{expected_value_}, action{std::move(action_)} {}
         u32 expected_value;
         std::function<void()> action;
+        std::atomic<State> state{State::Pending};
     };
-    using ActionHandle = std::list<RegisteredAction>::iterator;
+    using ActionHandle = std::shared_ptr<RegisteredAction>;
+
+    struct ActionQueue {
+        std::list<ActionHandle> actions;
+        std::recursive_mutex execution_guard;
+        std::vector<u32> completed_values;
+        bool ordered_completion{};
+    };
 
     template <typename Func>
     ActionHandle RegisterGuestAction(u32 syncpoint_id, u32 expected_value, Func&& action) {
@@ -53,6 +65,8 @@ public:
     void IncrementGuest(u32 syncpoint_id);
 
     void IncrementHost(u32 syncpoint_id);
+    void CompleteGuest(u32 syncpoint_id, u32 value);
+    void CompleteHost(u32 syncpoint_id, u32 value);
 
     void WaitGuest(u32 syncpoint_id, u32 expected_value);
 
@@ -65,23 +79,31 @@ public:
     void PulseRaise(u32 syncpoint_id, u32 guest_value, u32 host_value);
 
     bool IsReadyGuest(u32 syncpoint_id, u32 expected_value) const {
-        return syncpoints_guest[syncpoint_id].load(std::memory_order_acquire) >= expected_value;
+        return HasReached(syncpoints_guest[syncpoint_id].load(std::memory_order_acquire), expected_value);
     }
 
     bool IsReadyHost(u32 syncpoint_id, u32 expected_value) const {
-        return syncpoints_host[syncpoint_id].load(std::memory_order_acquire) >= expected_value;
+        return HasReached(syncpoints_host[syncpoint_id].load(std::memory_order_acquire), expected_value);
     }
 
 private:
+    static bool HasReached(u32 value, u32 target) {
+        return static_cast<s32>(value - target) >= 0;
+    }
     std::atomic<bool> stopping{};
+    const bool detached_actions{VideoCore::GetSynchronizationOptions().detached_syncpoint_actions};
     void Increment(std::atomic<u32>& syncpoint, std::condition_variable& wait_cv,
-                   std::list<RegisteredAction>& action_storage);
+                   ActionQueue& action_storage);
 
     ActionHandle RegisterAction(std::atomic<u32>& syncpoint,
-                                std::list<RegisteredAction>& action_storage, u32 expected_value,
+                                ActionQueue& action_storage, u32 expected_value,
                                 std::function<void()>&& action);
 
-    void DeregisterAction(std::list<RegisteredAction>& action_storage, const ActionHandle& handle);
+    void DeregisterAction(ActionQueue& action_storage, const ActionHandle& handle);
+    void DrainActions(std::atomic<u32>& syncpoint, ActionQueue& action_storage);
+    void RunAction(const ActionHandle& action, bool outside_global_lock = false);
+    void Complete(std::atomic<u32>& syncpoint, std::condition_variable& wait_cv,
+                  ActionQueue& action_storage, u32 value);
 
     void Wait(std::atomic<u32>& syncpoint, std::condition_variable& wait_cv, u32 expected_value);
 
@@ -90,8 +112,8 @@ private:
     std::array<std::atomic<u32>, NUM_MAX_SYNCPOINTS> syncpoints_guest{};
     std::array<std::atomic<u32>, NUM_MAX_SYNCPOINTS> syncpoints_host{};
 
-    std::array<std::list<RegisteredAction>, NUM_MAX_SYNCPOINTS> guest_action_storage;
-    std::array<std::list<RegisteredAction>, NUM_MAX_SYNCPOINTS> host_action_storage;
+    std::array<ActionQueue, NUM_MAX_SYNCPOINTS> guest_action_storage;
+    std::array<ActionQueue, NUM_MAX_SYNCPOINTS> host_action_storage;
 
     std::mutex guard;
     std::condition_variable wait_guest_cv;

@@ -107,6 +107,15 @@ BlitImageHelper::BlitImageHelper(const Device& device_, Scheduler& scheduler_,
         LOG_ERROR(Render, "D3D12: BC3 GPU encoder unavailable, recompressed ASTC uses the CPU: {}",
                   exception.what());
     }
+    // SeriesX modification: failure leaves the existing CPU array decoder available.
+    try {
+        CreateBc1Pipeline(compiler);
+        bc1_available = true;
+        LOG_INFO(Render, "SeriesX: integer BC1 GPU decoder ready");
+    } catch (const std::exception& exception) {
+        LOG_WARNING(Render, "SeriesX: integer BC1 decoder unavailable; CPU fallback: {}",
+                    exception.what());
+    }
 }
 
 BlitImageHelper::~BlitImageHelper() = default;

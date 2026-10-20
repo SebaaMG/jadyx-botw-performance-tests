@@ -10,9 +10,6 @@ enum class StickDirection { None, Up, Down, Left, Right };
 class StickNavigation {
 public:
     using Clock = std::chrono::steady_clock;
-    explicit StickNavigation(std::chrono::milliseconds initial_delay = std::chrono::milliseconds{350},
-                             std::chrono::milliseconds repeat_interval = std::chrono::milliseconds{120})
-        : delay{initial_delay}, repeat{repeat_interval} {}
     void Reset(bool require_center = true) {
         direction = StickDirection::None;
         blocked = require_center;
@@ -34,11 +31,11 @@ public:
         if (std::abs(value) < threshold) { direction = StickDirection::None; return StickDirection::None; }
         if (candidate != direction) {
             direction = candidate;
-            next = now + delay;
+            next = now + std::chrono::milliseconds{350};
             return candidate;
         }
         if (now < next) return StickDirection::None;
-        next = now + repeat; // one step, even after a stalled frame
+        next = now + std::chrono::milliseconds{120}; // one step, even after a stalled frame
         return candidate;
     }
 private:
@@ -46,24 +43,5 @@ private:
     StickDirection direction{StickDirection::None};
     Clock::time_point next{};
     bool blocked{};
-    std::chrono::milliseconds delay, repeat;
-};
-
-/// UI-only analog trigger edges: one tab per press, with release hysteresis.
-class TriggerTabs {
-public:
-    void Reset() { left = right = true; }
-    unsigned Update(double l, double r) {
-        const auto edge = [](double value, bool& down) {
-            if (!std::isfinite(value) || value <= 0.35) { down = false; return false; }
-            if (value < 0.55 || down) return false;
-            down = true;
-            return true;
-        };
-        const bool previous = edge(l, left), next = edge(r, right);
-        return previous == next ? 0U : previous ? 1U : 2U;
-    }
-private:
-    bool left{}, right{};
 };
 }

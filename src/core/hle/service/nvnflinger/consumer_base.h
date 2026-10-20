@@ -25,6 +25,7 @@ class ConsumerBase : public IConsumerListener, public std::enable_shared_from_th
 public:
     void Connect(bool controlled_by_app);
     void Abandon();
+    [[nodiscard]] u64 TraceId() const;
 
 protected:
     explicit ConsumerBase(std::shared_ptr<BufferQueueConsumer> consumer_);

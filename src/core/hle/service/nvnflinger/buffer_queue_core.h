@@ -48,6 +48,7 @@ public:
 
     BufferQueueCore();
     ~BufferQueueCore();
+    [[nodiscard]] u64 TraceId() const { return trace_id; }
 
     void PushHistory(u64 frame_number, s64 queue_time, s64 presentation_time, BufferState state);
     void UpdateHistory(u64 frame_number, BufferState state);
@@ -67,6 +68,7 @@ private:
 
 private:
     mutable std::mutex mutex;
+    const u64 trace_id;
     bool is_abandoned{};
     bool consumer_controlled_by_app{};
     std::shared_ptr<IConsumerListener> consumer_listener;

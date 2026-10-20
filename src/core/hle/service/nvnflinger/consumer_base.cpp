@@ -17,6 +17,10 @@
 
 namespace Service::android {
 
+u64 ConsumerBase::TraceId() const {
+    return consumer->TraceId();
+}
+
 ConsumerBase::ConsumerBase(std::shared_ptr<BufferQueueConsumer> consumer_)
     : consumer{std::move(consumer_)} {}
 

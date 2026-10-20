@@ -31,6 +31,8 @@ add_library(
     atomic_ops.h
     bit_field.h
     bit_util.h
+    jit_symbols.cpp
+    jit_symbols.h
     bounded_threadsafe_queue.h
     bug_tracker.cpp
     bug_tracker.h

@@ -12,8 +12,6 @@ add_executable(jadyx WIN32
     pulse/pulse_gate.h
     pulse/pulse_sessions.cpp
     pulse/pulse_sessions.h
-    library/favorites.cpp
-    library/favorites.h
     library/play_history.cpp
     library/play_history.h
     pulse/pulse_screen.cpp
@@ -29,7 +27,6 @@ add_executable(jadyx WIN32
     library/uwp_library_canvas.h
     library/uwp_library.h
     library/game_library.h
-    library/library_layout.h
     library/uwp_library_metadata.cpp
     library/uwp_library_metadata.h
     storage/uwp_rom_storage.cpp
@@ -68,15 +65,10 @@ add_executable(jadyx WIN32
     storage/utf8.h
     # Drawing shared by the library and the in-game menu (real text over the paused game).
     ui/ui_icon.h
-    ui/ui_fonts.cpp
-    ui/ui_fonts.h
     ui/ui_painter.cpp
     ui/ui_painter.h
-    ui/tween.h
     game/game_menu_surface.cpp
     game/game_menu_surface.h
-    game/game_screenshot.cpp
-    game/game_screenshot.h
     # Per-game options and cheats: local files, the online database, hot changes in game.
     content/content_model.h
     content/content_inspector.cpp
@@ -147,7 +139,7 @@ target_link_libraries(jadyx PRIVATE common core video_core audio_core frontend_c
 
 # WinRT (CoreApplication, IFrameworkView, ApplicationData) comes from the Store umbrella import lib.
 target_link_libraries(jadyx PRIVATE WindowsApp.lib)
-target_link_libraries(jadyx PRIVATE d3d11 d2d1 dwrite dxgi dxguid windowscodecs)
+target_link_libraries(jadyx PRIVATE d3d11 d2d1 dwrite dxgi windowscodecs)
 
 # Win32 networking used by core's network_interface (ConvertLengthToIpv4Mask etc.), plus crypt32 +
 # user32 which the from-source OpenSSL pulls (cert store + its fatal-error/service-detection code).

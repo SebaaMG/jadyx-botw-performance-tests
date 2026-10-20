@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-18",
+  "type": "Research evidence, not an implemented candidate",
+  "baseline": {
+    "version": "1.0.0.17",
+    "source_tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+    "mean_ms": 36.4175,
+    "fps": 27.459325873549805,
+    "frames": 1200,
+    "per_frame": {
+      "gpu_busy_ms": 14.678833333333335,
+      "gpu_thread_idle_ms": 14.815833333333334,
+      "fence_wait_ms": 0.72375,
+      "resource_creation_ms": 0.2656666666666666,
+      "pipeline_stall_ms": 0.0,
+      "draws": 2733.431666666667,
+      "dispatches": 18.045
+    },
+    "counter_scopes_may_overlap": true
+  },
+  "target_30": {
+    "frame_ms": 33.333333333333336,
+    "remaining_mean_ms": 3.084166666666661,
+    "percent_reduction_needed": 8.468913754833974
+  },
+  "training_counters": {
+    "summary_sha256": "63beedcddc26618e8442a466a2e8c9cb10daf4f06f8c6ecfc32161cbacd3713b",
+    "entries": {
+      "Tegra::DmaPusher::CallMethod": 188838251,
+      "Tegra::Engines::Maxwell3D::ProcessDirtyRegisters": 206742195,
+      "Tegra::DmaPusher::CallConstBufferRun": 108127271,
+      "Tegra::Engines::Maxwell3D::StoreConstBufferRun": 71068,
+      "D3D12::GraphicsPipeline::Configure": 3838045,
+      "D3D12::RasterizerD3D12::GetFlushArea": 177419,
+      "D3D12::RasterizerD3D12::OnCPUWrite": 163721,
+      "VideoCommon::TextureCache<D3D12::TextureCacheParams>::WriteMemory": 4512745,
+      "VideoCommon::TextureCache<D3D12::TextureCacheParams>::RefreshContents": 27548988
+    },
+    "successful_constbuffer_run_percent": 0.06572624957861001,
+    "scope": "TRAIN counts including startup and reopening; not times per function or a steady-frame capture"
+  },
+  "source_checks": {
+    "jadyx_upstream_sha": "a2cfad544b7a2bbf8bcae771d52b4709db9ef9af",
+    "commits_since_base": 34,
+    "files_since_base": 90,
+    "core_common_dynarmic_changes_since_base": [],
+    "prospero_sha": "a26ba788222465ec7fb94dc813958fc749734e07",
+    "prospero_repo_redirect": "Swordpdf/ProsperoEden"
+  },
+  "priorities": [
+    "Packet command dispatch and store-only register batching",
+    "Dependency generations for texture and storage-buffer binding preparation",
+    "Partial uploads for eligible 2D textures",
+    "Conservative image-page filters and coherent write notification queues after measuring contention"
+  ],
+  "implementation_performed": false,
+  "source_and_runtime_untouched": true
+}

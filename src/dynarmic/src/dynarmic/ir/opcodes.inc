@@ -711,6 +711,7 @@ A64OPC(ExclusiveWriteMemory8,                               U32,            U64,
 A64OPC(ExclusiveWriteMemory16,                              U32,            U64,            U64,            U16,            AccType         )
 A64OPC(ExclusiveWriteMemory32,                              U32,            U64,            U64,            U32,            AccType         )
 A64OPC(ExclusiveWriteMemory64,                              U32,            U64,            U64,            U64,            AccType         )
+A64OPC(EdenPageLookup,                                      U64,            U64,            U64                             )
 A64OPC(ExclusiveWriteMemory128,                             U32,            U64,            U64,            U128,           AccType         )
 
 // Remember to update:

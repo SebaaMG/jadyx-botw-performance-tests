@@ -476,7 +476,9 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
     // 1. It saves all the registers we as a callee need to save.
     // 2. It aligns the stack so that the code the JIT emits can assume
     //    that the stack is appropriately aligned for CALLs.
-    ABI_PushCalleeSaveRegistersAndAdjustStack(*this, sizeof(StackLayout));
+    UnwindRegion run_unwind;
+    ABI_PushCalleeSaveRegistersAndAdjustStack(*this, sizeof(StackLayout), &run_unwind);
+    unwind_regions.push_back(std::move(run_unwind));
 
     mov(ABI_JIT_PTR, ABI_PARAM1);
     mov(rbx, ABI_PARAM2); // save temporarily in non-volatile register
@@ -500,7 +502,9 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
     align();
     step_code = getCurr<RunCodeFuncType>();
 
-    ABI_PushCalleeSaveRegistersAndAdjustStack(*this, sizeof(StackLayout));
+    UnwindRegion step_unwind;
+    ABI_PushCalleeSaveRegistersAndAdjustStack(*this, sizeof(StackLayout), &step_unwind);
+    unwind_regions.push_back(std::move(step_unwind));
 
     mov(ABI_JIT_PTR, ABI_PARAM1);
 

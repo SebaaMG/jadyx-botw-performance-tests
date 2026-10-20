@@ -125,7 +125,7 @@ void ComputePipeline::Configure(const ComputeBindContext& context, PipelineBindi
     for (const SamplerId id : samplers) sampler_table.Add(texture_cache.GetSampler(id));
     out.sampler_table = sampler_table.Table(context.sampler_heap);
     GuestDescriptorQueue& queue = context.descriptor_queue;
-    queue.Acquire(layout.NumResourceDescriptors());
+    queue.Acquire(layout.NumResourceDescriptors(), layout.NumImageDescriptors());
     buffer_cache.BindHostComputeBuffers();
 
     ImageTransitionList image_transitions;
@@ -141,7 +141,7 @@ void ComputePipeline::Configure(const ComputeBindContext& context, PipelineBindi
             const VideoCommon::ImageViewId view_id = (views_it++)->id;
             const ImageView& image_view = texture_cache.GetImageView(view_id);
             image_view.PrepareRead(desc.type);
-            queue.AddCopy(image_view.Handle(desc.type));
+            queue.AddImageCopy(image_view.Handle(desc.type));
             const SamplerId sampler_id = *(samplers_it++);
             if (has_integer_samplers && desc.is_integer) {
                 integer_samplers.Add(texture_binding, texture_cache.GetSampler(sampler_id), image_view);
@@ -169,6 +169,7 @@ void ComputePipeline::Configure(const ComputeBindContext& context, PipelineBindi
 
     out.resource_table = queue.Table();
     out.integer_samplers = integer_samplers.Upload(buffer_cache);
+    out.image_table = queue.ImageTable();
 
     // No resolution scaling yet.
     ResetPushConstants(out.push_constants);

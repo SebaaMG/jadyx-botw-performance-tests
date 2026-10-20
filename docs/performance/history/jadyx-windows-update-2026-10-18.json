@@ -1,0 +1,207 @@
+{
+  "captured_at_utc": "2026-10-18T06:34:55.136250+00:00",
+  "status": "upstream-control-retested-sheikah-slate-upload-staging-oom-controlled-return-to-library",
+  "source": {
+    "repository": "https://github.com/JulianDr14/jadyx",
+    "commit": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+    "version": "0.2.93.14",
+    "checkout_clean": true,
+    "own_emulator_source_changes": false,
+    "scope": "Control build at creation; a separate source candidate was prepared afterwards."
+  },
+  "previous_baseline": {
+    "version": "0.2.93.3",
+    "commit": "0e5b8533b3d6980b695f57a5edc4edd1f11e339b",
+    "evidence": "jadyx-windows-2026-10-18.json",
+    "appx_and_mesa_archived_outside_git": true,
+    "previous_ssd_runtime_preserved": true,
+    "baseline_json_sha256": "d3cac00abf072ef2134c9c6aa1807e8276e036f94094084587ab3c2ad8f45552",
+    "baseline_json_sha256_at_initial_update_record": "1e85bce88d8b27ff51458dff4436ee9812c5852c392522db4eeca15b53900cbc",
+    "baseline_json_reference_scope": "Current companion evidence bytes with repository LF endings; initial checksum retained separately. Frozen raw-log checksums are independent."
+  },
+  "build": {
+    "exit_code": 0,
+    "target": "jadyx",
+    "system": "WindowsStore",
+    "architecture": "x64",
+    "configuration": "Release",
+    "parallel_jobs": 8,
+    "clean_first": true,
+    "lto_enabled": false,
+    "cmake_suppress_regeneration": true,
+    "regeneration_scope": "Host clock correction left future-dated inputs and caused a regeneration loop. Build runner manually configures before building; no automatic regeneration while this cache option remains ON. No source timestamp changes or emulator source patches.",
+    "build_log_sha256": "fc1eebb87879bc5b9fa4a8d66f58c106b48d6005f7e2158ce61ba29937d0a780"
+  },
+  "mesa": {
+    "version": "26.2.3",
+    "exit_code": 0,
+    "new_pipeline_v3_export_verified": true,
+    "store_crt_imports_observed": true,
+    "dll_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+    "dll_bytes": 9752576,
+    "forced_rebuild_log_sha256": "04f1f991d8f7fd84c2d5f573cbcde1b3e68b5dfe4d247103cb90b1dffcdefdd3",
+    "clock_scope": "First incremental invocation reused the old DLL; caught by its unchanged hash and missing v3 export. Removed only eden_pipeline.c.obj and its DLL inside the Mesa build and rebuilt.",
+    "xbox_driver_fault_retry_exercised": false
+  },
+  "package": {
+    "name": "jadyx.appx",
+    "bytes": 15025572,
+    "sha256": "ab55b36f1974541a124f4eb5bd564a19189d02d4ff99fdb3c82036e46469565d",
+    "version": "0.2.93.14",
+    "architecture": "x64",
+    "zip_crc_verified": true,
+    "packaged_exe_matches_build": true,
+    "packaged_mesa_matches_build": true,
+    "exe_sha256": "4b2dd3aa2cfd8eff858d7edb063a342d93ec973d4c6300502e2ceca5e9aa68cc",
+    "mesa_sha256": "ee535c8830da855449dd50fddd6ccb9487b65d3674c165e6fa9fbc4f2f8a71ad",
+    "boot_cfg": [
+      "memory_limit_mib=5120",
+      "library=1",
+      "play=1"
+    ],
+    "no_games_keys_or_firmware_bundled": true,
+    "package_members": 29,
+    "layout_payload_matches_appx": true,
+    "layout_members_verified": 25,
+    "vclibs_dependency_present": true
+  },
+  "signature": {
+    "accepted": true,
+    "native_hresult": "0x800B0109",
+    "signature_status": "UntrustedRoot",
+    "signer_thumbprint": "C22D24ADC87E8D1AF0DE60418EACB00B3637265A",
+    "signer_matches_expected": true,
+    "signer_time_valid": true,
+    "chain_error_status": "0x00000020",
+    "integrity_verified": true,
+    "integrity_verification": "WinVerifyTrust/WINTRUST_ACTION_GENERIC_VERIFY_V2",
+    "system_trusted": false,
+    "revocation_checked": false,
+    "trust_policy": "PinnedSignerAllowUntrustedRoot"
+  },
+  "windows_runtime": {
+    "identity": "SeriesX.JadyxBinaryProbe",
+    "diagnostic_manifest_version": "1.0.0.1",
+    "runtime_layout": "[local path or personal identifier omitted for public archive]",
+    "diagnostic_manifest_changes": [
+      "Identity Name: Jadyx to SeriesX.JadyxBinaryProbe",
+      "Identity Version: 0.2.93.14 to 1.0.0.1"
+    ],
+    "payload_files_verified_before_manifest_change": 25,
+    "code_and_dll_match_canonical_package": true,
+    "local_state_files_verified_before_activation": 37,
+    "local_state_preserved": true,
+    "private_keys_preserved_without_printing": true,
+    "state_backup_verified_outside_git": true,
+    "activation_requested": true,
+    "activation_pid": 8500,
+    "library_window_observed": true,
+    "botw_retested": true,
+    "xbox_tested": false,
+    "library_observation": "Computer Use screenshot: original library, BOTW 1.9.0 selected, 15 min retained, diagnostic package label v1.0.0.1. PID 8500 responding from new SSD runtime.",
+    "retest_result": "Owner reported failure opening Sheikah Slate; logs confirm upload staging OOM, return 15, original library remains available."
+  },
+  "configuration": {
+    "boot_cfg": [
+      "memory_limit_mib=5120",
+      "library=1",
+      "play=1"
+    ],
+    "experimental_optimization_flags_enabled": false,
+    "fps_mod_enabled": false,
+    "runtime_and_data_drive": "J: NVMe SSD",
+    "game_drive": "H: USB HDD",
+    "game_version": "BOTW 1.9.0",
+    "base_update_and_dlc_selection_preserved_with_local_state": true
+  },
+  "comparison_limits": [
+    "This update is a new control, not an optimization developed here.",
+    "The inspected staging allocation and memory guard code changed only attribution between these revisions; OOM is not assumed fixed.",
+    "Persistent caches learned during the previous run are retained and backed up. A warmer cache does not prove a code speedup.",
+    "Windows UWP shares code with Xbox but has different hardware, drivers and memory accounting. A configured 5120 MiB Job Object is not a complete Xbox memory simulation.",
+    "No controlled sustained FPS comparison, save-integrity validation, Xbox runtime validation or optimization gain claimed."
+  ],
+  "private_material_committed": false,
+  "failure": {
+    "owner_trigger": "opening Sheikah Slate",
+    "log_time_seconds": 168.367496,
+    "reserved_staging_bytes": 469762048,
+    "reserved_staging_mib": 448,
+    "attempts": 2,
+    "original_unrounded_request_unknown": true,
+    "last_pre_failure_commit_mib": 5025,
+    "last_pre_failure_headroom_mib": 94,
+    "configured_budget_mib": 5120,
+    "post_reclaim_failure_report_commit_mib": 4831,
+    "post_reclaim_failure_report_headroom_mib": 288,
+    "return_code": 15,
+    "library_commit_mib_after_return": 384,
+    "scope": "Controlled shutdown of game, not termination of whole UWP process.",
+    "allocation_route": "texture upload during RefreshContents called from JoinImages",
+    "route_evidence": "Public symbols from matching EXE/PDB and inspected RefreshContents source; release PDB did not resolve source lines.",
+    "unknowns": [
+      "texture dimensions/type/format/levels/layers",
+      "sparse/converted/accelerated flags",
+      "whether image metadata is valid",
+      "physical fragmentation",
+      "exact effect of GC candidate"
+    ],
+    "stack": [
+      {
+        "rva": "0xa14292",
+        "symbol": "D3D12::StagingBufferPool::Request+0x92"
+      },
+      {
+        "rva": "0x9cfe7d",
+        "symbol": "VideoCommon::TextureCache<D3D12::TextureCacheParams>::RefreshContents+0x39d"
+      },
+      {
+        "rva": "0x9ccc2f",
+        "symbol": "VideoCommon::TextureCache<D3D12::TextureCacheParams>::JoinImages+0x84f"
+      },
+      {
+        "rva": "0x9cbca7",
+        "symbol": "VideoCommon::TextureCache<D3D12::TextureCacheParams>::InsertImage+0x127"
+      },
+      {
+        "rva": "0x9c7411",
+        "symbol": "VideoCommon::TextureCache<D3D12::TextureCacheParams>::CreateImageView+0x151"
+      },
+      {
+        "rva": "0x9d5bb6",
+        "symbol": "VideoCommon::TextureCache<D3D12::TextureCacheParams>::VisitImageView+0x1b6"
+      },
+      {
+        "rva": "0x9c8fa5",
+        "symbol": "VideoCommon::TextureCache<D3D12::TextureCacheParams>::FillImageViews+0x65"
+      },
+      {
+        "rva": "0x9b0708",
+        "symbol": "D3D12::GraphicsPipeline::Configure+0x2a8"
+      },
+      {
+        "rva": "0xa27b5e",
+        "symbol": "D3D12::RasterizerD3D12::Draw+0x99e"
+      },
+      {
+        "rva": "0xa92248",
+        "symbol": "Tegra::HLE_DrawIndexedIndirect::Execute+0x228"
+      }
+    ]
+  },
+  "frozen_retest_evidence": {
+    "logs_stay_outside_git": true,
+    "snapshot_name": "jadyx-runtime-attempt03-0.2.93.14-20261018-025845",
+    "sha256": {
+      "jadyx_log.txt": "769c4493484d3bc9c7dc891fa9020de34c003c73c7906467be0772959a4cde24",
+      "jadyx_diag.txt": "49ecd59c1dcef8f422a980df88f4c22b5938ebbd30e5ca83f0157994a6f39713",
+      "symbolized-upload-stack.txt": "c65321888b37c398139f9990430397424b1607f3153e2ecb6f18249356f7128b"
+    }
+  },
+  "subsequent_manual_run": {
+    "observed": true,
+    "return_code": 10,
+    "return_context": "Existing menu back-to-library action; not classified as another OOM.",
+    "controlled_benchmark": false
+  }
+}

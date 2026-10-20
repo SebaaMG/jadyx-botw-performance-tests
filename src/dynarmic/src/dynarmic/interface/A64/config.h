@@ -132,6 +132,11 @@ struct UserCallbacks {
 };
 
 struct UserConfig {
+    bool profile_code{};
+    bool zero_upper_tracking{};
+    bool stable_jit_frame{};
+    std::uint64_t profile_process_id{};
+
     /// Fastmem Pointer
     /// This should point to the beginning of a 2^page_table_address_space_bits bytes
     /// address space which is in arranged just like what you wish for emulated memory to
@@ -162,7 +167,7 @@ struct UserConfig {
     /// - Block linking optimizations
     /// - RSB optimizations
     /// This is intended to be used for debugging.
-    OptimizationFlag optimizations = all_safe_optimizations;
+    OptimizationFlag optimizations = default_optimizations;
 
     /// Declares how many valid address bits are there in virtual addresses.
     /// Determines the size of page_table. Valid values are between 12 and 64 inclusive.

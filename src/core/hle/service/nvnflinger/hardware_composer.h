@@ -36,6 +36,7 @@ private:
 
     struct Framebuffer {
         android::BufferItem item{};
+        android::Fence release_fence{android::Fence::NoFence()};
         ReleaseFrameNumber release_frame_number{};
         u64 last_acquire_frame{0};
         bool is_acquired{false};

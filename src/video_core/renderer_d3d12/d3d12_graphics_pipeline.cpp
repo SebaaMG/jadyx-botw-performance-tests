@@ -46,12 +46,25 @@ namespace D3D12 {
 
 namespace {
 std::atomic_bool draw_sampler_reuse{};
+std::atomic_bool draw_plan_reuse{};
+std::atomic_bool draw_plan_validation{};
 }
 void SetDrawSamplerReuse(bool enabled) {
     draw_sampler_reuse.store(enabled, std::memory_order_relaxed);
 }
 bool DrawSamplerReuseEnabled() {
     return draw_sampler_reuse.load(std::memory_order_relaxed);
+}
+
+void SetDrawPlanReuse(bool enabled, bool validate) {
+    draw_plan_reuse.store(enabled, std::memory_order_relaxed);
+    draw_plan_validation.store(validate, std::memory_order_relaxed);
+}
+bool DrawPlanReuseEnabled() {
+    return draw_plan_reuse.load(std::memory_order_relaxed);
+}
+bool DrawPlanValidationEnabled() {
+    return draw_plan_validation.load(std::memory_order_relaxed);
 }
 
 namespace {
@@ -227,9 +240,10 @@ GraphicsPipeline::GraphicsPipeline(const Device& device_,
                                    CompileDxil compile_dxil,
                                    const std::array<const Shader::Info*, NUM_STAGES>& infos,
                                    const PipelineLayout& layout_, bool build_pso,
-                                   GraphicsPsoCache* pso_cache_, u32 lower_noperspective_mask_)
+                                   GraphicsPsoCache* pso_cache_, u32 lower_noperspective_mask_,
+                                   const PipelineLayout* persistent_layout)
     : device{device_}, texture_runtime{texture_runtime_}, key{key_}, key_hash{key_.Hash()},
-      layout{layout_}, lower_noperspective_mask{lower_noperspective_mask_}, pso_cache{pso_cache_} {
+      layout{persistent_layout ? persistent_layout : &layout_}, legacy_layout{&layout_}, lower_noperspective_mask{lower_noperspective_mask_}, pso_cache{pso_cache_} {
     u8 valid_targets{};
     for (size_t index = 0; index < key.state.color_formats.size(); ++index) {
         if (static_cast<Tegra::RenderTargetFormat>(key.state.color_formats[index]) !=
@@ -273,7 +287,14 @@ GraphicsPipeline::GraphicsPipeline(const Device& device_,
         bool compiled = false;
         try {
             FT::ScopedSpan dxil_span{FT::Event::PipelineDxilLong, trace_pipeline};
-            dxil = compile_dxil(trace_pipeline, false);
+            try {
+                dxil = compile_dxil(trace_pipeline, false, layout->IsPersistent());
+            } catch (const std::exception& error) {
+                if (!layout->IsPersistent()) throw;
+                LOG_WARNING(Render, "SeriesX: persistent shader unsupported; using legacy layout: {}", error.what());
+                layout = legacy_layout;
+                dxil = compile_dxil(trace_pipeline, false, false);
+            }
             compiled = true;
         } catch (const std::exception& exception) {
             // Handle() stays null: draws with this pipeline are skipped.
@@ -284,8 +305,9 @@ GraphicsPipeline::GraphicsPipeline(const Device& device_,
             LOG_ERROR(Render, "D3D12: building the pipeline for VS {:016x} PS {:016x} failed: {}",
                       key.unique_hashes[1], key.unique_hashes[5], exception.what());
         }
+        if (compiled && !build_pso && layout->IsPersistent()) dormant_compiler = compile_dxil;
         if (compiled && build_pso) {
-            Build(true);
+            BuildWithLegacyFallback(compile_dxil, trace_pipeline, true);
         }
         if (flatten_retry) {
             // The console's shader compiler faults on some vertex shaders with large branches
@@ -294,7 +316,7 @@ GraphicsPipeline::GraphicsPipeline(const Device& device_,
             // this session, but trying to draw it makes it one of the pipelines built at boot.
             flatten_retry = false;
             try {
-                dxil = compile_dxil(trace_pipeline, true);
+                dxil = compile_dxil(trace_pipeline, true, layout->IsPersistent());
                 flattened_vertex = true;
             } catch (const std::exception& exception) {
                 BUG_TRACK_KEY(PipelineRejected, key.Hash(),
@@ -346,9 +368,30 @@ void GraphicsPipeline::Wake(Common::ThreadWorker& worker) {
         return;
     }
     worker.QueueWork([this] {
-        Build();
+        if (dormant_compiler) BuildWithLegacyFallback(dormant_compiler, 0, false);
+        else Build();
+        dormant_compiler = {};
         Publish(State::Ready);
     });
+}
+
+void GraphicsPipeline::BuildWithLegacyFallback(const CompileDxil& compile, u64 trace_id,
+                                               bool may_flatten) {
+    Build(may_flatten);
+    if (pipeline_state || !layout->IsPersistent() || !FAILED(last_build_result) ||
+        last_build_result == E_OUTOFMEMORY || FAILED(device.Get()->GetDeviceRemovedReason())) return;
+    LOG_WARNING(Render, "SeriesX: persistent PSO rejected (0x{:08x}); rebuilding legacy variant",
+                static_cast<u32>(last_build_result));
+    layout = legacy_layout;
+    flatten_retry = flattened_vertex = false;
+    shared_pso.reset();
+    try {
+        dxil = compile(trace_id, false, false);
+        Build(may_flatten);
+    } catch (const std::exception& error) {
+        pipeline_state.Reset();
+        LOG_ERROR(Render, "SeriesX: legacy pipeline fallback failed: {}", error.what());
+    }
 }
 
 bool GraphicsPipeline::Evict(Scheduler& scheduler) {
@@ -415,6 +458,64 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
     buffer_cache.SetUniformBuffersState(enabled_uniform_buffer_masks, &uniform_buffer_sizes);
 
     const bool via_header_index = regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding;
+    DrawPlanCache* const plans = context.draw_plans;
+    DrawPlanCache::Entry* plan = nullptr;
+    DrawPlanKey plan_key;
+    bool reused_plan = false;
+    bool shadow_candidate = false;
+    bool eligible_plan = plans && plans->Enabled() && !has_images && !out.trace_views &&
+                         !out.trace_filters && !out.trace_types;
+    if (plans && plans->Enabled()) ++plans->stats.attempts;
+    size_t plan_views = 0;
+    if (eligible_plan) {
+        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+            if (!HasStage(stage)) continue;
+            const auto& info = *stage_infos[stage];
+            plan_key.stages[stage] = stage_infos[stage].get();
+            plan_views += info.num_texture_views;
+            eligible_plan &= info.texture_buffer_descriptors.empty() &&
+                             info.image_buffer_descriptors.empty();
+        }
+        eligible_plan &= plan_views != 0 &&
+                         plan_views <= VideoCommon::GraphicsBindingSnapshot::CAPACITY;
+    }
+    if (plans && plans->Enabled() && !eligible_plan) ++plans->stats.unsupported;
+    if (eligible_plan) {
+        ++plans->stats.queries;
+        plan_key.channel = &maxwell3d;
+        plan_key.memory_id = gpu_memory.GetID();
+        plan_key.mapping_generation = gpu_memory.MappingGeneration();
+        plan_key.view_generation = texture_cache.GraphicsBindingGeneration();
+        plan_key.image_table = regs.tex_header.Address();
+        plan_key.sampler_table = regs.tex_sampler.Address();
+        plan_key.image_limit = regs.tex_header.limit;
+        plan_key.sampler_limit = via_header_index ? plan_key.image_limit : regs.tex_sampler.limit;
+        plan_key.via_header = via_header_index;
+        plan = &plans->Select(plan_key);
+        if (plan_key.mapping_generation == ~u64{} || !plan->valid || plan->key != plan_key) {
+            ++plans->stats.key_misses;
+        } else if (!plan->InputsMatch(
+                       [&](u32 stage, u32 buffer) {
+                           return maxwell3d.state.shader_stages[stage].const_buffers[buffer].address;
+                       },
+                       [&](GPUVAddr address) { return gpu_memory.Read<u32>(address); })) {
+            ++plans->stats.input_misses;
+        } else if (!texture_cache.ValidateGraphicsBindings(plan->bindings)) {
+            ++plans->stats.descriptor_misses;
+        } else if (plans->Validate()) {
+            shadow_candidate = true;
+        } else if (gpu_memory.MappingGeneration() == plan_key.mapping_generation) {
+            for (u32 index = 0; index < plan->bindings.image_count; ++index)
+                views.push_back(plan->bindings.images[index].view);
+            for (u32 index = 0; index < plan->bindings.sampler_count; ++index)
+                samplers.push_back(plan->bindings.samplers[index].id);
+            reused_plan = true;
+            ++plans->stats.hits;
+        } else {
+            ++plans->stats.refresh_misses;
+        }
+        if (!reused_plan) plans->Begin(*plan, plan_key, stage_infos);
+    }
     for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
         if (!HasStage(stage)) {
             continue;
@@ -432,9 +533,78 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
             return ReadTextureHandle(gpu_memory, desc, index, via_header_index,
                                      [&](u32 cbuf) { return cbufs[cbuf].address; });
         };
-        GatherStageViews(info, texture_cache, false, read_handle, views, samplers, sampler_cache);
+        if (!reused_plan) {
+            const auto read_planned_handle = [&](const auto& desc, u32 index) {
+                const auto handle = ReadTextureHandleWords(desc, index, via_header_index,
+                    [&](u32 buffer, u32 offset) {
+                        const auto base = cbufs[buffer].address;
+                        const u32 word = gpu_memory.Read<u32>(base + offset);
+                        if (plan) plan->Record(static_cast<u32>(stage), buffer, base, offset, word);
+                        return word;
+                    });
+                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(desc)>, Shader::TextureDescriptor>) {
+                    if (plan) plan->RecordSampler(handle.second);
+                }
+                return handle;
+            };
+            if (plan) {
+                GatherStageViews(info, texture_cache, false, read_planned_handle, views, samplers, sampler_cache);
+            } else {
+                GatherStageViews(info, texture_cache, false, read_handle, views, samplers, sampler_cache);
+            }
+        }
     }
-    texture_cache.FillImageViews(std::span(views.data(), views.size()), false, has_images);
+    if (reused_plan && (!texture_cache.PrepareGraphicsBindings(plan->bindings) ||
+                       gpu_memory.MappingGeneration() != plan_key.mapping_generation)) {
+        --plans->stats.hits;
+        ++plans->stats.refresh_misses;
+        plan->valid = false;
+        plan = nullptr;
+        reused_plan = false;
+        views.clear();
+        samplers.clear();
+        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+            if (!HasStage(stage)) continue;
+            const auto& cbufs = maxwell3d.state.shader_stages[stage].const_buffers;
+            const auto read_handle = [&](const auto& desc, u32 index) {
+                return ReadTextureHandle(gpu_memory, desc, index, via_header_index,
+                    [&](u32 buffer) { return cbufs[buffer].address; });
+            };
+            GatherStageViews(*stage_infos[stage], texture_cache, false, read_handle,
+                             views, samplers, sampler_cache);
+        }
+    }
+    if (!reused_plan) {
+        texture_cache.FillImageViews(std::span(views.data(), views.size()), false, has_images);
+        if (plan) {
+            if (shadow_candidate &&
+                plan->bindings.generation == texture_cache.GraphicsBindingGeneration() &&
+                gpu_memory.MappingGeneration() == plan_key.mapping_generation) {
+                bool matches = views.size() == plan->bindings.image_count &&
+                               samplers.size() == plan->bindings.sampler_count;
+                for (size_t index = 0; matches && index < views.size(); ++index) {
+                    matches &= views[index].id == plan->bindings.images[index].view.id &&
+                               views[index].index == plan->bindings.images[index].view.index;
+                }
+                for (size_t index = 0; matches && index < samplers.size(); ++index)
+                    matches &= samplers[index] == plan->bindings.samplers[index].id;
+                if (matches) {
+                    ++plans->stats.validated;
+                } else {
+                    ++plans->stats.mismatches;
+                    LOG_ERROR(Render, "D3D12 draw plan mismatch; reverting to general preparation");
+                }
+            }
+            const bool captured = !plan->overflow &&
+                texture_cache.CaptureGraphicsBindings(
+                    {views.data(), views.size()}, {samplers.data(), samplers.size()},
+                    {plan->sampler_indices.data(), plan->sampler_count}, plan->bindings);
+            plan->key.view_generation = texture_cache.GraphicsBindingGeneration();
+            plans->Commit(*plan, captured && plans->Enabled() &&
+                          plan_key.mapping_generation != ~u64{} &&
+                          gpu_memory.MappingGeneration() == plan_key.mapping_generation);
+        }
+    }
     if (VideoCore::Perf::DetailedGpuProfileEnabled()) {
         DrawMetrics::sampler_resolve_requests.fetch_add(samplers.size(), std::memory_order_relaxed);
         DrawMetrics::sampler_resolve_reused.fetch_add(sampler_cache.Hits(), std::memory_order_relaxed);
@@ -487,13 +657,21 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
     // streamed UBOs, whose lifetime must cover the submission that actually executes this draw.
     SamplerTableBuilder sampler_table;
     for (const SamplerId id : samplers) sampler_table.Add(texture_cache.GetSampler(id));
-    out.sampler_table = sampler_table.Table(context.sampler_heap);
+    SamplerHeap::PersistentIndices sampler_indices;
+    if (layout->IsPersistent()) {
+        sampler_indices = sampler_table.PersistentIndices(context.sampler_heap);
+        out.sampler_table = context.sampler_heap.GpuBase();
+    } else {
+        out.sampler_table = sampler_table.Table(context.sampler_heap);
+    }
     lap.Lap(VideoCore::Perf::Counter::DrawSamplersNs);
     GuestDescriptorQueue& queue = context.descriptor_queue;
-    queue.Acquire(layout.NumResourceDescriptors());
+    queue.Acquire(layout->NumResourceDescriptors(), layout->NumImageDescriptors(),
+                  layout->IsPersistent() ? layout : nullptr);
+    if (layout->IsPersistent()) queue.SetPersistentSamplers(sampler_indices);
     ImageTransitionList image_transitions;
     bool uses_render_area = false;
-    const bool has_integer_samplers = layout.IntegerSamplerIndex() != PipelineLayout::NO_TABLE;
+    const bool has_integer_samplers = layout->IntegerSamplerIndex() != PipelineLayout::NO_TABLE;
     IntegerSamplerTable integer_samplers;
     u32 stage_binding = 0;
     const SamplerId* samplers_it = samplers.data();
@@ -521,10 +699,10 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
                     depth_feedback_ready = image_view.SourceImage()->PrepareDepthFeedback() != nullptr;
                 }
                 if (aliases_depth && depth_feedback_ready) {
-                    queue.AddCopy(image_view.DepthFeedbackHandle(desc.type));
+                    queue.AddImageCopy(image_view.DepthFeedbackHandle(desc.type), image_view.DescriptorIdentity());
                 } else {
                     image_view.PrepareRead(desc.type);
-                    queue.AddCopy(image_view.Handle(desc.type));
+                    queue.AddImageCopy(image_view.Handle(desc.type), image_view.DescriptorIdentity());
                 }
                 const SamplerId sampler_id = *(samplers_it++);
                 if (has_integer_samplers && desc.is_integer) {
@@ -595,8 +773,12 @@ void GraphicsPipeline::Configure(bool is_indexed, const PipelineBindContext& con
     lap.Lap(VideoCore::Perf::Counter::DrawTargetsNs);
 
     out.resource_table = queue.Table();
+    if (layout->IsPersistent())
+        out.index_map = buffer_cache.runtime.UploadPersistentIndexMap(queue.PersistentRows());
     out.integer_samplers = integer_samplers.Upload(buffer_cache);
     lap.Lap(VideoCore::Perf::Counter::DrawSamplersNs);
+    out.image_table = queue.ImageTable();
+    lap.Lap(VideoCore::Perf::Counter::DrawDescriptorsNs);
 
     // Push constants: no resolution scaling yet (all rescaling bits clear, down factor 1), then
     // the render area, which shares the first words exactly as in the Vulkan backend.
@@ -617,7 +799,7 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC GraphicsPipeline::Describe(
     const FixedPipelineState::DynamicState& dynamic = state.dynamic_state;
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc{};
-    desc.pRootSignature = layout.Handle();
+    desc.pRootSignature = layout->Handle();
     desc.VS = Bytecode(stages[0]);
     desc.HS = Bytecode(stages[1]);
     desc.DS = Bytecode(stages[2]);
@@ -763,13 +945,13 @@ ComPtr<ID3D12PipelineState> GraphicsPipeline::CreateMaterialProbePipeline(
         if (key.unique_hashes[1] != 0x55e0d63ec3a46b1fULL ||
             key.unique_hashes[5] != 0xba9295f0d82e7ae1ULL || !geometry_shader.empty() ||
             StageInfo(4).interpolation != 0x2000 ||
-            layout.NumResourceDescriptors() != 13 || layout.NumSamplerDescriptors() != 6 ||
+            layout->NumResourceDescriptors() != 13 || layout->NumSamplerDescriptors() != 6 ||
             (lower_noperspective_mask != 0 && lower_noperspective_mask != 0x40)) {
             throw std::runtime_error("material reflection probe: unsupported linked interface");
         }
     } else if (StageInfo(4).interpolation != 0xa || !StageInfo(0).stores.Generic(0) ||
-               !StageInfo(0).stores.Generic(1) || layout.NumResourceDescriptors() != 7 ||
-               layout.NumSamplerDescriptors() != 2) {
+               !StageInfo(0).stores.Generic(1) || layout->NumResourceDescriptors() != 7 ||
+               layout->NumSamplerDescriptors() != 2) {
         throw std::runtime_error("material GPU probe: unsupported shader interface");
     }
     for (const auto& info : stage_infos) {
@@ -1006,6 +1188,7 @@ void GraphicsPipeline::Build(bool flatten_on_fault) try {
     } catch (HRESULT failure) {
         hr = failure;
     }
+    last_build_result = hr;
     CheckRemovedAfter(device.Get(), [&] {
         return fmt::format("graphics PSO for VS {:016x} PS {:016x} (HRESULT 0x{:08X})",
                            key.unique_hashes[1], key.unique_hashes[5], static_cast<u32>(hr));
@@ -1057,7 +1240,7 @@ void GraphicsPipeline::Build(bool flatten_on_fault) try {
              "DSV {}, {} + {} descriptors, features VS {:x} PS {:x})",
              key.unique_hashes[1], key.unique_hashes[5], elements.size(), num_attachments,
              static_cast<u32>(desc.RTVFormats[0]), static_cast<u32>(desc.DSVFormat),
-             layout.NumResourceDescriptors(), layout.NumSamplerDescriptors(),
+             layout->NumResourceDescriptors(), layout->NumSamplerDescriptors(),
              ShaderFeatureFlags(stages[0]), ShaderFeatureFlags(stages[4]));
 } catch (const std::exception& exception) {
     pipeline_state.Reset();

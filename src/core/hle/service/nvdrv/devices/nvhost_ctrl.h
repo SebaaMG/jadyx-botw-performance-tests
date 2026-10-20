@@ -204,6 +204,8 @@ private:
     EventInterface& events_interface;
     NvCore::Container& core;
     NvCore::SyncpointManager& syncpoint_manager;
+    const bool nonblocking_waits{VideoCore::GetSynchronizationOptions().nonblocking_nv_events};
+    u64 recovery_requests{};
 };
 
 } // namespace Service::Nvidia::Devices

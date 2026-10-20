@@ -1,0 +1,30 @@
+{
+  "recorded_at_utc": "2026-10-18T22:19:29.897327+00:00",
+  "decision": "Disable unsuccessful persistent route; retain independent previous fixes and historical experiment.",
+  "diagnostic_version": "1.0.0.11",
+  "changes": {
+    "persistent_resources": {
+      "before": 1,
+      "after": 0
+    }
+  },
+  "scope": "SSD runtime boot.cfg only; takes effect on next fresh application start. Empty library closed normally first.",
+  "app_restarted": false,
+  "game_controls_sent": false,
+  "executable_sha256": "15b3b7015d84183ad71ca2efd0295eee4be8fb824062a716b2bdab07b854e040",
+  "mesa_sha256": "71b99d96379f27010550642218f86497859736d9bf1c3a4493146a1b7a4353a3",
+  "boot_before_sha256": "8cc8e2b28bc507962319f7bfaa95f09c718e305d50afe31c7c578d0efed1c0da",
+  "boot_after_sha256": "cef5fff1ce589f4befd7206fd18e1c1c7ea83f607b0c5102e08c08689f2f40e9",
+  "local_state_files_verified": 55,
+  "unchanged_flags": {
+    "image_table_reuse": 1,
+    "jit_page_reuse": 1,
+    "jit_fp_compare": 1,
+    "memory_limit_mib": 8192,
+    "pc_memory_budget_mib": 5120
+  },
+  "canonical_xbox_memory_limit_mib": 5120,
+  "historical_experimental_appx_modified": false,
+  "performance_after_disabling": "not measured; no new FPS improvement claimed",
+  "acceptance": "Future candidate must exceed the previous qualified control in comparable gameplay, not merely recover its own regression."
+}

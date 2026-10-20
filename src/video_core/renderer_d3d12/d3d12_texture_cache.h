@@ -16,6 +16,7 @@
 
 #include "shader_recompiler/shader_info.h"
 #include "video_core/renderer_d3d12/d3d12_cache_policy.h"
+#include "video_core/renderer_d3d12/d3d12_copy_plan.h"
 #include "video_core/renderer_d3d12/d3d12_bc_copy.h"
 #include "video_core/renderer_d3d12/d3d12_descriptor_heap.h"
 #include "video_core/renderer_d3d12/d3d12_gc_readback.h"
@@ -27,6 +28,11 @@
 #include "video_core/texture_cache/texture_cache_base.h"
 
 namespace D3D12 {
+
+void SetReadbackCoalescing(bool enabled);
+bool ReadbackCoalescingEnabled();
+void SetGcReadbackBatching(bool enabled);
+bool GcReadbackBatchingEnabled();
 
 using Common::SlotVector;
 using VideoCommon::ImageId;
@@ -101,6 +107,13 @@ public:
     /// downloads retain their synchronous path. The returned map is pinned until CompleteGcDownload.
     bool PrepareGcDownload(Image& image, std::span<const VideoCommon::BufferImageCopy> copies,
                            StagingBufferRef& map);
+    void PrefetchGcDownloads(std::span<Image*> images);
+    struct GcReadbackStatistics {
+        u64 pending_bytes{}, queued{}, ready{}, stale{}, synchronous{}, batches{}, batch_waits{};
+    };
+    [[nodiscard]] GcReadbackStatistics GetGcReadbackStatistics() const {
+        return {gc_pending_bytes, gc_queued, gc_ready, gc_stale, gc_sync, gc_batches, gc_batch_waits};
+    }
     void CompleteGcDownload(Image& image);
     void ReleaseGcReadback(StagingBufferRef& map);
     void TickFrame();
@@ -114,6 +127,8 @@ public:
     u64 GetDeviceMemoryUsage() const;
     std::optional<VideoCommon::TextureGcPolicy> GetTextureGcPolicy(bool second_pass);
     [[nodiscard]] u64 DepthFeedbackCopies() const noexcept { return depth_feedback_copies; }
+    /// SeriesX modification: number of completed integer BC1 GPU upload batches.
+    [[nodiscard]] u64 ConvertedBcUploadSerial() const noexcept { return converted_bc_upload_serial; }
     bool CanReportMemoryUsage() const { return true; }
     std::optional<size_t> GetSamplerHeapBudget() const { return SamplerHeap::CAPACITY; }
 
@@ -213,6 +228,8 @@ private:
     CpuDescriptorAllocator& dsv_descriptors;
     TextureResourceAllocator texture_allocator;
     TransferBufferPool& transfer_buffers; ///< shared with the buffer cache; trimmed here
+    CopyFootprintCache copy_plans;
+    bool cache_copy_plans{};
     CachePressureController cache_pressure;
     CachePressure pressure_level{};
     CacheMemorySnapshot pressure_snapshot{};
@@ -220,6 +237,8 @@ private:
     u64 gc_pending_bytes{};
     u64 gc_peak_pending_bytes{};
     u64 gc_queued{}, gc_ready{}, gc_stale{}, gc_sync{};
+    u64 gc_batches{}, gc_batch_images{}, gc_batch_waits{};
+    bool gc_prefetching{};
     D3D12_CPU_DESCRIPTOR_HANDLE null_rtv{};
     D3D12_CPU_DESCRIPTOR_HANDLE null_rtv_ms{};
     BlitImageHelper* blit_helper{};
@@ -241,6 +260,7 @@ private:
     /// creating such a sampler there removes the device (DXGI_ERROR_INVALID_CALL).
     bool supports_min_max_filter{};
     u64 depth_feedback_copies{};
+    u64 converted_bc_upload_serial{};
     /// FORMAT_SUPPORT answers by format, each logged once (see SupportsView).
     mutable std::mutex format_support_mutex;
     mutable std::unordered_map<DXGI_FORMAT, D3D12_FEATURE_DATA_FORMAT_SUPPORT> format_support;
@@ -264,6 +284,11 @@ public:
     /// Native blocks are used only for transfers, never sampled (Xbox BC array workaround).
     void PreserveGuestBlocks(std::span<const u8> data,
                              std::span<const VideoCommon::BufferImageCopy> copies);
+    /// SeriesX modification: retain the Xbox decoded-array representation without staging the
+    /// whole expanded image. Integer compute decoding writes the existing RGBA array directly.
+    [[nodiscard]] bool CanUploadConvertedBcArray() const noexcept;
+    void UploadConvertedBcArray(std::span<const u8> data,
+                                std::span<const VideoCommon::BufferImageCopy> copies);
     [[nodiscard]] Image* GuestBlocks() const noexcept {
         return guest_blocks && !guest_blocks_upload_pending && !reinterpreted_ahead &&
                        guest_blocks_version == write_version
@@ -381,6 +406,9 @@ private:
     void InitializePlacedResource();
     void CopyThroughBuffer(ID3D12Resource* src, ID3D12Resource* dst);
     Image* EnsureGuestBlocks();
+    [[nodiscard]] StagingBufferRef PreserveGuestBlocksImpl(
+        std::span<const u8> data, std::span<const VideoCommon::BufferImageCopy> copies,
+        bool deferred = false);
     bool HasGuestBlocks(const VideoCommon::ImageCopy& copy) const;
     void IncludeGuestBlocks(const VideoCommon::ImageCopy& copy);
     void TransitionReinterpreted(D3D12_RESOURCE_STATES next);
@@ -454,6 +482,10 @@ public:
     /// SRV declared as the shader's texture type: D3D12 requires the view dimension to match
     /// the HLSL declaration, so each type gets its own SRV, created on first use.
     [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE Handle(Shader::TextureType texture_type) const noexcept;
+    /// SeriesX: immutable descriptor owner, preserved on move and never reused for another view.
+    /// Individual descriptors are created once; their handle plus this identity survives unrelated
+    /// offline allocations without accepting a recycled handle from a destroyed view.
+    [[nodiscard]] u64 DescriptorIdentity() const noexcept { return descriptor_identity; }
     /// Metadata of the prepared binding, without materializing descriptors or reading GPU data.
     [[nodiscard]] std::string DescribeSrv(Shader::TextureType texture_type,
                                         bool depth_feedback = false) const;
@@ -507,6 +539,8 @@ private:
     [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CreateSrv(
         Shader::TextureType texture_type, ID3D12Resource* override_resource = nullptr) const;
     void Release();
+    static u64 NextDescriptorIdentity();
+    u64 descriptor_identity{NextDescriptorIdentity()};
     TextureCacheRuntime* runtime{};
     SlotVector<Image>* slot_images{};
     ID3D12Resource* image{};
@@ -530,6 +564,7 @@ class ImageAlloc : public VideoCommon::ImageAllocBase {};
 /// Whether block-compressed 2D arrays are decoded on the CPU (the default; boot.cfg
 /// "bc_arrays=native" keeps them compressed). Applies to images created from now on.
 void SetBcArrayDecode(bool enabled);
+void SetCopyPlanCache(bool enabled);
 
 /// Whether ASTC images kept as RGBA8 are decoded by the compute shader (the default) rather than
 /// the CPU. Applies to images created from now on.
@@ -556,7 +591,8 @@ public:
     }
     [[nodiscard]] bool HasAddedAnisotropy() const noexcept { return false; }
 
-    /// Never reused by another sampler: SamplerHeap deduplicates tables by these keys.
+    /// Stable hardware identity. Persistent mode may share it for bit-identical GPU sampler
+    /// descriptions; a key is never reassigned to different contents. Guest metadata stays local.
     [[nodiscard]] u64 Key() const noexcept { return key; }
     /// The D3D12 filter it was created with (draw trace).
     [[nodiscard]] D3D12_FILTER Filter() const noexcept { return filter; }

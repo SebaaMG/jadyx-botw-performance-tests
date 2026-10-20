@@ -1,0 +1,384 @@
+{
+  "candidate": "1.0.0.30",
+  "reference": "1.0.0.29 combined",
+  "source": {
+    "upstream_base": "068d86bc21a2807cda95c3699a8792dfc8c2769d",
+    "previous_tree": "f6ed7e89235382de1bfa51af694f93d31ea2f0e5",
+    "tree": "60fd40a63ec2b103e0ac89a201de98bd5466ae0d",
+    "patch": "0025-firmware-event-contracts-and-consumer-completion.patch",
+    "patch_sha256": "d8278db2c46cda374ee8b77d2bf111fc4b815c1e7fa2b6fc3515c45240de9133",
+    "patch_count": 21,
+    "clean_sequence": "pass",
+    "original_index_unchanged": true,
+    "prior_patches_unchanged": true
+  },
+  "build": {
+    "target": "UWP x64 Release LTO PGO-USE",
+    "incremental_exit": 0,
+    "exe_sha256": "ea05f8e531d47d60850c502218be64a4dba4811e6003686629d104430446910c",
+    "pdb_sha256": "85c8abfe9f03aef3bb224597e4c788bec389c18c497350404075802106370a41"
+  },
+  "validation": {
+    "python_tests": 54,
+    "python_status": "pass",
+    "powershell_51_parser": "pass",
+    "firmware_sync": {
+      "inline": "pass",
+      "async": "pass",
+      "executable_sha256": "39bc6219d3378751b2f1436954e5b5653f784d97cc9aad735c8c17e8e1ac5530",
+      "pending_polls_per_mode": 10000,
+      "gpu_output_bytes": 4096,
+      "debug_errors_or_warnings": 0,
+      "checks": [
+        "pending poll preserves event state and async input",
+        "finite and infinite event waits, cancellation and rearm",
+        "cancel during kernel signal retires the exact callback",
+        "cancelled generation cannot signal its successor",
+        "progress request does not wait for held GPU-thread work",
+        "stable handles, nested ancestor cancellation and ready serialization",
+        "concurrent streams, shutdown and counter wrap",
+        "out-of-order composition only advances the contiguous frontier",
+        "real BufferQueue release/dequeue returns consumer dependency",
+        "physical GPU completion releases source before unrelated presentation"
+      ],
+      "limits": "Original small NRO and null-renderer core; production FenceManager with idle cache fixtures and native D3D12 Scheduler. Not a whole-game renderer or firmware runtime test."
+    },
+    "continuous_submit_regression": {
+      "inline": "pass",
+      "async": "pass",
+      "executable_sha256": "befd05a3691e66fa9bf0107cc022724a6388ce47c0962605459867644e5fdad1",
+      "debug_errors_or_warnings": 0
+    },
+    "dewey_followup": "Static all-on review: two reentrancy defects fixed and covered; no additional blocker identified, not a global concurrency proof."
+  },
+  "package": {
+    "version": "1.0.0.30",
+    "sha256": "f893cbb8996513cc5f7872e09f508e4fa40d29ead601ff8bb0db46d3e3052b5f",
+    "zip_crc": "pass",
+    "block_hashes": "pass",
+    "payload_files": 25,
+    "blocks": 716,
+    "appearance_and_credit_assets_unchanged": 20,
+    "signature_integrity": "pass",
+    "pinned_signer_matches": true,
+    "system_trusted": false,
+    "trust_policy": "PinnedSignerAllowUntrustedRoot"
+  },
+  "configuration": {
+    "nonblocking_nv_events": true,
+    "consumer_release_fences": true,
+    "detached_syncpoint_actions": true,
+    "continuous_submit": true,
+    "coalesce_fence_flush": true,
+    "readback_optimizations": true,
+    "detailed_profiling": false,
+    "canonical_memory_limit_mib": 5120,
+    "pc_runtime_hard_cap_mib": 8192,
+    "pc_runtime_logical_budget_mib": 5120
+  },
+  "delivery": {
+    "registered_version": "1.0.0.30",
+    "local_state_files_verified": 89,
+    "runtime_payload_files_verified": 25,
+    "library_visually_confirmed": true,
+    "gameplay_started_by_agent": false,
+    "reference_29_archive_unchanged": true,
+    "committed_or_pushed": false
+  },
+  "gameplay": {
+    "measurement_scope": "Original 30-FPS-capped cycle; uncapped_60fps_trial records the later same-mod ON-OFF-ON sequence separately.",
+    "status": "combined/control normal captures and separate T complete; both owner transition checks pass; clean Q exits; tested combined configuration restored, app closed",
+    "variant": "sync-combined",
+    "frames": 1200,
+    "wall_ms": 40004,
+    "fps": 29.997000299970004,
+    "frame_ms": 33.336666666666666,
+    "fixed_view_result_sha256": "42cdd3e0c273b730a01c7e2e57a24b85e7e97c4aaefcdc8d090df164b12ffe59",
+    "selected_window_end_s": [
+      281.356625,
+      291.35779,
+      301.358469,
+      311.359443
+    ],
+    "p99_window_ms": [
+      37.86,
+      34.6,
+      36.79,
+      38.93
+    ],
+    "percentile_scope": "per 300-presented-interval window, not pooled",
+    "normal_capture_profiler": false,
+    "normal_capture_controls_sent": false,
+    "trace": {
+      "capture": 1,
+      "events": 77928,
+      "duration_ms": 1986.293,
+      "complete_dump": true,
+      "capacity_limit_reached": false,
+      "matching_consumer_fences": 59,
+      "queue_to_ready_p50_ms": 0.503,
+      "queue_to_ready_p95_ms": 7.322,
+      "queue_to_ready_max_ms": 8.972,
+      "async_recovery_requests": 0,
+      "long_callbacks_tagged_outside_global_lock": 59,
+      "callback_labels_confirm_lock_ownership": false,
+      "limits": "Diagnostic T captured after normal windows; scopes below 200 us and boundary-crossing spans omitted. Open edges are reported, not assumed missing signals. Inside/outside tags describe dispatch routes, not inherited global-mutex ownership or compositor identity."
+    },
+    "control_pending": false,
+    "control": {
+      "frames": 1200,
+      "wall_ms": 40016,
+      "mean_frame_ms": 33.346666666666664,
+      "fps": 29.988004798080766,
+      "selected_window_end_s": [
+        125.732915,
+        135.733854,
+        145.734729,
+        155.74747
+      ],
+      "p99_window_ms": [
+        39.75,
+        37.93,
+        37.61,
+        38.9
+      ],
+      "result_sha256": "570d5f29657a72be6e1ef1af1088eff504db3e41b2d3aecc7c5de7e3f0858573",
+      "profiler": false,
+      "controls_sent": false,
+      "trace_and_owner_transition_check": "capture made, both actions pass and emulator closed, confirmed by owner",
+      "trace": {
+        "events": 79429,
+        "duration_ms": 1990.985,
+        "complete_dump": true,
+        "capacity_limit_reached": false,
+        "consumer_fences": 0,
+        "async_recovery_requests": 0,
+        "long_callbacks_tagged_inside_global_lock": 3,
+        "long_callbacks_tagged_inside_global_lock_sum_ms": 1.537,
+        "long_callbacks_tagged_outside_global_lock": 57,
+        "long_callbacks_tagged_outside_global_lock_sum_ms": 26.439,
+        "callback_labels_confirm_lock_ownership": false,
+        "limits": "Only scopes >=200 us and contained in T are reported; durations are not CPU busy or an FPS gain. execute_ready(true) can inherit global-mutex ownership from a nested legacy caller, so 57 outside tags do not prove 57 lock-free callbacks and do not identify compositor callbacks. No mutex-dominance conclusion follows from those tags."
+      },
+      "exit": {
+        "q_observed": true,
+        "shutdown_complete": true,
+        "run_headless_return": 0,
+        "boot_worker_joined": true,
+        "process_absent": true
+      }
+    },
+    "normal_comparison": {
+      "mean_ms_difference_control_minus_combined": 0.01,
+      "interpretation": "no measurable mean frame-time or FPS gain at this 30-FPS-capped view",
+      "order": "combined then control",
+      "draw_count_combined": 3279578,
+      "draw_count_control": 3434790,
+      "limits": "Sequential owner-confirmed view, dynamic command workload differs by 4.73%; window percentiles are not pooled; no ABA or repeated control."
+    },
+    "uncapped_60fps_trial": {
+      "status": "same-mod ON-OFF-ON captures complete; favorable mean difference repeated; final ON clean Q exit observed, manual transition check not confirmed",
+      "mod": {
+        "name": "60fps_1.9.0.pchtxt",
+        "bytes": 727,
+        "sha256": "4702d7e6339a7b9cf15562963ae0bb863b4a2e9cf69fe00c4bac64f909c75928",
+        "loader_reports_ipswitch_patch_applied_to_main": true,
+        "observed_fps_exceeds_30": true
+      },
+      "combined": {
+        "pid": 31244,
+        "exe_sha256": "ea05f8e531d47d60850c502218be64a4dba4811e6003686629d104430446910c",
+        "frames": 1200,
+        "wall_ms": 35641,
+        "mean_frame_ms": 29.700833333333332,
+        "fps": 33.66908897056761,
+        "p99_window_ms": [
+          41.32,
+          39.32,
+          40.95,
+          41.09
+        ],
+        "selected_window_end_s": [
+          691.216458,
+          700.150261,
+          709.041579,
+          718.010982
+        ],
+        "percentile_scope": "per 300-presented-interval window, not pooled",
+        "result_sha256": "cefd6b9965fc35c93020db80052266aae1a3dbe9c876bb805f29b3781a89688b",
+        "profiler": false,
+        "controls_sent": false,
+        "all_three_new_options_enabled": true,
+        "previous_29_improvements_enabled": true,
+        "owner_inventory_and_scope_check": "both pass; emulator closed, confirmed by owner",
+        "exit": {
+          "q_after_game_seconds": 2041,
+          "shutdown_complete": true,
+          "run_headless_return": 0,
+          "boot_worker_joined": true,
+          "process_absent": true
+        }
+      },
+      "control_setup": {
+        "pid": 23924,
+        "same_executable": true,
+        "only_three_new_flags_off": true,
+        "previous_29_improvements_enabled": true,
+        "same_mod_file_hash_verified": true,
+        "configuration_sha256": "b653a50860c1830b69c0164fa2d4574dead13c229a6dfff340c3a77cca0bdc72",
+        "gameplay_started_by_agent": false,
+        "controls_sent": false
+      },
+      "control": {
+        "pid": 23924,
+        "frames": 1200,
+        "wall_ms": 37814,
+        "mean_frame_ms": 31.511666666666667,
+        "fps": 31.734278309620777,
+        "p99_window_ms": [
+          40.77,
+          39.87,
+          40.99,
+          40.82
+        ],
+        "selected_window_end_s": [
+          227.359269,
+          236.803616,
+          246.380517,
+          255.682716
+        ],
+        "percentile_scope": "per 300-presented-interval window, not pooled",
+        "result_sha256": "2c0fb9bad7ba0efa0a69c70259bc167e3ef7226a40cd4b5fa25a3b54fdbb86c3",
+        "profiler": false,
+        "controls_sent": false,
+        "all_three_new_options_disabled": true,
+        "startup_diagnostic_confirms_options_off": true,
+        "loader_reports_same_mod_applied": true,
+        "owner_transition_check_and_exit": "both actions pass and emulator closed, confirmed by owner",
+        "exit": {
+          "q_after_game_seconds": 417,
+          "shutdown_complete": true,
+          "run_headless_return": 0,
+          "boot_worker_joined": true,
+          "process_absent": true
+        }
+      },
+      "normal_comparison": {
+        "mean_ms_difference_control_minus_combined": 1.8108333333333348,
+        "mean_frame_ms_reduction_percent": 5.746548897233838,
+        "fps_increase_percent": 6.096910861086946,
+        "repeat_mean_ms_difference_control_minus_combined": 1.5741666666666667,
+        "repeat_mean_frame_ms_reduction_percent": 4.995504310572807,
+        "repeat_fps_increase_percent": 5.258176757132915,
+        "draw_count_combined": 3248245,
+        "draw_count_control": 3246654,
+        "draw_count_combined_repeat": 3271677,
+        "upload_count_combined": 733,
+        "upload_count_control": 732,
+        "recorded_fence_wait_ms_combined_total": 1.1,
+        "recorded_fence_wait_ms_control_total": 1.1,
+        "p99_interpretation": "No clear reduction across the ON-OFF-ON sequence; p99 values remain mixed and are not pooled percentiles.",
+        "favorable_mean_difference_reproduced_in_sequence": true,
+        "interpretation": "Both ON runs have lower means than the intervening OFF run. Draw counts differ by less than 0.8 percent; all eight ON window means are lower than all four OFF window means. This supports a repeated mean benefit in this scene, not a per-flag or general-game guarantee."
+      },
+      "combined_repeat": {
+        "pid": 23472,
+        "frames": 1200,
+        "wall_ms": 35925,
+        "mean_frame_ms": 29.9375,
+        "fps": 33.40292275574113,
+        "p50_window_ms": [
+          28.82,
+          29.06,
+          29.11,
+          29.17
+        ],
+        "p95_window_ms": [
+          37.04,
+          38.49,
+          37.37,
+          37.25
+        ],
+        "p99_window_ms": [
+          39.12,
+          43.11,
+          40.36,
+          40.46
+        ],
+        "selected_window_end_s": [
+          124.070086,
+          133.128987,
+          142.098624,
+          151.095828
+        ],
+        "percentile_scope": "per 300-presented-interval window, not pooled",
+        "result_sha256": "03c812b7c39d25b159655751595b4e1309225055634e5bb12c899b6f84fd2957",
+        "profiler": false,
+        "controls_sent": false,
+        "all_three_new_options_enabled": true,
+        "startup_diagnostic_confirms_options_on": true,
+        "same_mod_file_hash_verified": true,
+        "owner_transition_check_and_exit": "final owner transition actions not confirmed; clean Q exit observed independently",
+        "exit": {
+          "q_after_game_seconds": 360,
+          "shutdown_complete": true,
+          "run_headless_return": 0,
+          "boot_worker_joined": true,
+          "process_absent": true,
+          "post_worker_join_first_chance_exception": "0x80010012; not classified as gameplay failure"
+        }
+      },
+      "repeat_setup": {
+        "pid": 23472,
+        "same_executable": true,
+        "matches_first_combined_configuration": true,
+        "all_three_new_options_enabled": true,
+        "previous_29_improvements_enabled": true,
+        "same_mod_file_hash_verified": true,
+        "configuration_sha256": "fc030c656f4fabbf4847148b7f58868b0a5ff0fa95a3987fcf6c9ffc149eae92",
+        "gameplay_started_by_agent": false,
+        "controls_sent": false
+      },
+      "control_pending": false,
+      "repeat_combined_pending": false,
+      "repeat_transition_check_and_exit_pending": true,
+      "repeat_exit_observed": true,
+      "final_runtime_application_closed": true,
+      "final_runtime_matches_tested_combined_configuration": true,
+      "limits": "One owner-confirmed same-executable same-mod ON-OFF-ON fixed-view sequence. Mean improvement repeats here; it is not a guarantee for other scenes or games. Earlier capped results are not a causal baseline. Percentiles are per-window; counter scopes may overlap; no exclusive CPU-time or individual-flag attribution."
+    },
+    "inventory_and_scope_owner_check": "both pass, confirmed by owner",
+    "combined_exit": {
+      "owner_closed_emulator": true,
+      "q_observed": true,
+      "shutdown_complete": true,
+      "run_headless_return": 0,
+      "boot_worker_joined": true
+    },
+    "control_setup": {
+      "pid": 33916,
+      "same_executable": true,
+      "only_three_new_flags_off": true,
+      "continuous_submit": true,
+      "coalesce_fence_flush": true,
+      "readback_recovery": true,
+      "configuration_sha256": "b653a50860c1830b69c0164fa2d4574dead13c229a6dfff340c3a77cca0bdc72",
+      "gameplay_started_by_agent": false
+    },
+    "performance_gain_claimed": false,
+    "performance_gain_claim_scope": "30-FPS-capped cycle only; the later repeated uncapped result is documented in uncapped_60fps_trial.",
+    "final_runtime_state": {
+      "matches_tested_combined_configuration": true,
+      "all_three_new_options_enabled": true,
+      "previous_29_improvements_enabled": true,
+      "exe_unchanged": true,
+      "application_closed": true,
+      "no_gameplay_input_sent": true
+    }
+  },
+  "firmware_evidence": {
+    "server_eventwait": "74 instruction checkpoints, 12 relocated pointers, 3 errno mappings, 2 device names, 3 segment identities; main verifier passed",
+    "gpfifo": "68 instruction checkpoints, 2 RELR cells and identities; main verifier passed. Directed WAIT_SWITCH correction is not implemented in this candidate.",
+    "proprietary_material_in_git": false
+  }
+}

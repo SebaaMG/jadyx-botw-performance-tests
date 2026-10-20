@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <algorithm>
+#include "video_core/buffer_cache/gc_policy.h"
 #include "video_core/texture_cache/gc_policy.h"
 namespace D3D12 {
 struct CacheMemorySnapshot {
@@ -42,8 +43,17 @@ public:
         return std::max(app, gpu);
     }
     [[nodiscard]] static bool RequiresImmediateRecovery(const CacheMemorySnapshot& s) {
-        return (s.app_limit != 0 && s.AppFree() < 64ULL * 1024 * 1024) ||
+        return (s.app_limit != 0 && s.app_used >= s.app_limit) ||
                (s.gpu_budget != 0 && s.gpu_used >= s.gpu_budget);
+    }
+    [[nodiscard]] static VideoCommon::BufferGcPolicy BufferPolicy(CachePressure level,
+                                                                 bool immediate_recovery) {
+        if (level == CachePressure::Emergency)
+            return {10, 64, immediate_recovery ? 0ULL : 1000ULL,
+                    immediate_recovery ? 64ULL : 1ULL};
+        if (level == CachePressure::Critical) return {60, 64, 1000, 1};
+        if (level == CachePressure::Pressure) return {120, 32, 1000, 1};
+        return {120, 8, 1000, 0};
     }
     [[nodiscard]] static VideoCommon::TextureGcPolicy Policy(CachePressure level, bool second_pass,
                                                             bool immediate_recovery = false) {

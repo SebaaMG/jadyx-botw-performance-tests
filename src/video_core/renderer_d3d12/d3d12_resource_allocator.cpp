@@ -7,9 +7,11 @@
 #include "common/logging.h"
 #include "common/memory_ledger.h"
 #include "video_core/renderer_d3d12/d3d12_resource_allocator.h"
+#include "video_core/renderer_d3d12/d3d12_heap_growth_policy.h"
 #include "video_core/renderer_d3d12/d3d12_heap_packing.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
 
+#include <stdexcept>
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -24,15 +26,17 @@ using namespace Common::Literals;
 namespace {
 constexpr u64 DEFAULT_BLOCK_SIZE = 64_MiB;
 
-enum class HeapClass : u8 { Texture, RenderTarget };
+enum class HeapClass : u8 { Texture, RenderTarget, Buffer };
 
 HeapClass ClassOf(const D3D12_RESOURCE_DESC& desc) {
+    if (desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER) return HeapClass::Buffer;
     constexpr D3D12_RESOURCE_FLAGS RT_DS = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET |
                                            D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
     return (desc.Flags & RT_DS) != 0 ? HeapClass::RenderTarget : HeapClass::Texture;
 }
 
 D3D12_HEAP_FLAGS FlagsOf(HeapClass heap_class) {
+    if (heap_class == HeapClass::Buffer) return D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
     return heap_class == HeapClass::RenderTarget ? D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES
                                                  : D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
 }
@@ -43,6 +47,7 @@ struct TextureResourceAllocator::State {
         ComPtr<ID3D12Heap> heap;
         HeapClass heap_class{};
         u64 size{};
+        u64 alignment{};
         std::map<u64, u64> free_ranges; // offset -> bytes
         Common::MemoryCharge charge;
     };
@@ -57,6 +62,10 @@ struct TextureResourceAllocator::State {
     u64 trimmed_heaps{};
     u64 trimmed_bytes{};
     u64 pending_bytes{};
+    u64 growth_recoveries{};
+    u64 compact_heaps{};
+    u64 avoided_capacity{};
+    u64 pressure_wait_tick{};
 
     void Free(size_t block_index, u64 offset, u64 size, bool pending = false) {
         std::scoped_lock lock{mutex};
@@ -100,28 +109,47 @@ struct TextureResourceAllocator::Allocation {
     }
 };
 
-TextureResourceAllocator::TextureResourceAllocator(const Device& device_, Scheduler& scheduler_)
-    : device{device_}, scheduler{scheduler_}, state{std::make_shared<State>()} {}
+TextureResourceAllocator::TextureResourceAllocator(const Device& device_, Scheduler& scheduler_,
+                                                   bool buffers_)
+    : device{device_}, scheduler{scheduler_}, state{std::make_shared<State>()}, buffers{buffers_} {}
 
 TextureResourceAllocator::~TextureResourceAllocator() = default;
 
 TextureResourceAllocator::Resource TextureResourceAllocator::Create(
     const D3D12_RESOURCE_DESC& desc, D3D12_RESOURCE_STATES initial_state,
     const D3D12_CLEAR_VALUE* clear_value) {
+    if (buffers != (desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER))
+        throw std::invalid_argument("D3D12: resource allocator kind mismatch");
     const D3D12_RESOURCE_ALLOCATION_INFO info = device.Get()->GetResourceAllocationInfo(0, 1, &desc);
     if (info.SizeInBytes == UINT64_MAX || info.Alignment == 0) {
         return {};
     }
     const HeapClass heap_class = ClassOf(desc);
+    const u64 heap_alignment =
+        std::max<u64>(info.Alignment, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
     size_t selected = SIZE_MAX;
     u64 selected_offset{};
     u64 best_waste = UINT64_MAX;
-
-    {
+    const auto reserve_space = [&] {
+        auto& ranges = state->blocks[selected].free_ranges;
+        auto containing = ranges.upper_bound(selected_offset);
+        if (containing != ranges.begin()) --containing;
+        const u64 range_offset = containing->first;
+        const u64 range_size = containing->second;
+        ranges.erase(containing);
+        if (selected_offset > range_offset)
+            ranges.emplace(range_offset, selected_offset - range_offset);
+        const u64 end = selected_offset + info.SizeInBytes;
+        if (end < range_offset + range_size)
+            ranges.emplace(end, range_offset + range_size - end);
+        state->live_bytes += info.SizeInBytes;
+        state->peak_bytes = std::max(state->peak_bytes, state->live_bytes);
+    };
+    const auto find_space = [&] {
         std::scoped_lock lock{state->mutex};
         for (size_t index = 0; index < state->blocks.size() && best_waste != 0; ++index) {
             auto& block = state->blocks[index];
-            if (!block.heap || block.heap_class != heap_class) {
+            if (!block.heap || block.heap_class != heap_class || block.alignment < heap_alignment) {
                 continue;
             }
             for (const auto& [offset, bytes] : block.free_ranges) {
@@ -135,22 +163,75 @@ TextureResourceAllocator::Resource TextureResourceAllocator::Create(
             }
         }
 
+        if (selected != SIZE_MAX) reserve_space();
+    };
+    find_space();
+    bool compact = false;
+    const auto normal_block = buffers ? 4_MiB : DEFAULT_BLOCK_SIZE;
+    if (selected == SIZE_MAX) {
+        const auto before = device.QueryCacheMemoryPressure();
+        const auto pooled_size = HeapGrowth::Capacity(info.SizeInBytes, info.Alignment, false, normal_block);
+        if (!pooled_size) return {};
+        const auto pressured = [pooled_size](const CacheMemorySnapshot& snapshot) {
+            return HeapGrowth::UnderPressure(pooled_size,
+                {snapshot.app_used, snapshot.app_limit}, {snapshot.gpu_used, snapshot.gpu_budget});
+        };
+        const bool pressure = pressured(before);
+        const auto old_stats = GetStats();
+        scheduler.CollectGarbage();
+        find_space();
+        if (selected == SIZE_MAX && pressure && scheduler.IsRecordingThread() && old_stats.pending_bytes) {
+            const auto current = scheduler.CurrentTick();
+            const auto previous = current ? current - 1 : 0;
+            if (previous > state->pressure_wait_tick) {
+                state->pressure_wait_tick = previous;
+                scheduler.Wait(previous);
+                scheduler.CollectGarbage();
+                find_space();
+            }
+        }
+        TrimEmptyHeaps(pressure);
+        if (pressure) {
+            const auto after = device.QueryCacheMemoryPressure();
+            compact = !after.Known() || pressured(after);
+            const auto stats = GetStats();
+            {
+                std::scoped_lock lock{state->mutex};
+                ++state->growth_recoveries;
+            }
+            LOG_INFO(Render, "SeriesX heap growth: app {}/{} -> {}/{} MiB, heaps {} -> {} MiB, "
+                     "pending {} -> {} MiB, reused {}",
+                     before.app_used / 1_MiB, before.app_limit / 1_MiB,
+                     after.app_used / 1_MiB, after.app_limit / 1_MiB,
+                     old_stats.heap_bytes / 1_MiB, stats.heap_bytes / 1_MiB,
+                     old_stats.pending_bytes / 1_MiB, stats.pending_bytes / 1_MiB, selected != SIZE_MAX);
+        }
+    }
+    {
+        std::scoped_lock lock{state->mutex};
         if (selected == SIZE_MAX) {
-            const u64 wanted = HeapPacking::BlockSize(info.SizeInBytes, info.Alignment,
-                                                      DEFAULT_BLOCK_SIZE);
+            const u64 wanted = HeapGrowth::Capacity(info.SizeInBytes, info.Alignment, compact, normal_block);
             if (!wanted) return {};
             const D3D12_HEAP_DESC heap_desc{
                 .SizeInBytes = wanted,
                 .Properties = {.Type = D3D12_HEAP_TYPE_DEFAULT},
-                .Alignment = 0,
+                .Alignment = heap_alignment,
                 .Flags = FlagsOf(heap_class),
             };
-            State::Block block{.heap_class = heap_class, .size = wanted};
+            State::Block block{.heap_class = heap_class, .size = wanted, .alignment = heap_alignment};
             const HRESULT heap_hr = device.Get()->CreateHeap(&heap_desc, IID_PPV_ARGS(&block.heap));
             if (SUCCEEDED(heap_hr)) {
                 block.free_ranges.emplace(0, wanted);
-                block.charge = Common::MemoryCharge(Common::MemoryAccount::TextureHeaps, wanted);
+                // BufferCache keeps its existing logical-payload ledger. Physical buffer heap
+                // bytes/fragmentation are reported separately by this allocator's Stats.
+                if (!buffers)
+                    block.charge = Common::MemoryCharge(Common::MemoryAccount::TextureHeaps, wanted);
                 state->heap_bytes += wanted;
+                if (compact) {
+                    ++state->compact_heaps;
+                    state->avoided_capacity +=
+                        HeapGrowth::Capacity(info.SizeInBytes, info.Alignment, false, normal_block) - wanted;
+                }
                 // Tombstones preserve outstanding Allocation indices. Reuse only slots with
                 // no heap: Trim proves there are no live or pending allocations in that slot.
                 const auto vacant = std::find_if(state->blocks.begin(), state->blocks.end(),
@@ -163,9 +244,10 @@ TextureResourceAllocator::Resource TextureResourceAllocator::Create(
                     *vacant = std::move(block);
                 }
                 selected_offset = 0;
-                LOG_INFO(Render, "D3D12: texture heap pool added {} MiB {} block ({} MiB total)",
+                reserve_space();
+                LOG_INFO(Render, "D3D12: resource heap pool added {} MiB {} block ({} MiB total)",
                          wanted / 1_MiB,
-                         heap_class == HeapClass::RenderTarget ? "RT/DS" : "texture",
+                         buffers ? "buffer" : heap_class == HeapClass::RenderTarget ? "RT/DS" : "texture",
                          state->heap_bytes / 1_MiB);
             } else {
                 LOG_WARNING(Render, "D3D12: CreateHeap for texture pool failed 0x{:08x}; using committed resources",
@@ -173,25 +255,6 @@ TextureResourceAllocator::Resource TextureResourceAllocator::Create(
             }
         }
 
-        if (selected != SIZE_MAX) {
-            auto& ranges = state->blocks[selected].free_ranges;
-            auto containing = ranges.upper_bound(selected_offset);
-            if (containing != ranges.begin()) {
-                --containing;
-            }
-            const u64 range_offset = containing->first;
-            const u64 range_size = containing->second;
-            ranges.erase(containing);
-            if (selected_offset > range_offset) {
-                ranges.emplace(range_offset, selected_offset - range_offset);
-            }
-            const u64 end = selected_offset + info.SizeInBytes;
-            if (end < range_offset + range_size) {
-                ranges.emplace(end, range_offset + range_size - end);
-            }
-            state->live_bytes += info.SizeInBytes;
-            state->peak_bytes = std::max(state->peak_bytes, state->live_bytes);
-        }
     }
 
     Resource result;
@@ -245,6 +308,10 @@ TextureResourceAllocator::Resource TextureResourceAllocator::Create(
 }
 
 void TextureResourceAllocator::DeferRelease(Resource&& resource) {
+    DeferRelease(scheduler, std::move(resource));
+}
+
+void TextureResourceAllocator::DeferRelease(Scheduler& scheduler, Resource&& resource) {
     if (!resource.resource) {
         return;
     }
@@ -262,7 +329,7 @@ void TextureResourceAllocator::DeferRelease(Resource&& resource) {
 
 void TextureResourceAllocator::TrimEmptyHeaps(bool under_pressure) {
     std::scoped_lock lock{state->mutex};
-    std::array<bool, 2> warm{};
+    std::array<bool, 3> warm{};
     for (auto& block : state->blocks) {
         if (!block.heap || block.free_ranges.size() != 1) continue;
         const auto& [offset, size] = *block.free_ranges.begin();
@@ -284,10 +351,12 @@ void TextureResourceAllocator::TrimEmptyHeaps(bool under_pressure) {
 
 std::string TextureResourceAllocator::Report() const {
     std::scoped_lock lock{state->mutex};
-    return fmt::format("texture heaps {} MiB, live {} MiB, peak {} MiB, placed {}, fallback {}, trimmed {} ({} MiB)",
-                       state->heap_bytes / 1_MiB, state->live_bytes / 1_MiB,
+    return fmt::format("{} heaps {} MiB, live {} MiB, peak {} MiB, placed {}, fallback {}, trimmed {} ({} MiB), "
+                       "growth recoveries {}, compact heaps {}, avoided capacity {} MiB",
+                       buffers ? "buffer" : "texture", state->heap_bytes / 1_MiB, state->live_bytes / 1_MiB,
                        state->peak_bytes / 1_MiB, state->placed_resources,
-                       state->committed_fallbacks, state->trimmed_heaps, state->trimmed_bytes / 1_MiB);
+                       state->committed_fallbacks, state->trimmed_heaps, state->trimmed_bytes / 1_MiB,
+                       state->growth_recoveries, state->compact_heaps, state->avoided_capacity / 1_MiB);
 }
 
 TextureResourceAllocator::Stats TextureResourceAllocator::GetStats() const {

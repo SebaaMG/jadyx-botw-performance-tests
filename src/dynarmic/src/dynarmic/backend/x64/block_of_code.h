@@ -170,6 +170,7 @@ public:
 #endif
 
     JitStateInfo GetJitStateInfo() const { return jsi; }
+    const std::vector<UnwindRegion>& GetUnwindRegions() const { return unwind_regions; }
 
     bool HasHostFeature(HostFeature feature) const noexcept;
 
@@ -204,6 +205,7 @@ private:
     RunCodeFuncType step_code = nullptr;
     RunCodeCallbacks cb;
     CodePtr code_begin = nullptr;
+    std::vector<UnwindRegion> unwind_regions;
 
     void GenRunCode(std::function<void(BlockOfCode&)> rcp);
 };

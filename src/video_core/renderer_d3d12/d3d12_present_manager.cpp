@@ -143,13 +143,13 @@ FrameLease PresentManager::AcquireFrame() {
     return FrameLease{*this, *frame};
 }
 
-void PresentManager::Present(FrameLease&& lease) {
+void PresentManager::Present(FrameLease&& lease, const std::function<u64()>& submit) {
     PresentFrame& frame = *lease.frame;
     lease.manager = nullptr; // the frame comes back through Release once presented
     lease.frame = nullptr;
     try {
         frame.Transition(scheduler.CommandList(), D3D12_RESOURCE_STATE_COPY_SOURCE);
-        frame.render_tick = scheduler.Flush();
+        frame.render_tick = submit ? submit() : scheduler.Flush();
     } catch (...) {
         Release(frame);
         throw;

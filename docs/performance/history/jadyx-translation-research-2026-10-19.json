@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-19",
+  "status": "research complete; one-line source correction prepared, not built or installed",
+  "reference_runtime_version": "1.0.0.17",
+  "application_closed": true,
+  "upstream": {
+    "jadyx": "44e1e35c576fab4c8cf428e5e006e2294e2ac409",
+    "jadyx_release_tag": "v0.3.0",
+    "jadyx_release_published_utc": "2026-10-19T02:37:00Z",
+    "prosperoeden": "a26ba788222465ec7fb94dc813958fc749734e07",
+    "ryujinx_historical_mirror": "534f92506bf8c6aba29bb86917bf10954a360d8e",
+    "scarletnx": "3807fcf306f124aa213db75f7b64377f2da5bb15",
+    "eden_partial_fastmem_pr": 4181,
+    "eden_partial_fastmem_pr_status_at_review": "Draft"
+  },
+  "small_vector": {
+    "source_header": "src/video_core/texture_cache/util.h",
+    "source_header_sha256": "b0038b104741c16c3bf432573c314cbd32ab78964b13776b5d910d27cc9db615",
+    "unchanged_from_17_source": true,
+    "baseline": {
+      "translation_unit": "[local path or personal identifier omitted for public archive]",
+      "preprocess_exit_code": 0,
+      "definitions": [
+        "std::vector<T> FixSmallVectorADL(const boost::container::small_vector<T, N>& v) "
+      ],
+      "heap_fallback_selected": true,
+      "scope": "Preprocessing with production compile definitions and include paths; no EXE rebuilt or FPS claim"
+    },
+    "with_version_header": {
+      "translation_unit": "[local path or personal identifier omitted for public archive]",
+      "preprocess_exit_code": 0,
+      "version_header_forced": true,
+      "definitions": [
+        "boost::container::small_vector<T, N> FixSmallVectorADL(const boost::container::small_vector<T, N>& v) "
+      ],
+      "heap_fallback_selected": false,
+      "scope": "Preprocessing with production compile definitions and include paths; no EXE rebuilt or FPS claim"
+    },
+    "patch": "patches/jadyx/0016-include-boost-version.patch",
+    "patch_sha256": "2c01b10d1170a959932288427a94396c86d4e34d8dbd1299e09827df8311ee8d",
+    "apply_check": "pass against isolated source; header unchanged from .17",
+    "private_audit_script": "[local path or personal identifier omitted for public archive]",
+    "audit_script_sha256": "32bace7ba6551a7e09989b27db722f8fd96d84e6acc30bab828dde39e1405d58",
+    "baseline_result_sha256": "240b22ef5ace549ba5c968c01a845606b92091279d0b0676086fc7d52122c8e5",
+    "fixed_result_sha256": "68ecd9bc5b5deae58e9233f45e7bc1cec9d747ed9e47b78b0eb4e335fb3247fc",
+    "compiled_app": false,
+    "installed": false,
+    "measured_gameplay_allocations": null,
+    "measured_fps_gain": null
+  },
+  "sampling_gap": {
+    "source": "src/common/windows/sampling_profiler.cpp",
+    "observation": "For PCs outside an image module, output writes only [jit], discarding the address.",
+    "map_source": "src/dynarmic/src/dynarmic/backend/x64/perf_map.h",
+    "map_observation": "PerfMapRegister is no-op on Windows.",
+    "required": "Host leaf PCs plus host range -> guest block mapping with code-cache generation and invalidation, before choosing instruction-level optimizations.",
+    "frame_trace_limit": "Existing tracing filters guest IDs 79/83/123/124/125 and disables selected categories; verify selection before attributing BOTW waits."
+  },
+  "control_21_per_frame": {
+    "mean_wall_ms": 39.1275,
+    "gpu_timestamp_intervals_ms": 15.080416666666666,
+    "gpu_host_thread_idle_ms": 15.653666666666668,
+    "resource_creation_ms": 0.07625,
+    "pipeline_stall_ms": 0.0003333333333333334,
+    "scope": "Aggregated counters overlap; not an exclusive sum or a measured recoverable frame budget."
+  },
+  "source_references": [
+    "https://github.com/JulianDr14/jadyx/commit/44e1e35c576fab4c8cf428e5e006e2294e2ac409",
+    "https://github.com/Swordpdf/ProsperoEden/blob/a26ba788222465ec7fb94dc813958fc749734e07/headless/CMakeLists.txt",
+    "https://github.com/Swordpdf/ProsperoEden/blob/a26ba788222465ec7fb94dc813958fc749734e07/headless/checked-fastmem.cmake",
+    "https://github.com/kotx/Ryujinx/blob/534f92506bf8c6aba29bb86917bf10954a360d8e/src/ARMeilleure/Translation/Translator.cs",
+    "https://github.com/kotx/Ryujinx/blob/534f92506bf8c6aba29bb86917bf10954a360d8e/src/ARMeilleure/Instructions/InstEmitMemoryHelper.cs",
+    "https://www.qemu.org/docs/master/devel/tcg.html",
+    "https://dolphin-emu.org/blog/2026/03/12/dolphin-progress-report-release-2603/",
+    "https://dolphin-emu.org/blog/2025/12/22/dolphin-progress-report-release-2512/",
+    "https://yuzu-mirror.github.io/entry/yuzu-fastmem/",
+    "https://git.eden-emu.dev/eden-emu/eden/pulls/4181",
+    "https://gpuopen.com/learn/ryzen-performance/",
+    "https://gpuopen.com/learn/rdna-performance-guide/",
+    "https://learn.microsoft.com/en-us/windows-hardware/test/wpt/cpu-analysis",
+    "https://learn.microsoft.com/en-us/windows/uwp/xbox-apps/system-resource-allocation",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffile3fromapp",
+    "https://switchbrew.org/wiki/Memory_layout",
+    "https://news.xbox.com/en-us/2020/03/16/xbox-series-x-tech/",
+    "https://github.com/scarletnx/ScarletNX/blob/3807fcf306f124aa213db75f7b64377f2da5bb15/docs/LIBRARY.md",
+    "https://github.com/zeldaret/botw"
+  ],
+  "runtime_changed_during_research": false,
+  "previous_experiment_restored_before_research": true,
+  "new_fps_claim": false
+}

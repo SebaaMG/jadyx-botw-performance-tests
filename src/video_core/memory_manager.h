@@ -49,6 +49,12 @@ public:
         return unique_identifier;
     }
 
+    u64 MappingGeneration() const noexcept {
+        if (mapping_writers.load(std::memory_order_acquire) != 0) return ~u64{};
+        const u64 generation = mapping_generation.load(std::memory_order_acquire);
+        return mapping_writers.load(std::memory_order_acquire) != 0 ? ~u64{} : generation;
+    }
+
     /// Binds a renderer to the memory manager.
     void BindRasterizer(VideoCore::RasterizerInterface* rasterizer);
 
@@ -225,6 +231,8 @@ private:
     static constexpr size_t continuous_bits = 64;
 
     const size_t unique_identifier;
+    std::atomic<u64> mapping_generation{};
+    std::atomic<u32> mapping_writers{};
     VideoCommon::InvalidationAccumulator accumulator;
 
     static std::atomic<size_t> unique_identifier_generator;

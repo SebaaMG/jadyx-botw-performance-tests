@@ -12,6 +12,7 @@
 #include "video_core/frame_trace.h"
 #include "video_core/perf_counters.h"
 #include "video_core/renderer_d3d12/d3d12_scheduler.h"
+#include "video_core/renderer_d3d12/d3d12_partial_submit_scope.h"
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
@@ -38,6 +39,8 @@ HANDLE ThreadWaitEvent() {
 }
 
 std::atomic<bool> async_recording{false};
+std::atomic<bool> partial_submission{false};
+std::atomic<bool> continuous_submission{false};
 
 void StoreMax(std::atomic<u64>& target, u64 value) {
     u64 current = target.load(std::memory_order_relaxed);
@@ -53,7 +56,30 @@ void SetAsyncRecording(bool enabled) {
     async_recording.store(enabled, std::memory_order_relaxed);
 }
 
-Scheduler::Scheduler(Device& device_) : device{device_} {
+void SetPartialSubmission(bool enabled) {
+    partial_submission.store(enabled, std::memory_order_relaxed);
+}
+
+void SetContinuousSubmission(bool enabled) {
+    continuous_submission.store(enabled, std::memory_order_relaxed);
+}
+
+void PartialSubmitScope::Recorded() {
+    recorded_tick = scheduler.CurrentTick();
+    scheduler.RecordCompletedOperation();
+}
+
+PartialSubmitScope::~PartialSubmitScope() noexcept(false) {
+    if (recorded_tick && std::uncaught_exceptions() == 0 &&
+        recorded_tick == scheduler.CurrentTick() && scheduler.SubmitWorkIfNeeded()) {
+        pending_draws = 0;
+    }
+}
+
+Scheduler::Scheduler(Device& device_)
+    : device{device_}, partial_submission_enabled{partial_submission.load(std::memory_order_relaxed)},
+      continuous_submission_enabled{continuous_submission.load(std::memory_order_relaxed)},
+      partial_submit{continuous_submission_enabled} {
     ID3D12Device* const dev = device.Get();
     ThrowIfFailed(dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)),
                   "CreateFence (scheduler)");
@@ -73,6 +99,16 @@ Scheduler::Scheduler(Device& device_) : device{device_} {
     stream.emplace(*recorder);
     CreateTimestamps();
     BeginTimestamp();
+    if (partial_submission_enabled && continuous_submission_enabled) {
+        LOG_INFO(Render, "D3D12: continuous partial submission, no frame quota; drained queue {} us, queued work {} us, optional submissions defer at {} outstanding lists",
+                 PartialSubmitPolicy::DrainedQueueBudgetUs, PartialSubmitPolicy::BudgetUs,
+                 PartialSubmitPolicy::MaxInFlight);
+    } else {
+        LOG_INFO(Render, "D3D12: partial submission {}, budget {} us, minimum {} operations, max {} per frame and {} lists in flight",
+                 partial_submission_enabled ? "on" : "off", PartialSubmitPolicy::BudgetUs,
+                 PartialSubmitPolicy::MinWork, PartialSubmitPolicy::MaxPerFrame,
+                 PartialSubmitPolicy::MaxInFlight);
+    }
 }
 
 void Scheduler::CreateTimestamps() {
@@ -230,8 +266,16 @@ u64 Scheduler::Flush() {
         TraceGpuOperation(fmt::format("submit tick={} completed={} PSO={}", signaled,
                                      fence->GetCompletedValue(), static_cast<void*>(current_pipeline)));
     }
-    stream->Record([this, signaled](ID3D12GraphicsCommandList* list) {
-        SubmitRecorded(list, signaled);
+    const auto origin = VideoCore::FrameTrace::CurrentGpuOrigin();
+    const bool tracing = VideoCore::FrameTrace::FrameChainActive();
+    const SubmissionTrace trace{
+        tracing ? VideoCore::FrameTrace::GetCaptureStatus().id : 0,
+        origin.work, pending_operations,
+        tracing && submission_upload_size ? submission_upload_size() : 0};
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuFlushRecorded,
+                               signaled, origin.work);
+    stream->Record([this, signaled, trace](ID3D12GraphicsCommandList* list) {
+        SubmitRecorded(list, signaled, trace);
     });
     recorder->Dispatch();
     VideoCore::Perf::Add(VideoCore::Perf::Counter::Submits, 1);
@@ -244,19 +288,73 @@ u64 Scheduler::Flush() {
 
     CollectGarbage();
     current_pipeline = nullptr;
+    pending_operations = 0;
     BeginTimestamp();
     for (auto& callback : on_reset) {
         callback();
     }
+    partial_submit.Submitted();
     return signaled;
 }
 
-void Scheduler::SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick) {
+bool Scheduler::SubmitWorkIfNeeded() {
+    if (!partial_submission_enabled || !partial_submit.RecordWork()) return false;
+    ++submission_stats.clock_checks;
+    const auto now_us = static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+    if (!partial_submit.Due(now_us)) return false;
+    const u64 last_issued = CurrentTick() - 1;
+    const u64 submitted = std::min(last_issued, SubmittedTick());
+    const u64 completed = KnownGpuTick();
+    const u64 outstanding = last_issued > completed ? last_issued - completed : 0;
+    if (outstanding >= PartialSubmitPolicy::MaxInFlight) {
+        ++submission_stats.backpressure_skips;
+        if (last_issued > submitted) ++submission_stats.recorder_backlog_skips;
+        if (submitted > completed) ++submission_stats.native_backlog_skips;
+        return false;
+    }
+    if (!partial_submit.Due(now_us, outstanding)) return false;
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuPartialSubmit,
+                               CurrentTick(), partial_submit.PendingWork());
+    Flush();
+    partial_submit.PartiallySubmitted();
+    ++submission_stats.partial_submits;
+    if (outstanding == 0) ++submission_stats.drained_queue_submits;
+    else ++submission_stats.queued_work_submits;
+    return true;
+}
+
+void Scheduler::BeginFrame() {
+    partial_submit.BeginFrame();
+    ++submission_frames;
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuFrameBoundary,
+                               submission_frames, CurrentTick());
+    if (partial_submission_enabled && submission_frames % 300 == 0) {
+        LOG_INFO(Render, "D3D12 partial submits: {} submissions, {} clock checks, {} backlog deferrals (cumulative)",
+                 submission_stats.partial_submits, submission_stats.clock_checks,
+                 submission_stats.backpressure_skips);
+        LOG_INFO(Render, "D3D12 partial supply: {} drained-queue deliveries, {} queued-work deliveries, continuous {} (cumulative)",
+                 submission_stats.drained_queue_submits, submission_stats.queued_work_submits,
+                 continuous_submission_enabled);
+        LOG_INFO(Render, "D3D12 partial backlog: {} recorder deferrals, {} native-queue deferrals (overlapping cumulative counts)",
+                 submission_stats.recorder_backlog_skips, submission_stats.native_backlog_skips);
+    }
+}
+
+void Scheduler::SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick, SubmissionTrace trace) {
     const bool probing = CloseProbeEnabled();
     if (probing) {
         ProbeBeforeClose();
     }
+    const bool tracing = trace.capture && VideoCore::FrameTrace::FrameChainActive() &&
+                         trace.capture == VideoCore::FrameTrace::GetCaptureStatus().id;
+    const auto close_start = tracing ? std::chrono::steady_clock::now()
+                                     : std::chrono::steady_clock::time_point{};
     const HRESULT closed = list->Close();
+    if (tracing) {
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuListClose, tick,
+                                   VideoCore::Perf::ElapsedUs(close_start));
+    }
     if (probing) {
         ProbeReportClose(FAILED(closed));
     }
@@ -271,10 +369,21 @@ void Scheduler::SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick) {
     {
         // The present thread submits to the same queue (see Device::QueueMutex).
         std::scoped_lock queue_lock{device.QueueMutex()};
+        if (tracing) {
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuListPreviousSubmitted,
+                                       tick, SubmittedTick());
+            VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuListPreviousCompleted,
+                                       tick, KnownGpuTick());
+        }
         device.Queue()->ExecuteCommandLists(1, lists);
         ThrowIfFailed(device.Queue()->Signal(fence.Get(), tick), "ID3D12CommandQueue::Signal");
     }
-    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuSubmit);
+    VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuSubmit, tick,
+        trace.capture == VideoCore::FrameTrace::GetCaptureStatus().id ? trace.work : 0);
+    if (tracing) {
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuListWork, tick, trace.operations);
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuListUpload, tick, trace.upload_bytes);
+    }
     CheckRemovedAfter(device.Get(), [&] {
         return fmt::format("submitting tick {} (removed by the GPU or by a recorded command)",
                            tick);
@@ -282,10 +391,16 @@ void Scheduler::SubmitRecorded(ID3D12GraphicsCommandList* list, u64 tick) {
     submitted_tick.store(tick, std::memory_order_release);
     submitted_tick.notify_all();
 
+    const auto reset_start = tracing ? std::chrono::steady_clock::now()
+                                     : std::chrono::steady_clock::time_point{};
     allocator_pool.push_back({std::move(current_allocator), tick});
     current_allocator = AcquireAllocator();
     ThrowIfFailed(list->Reset(current_allocator.Get(), nullptr),
                   "ID3D12GraphicsCommandList::Reset");
+    if (tracing) {
+        VideoCore::FrameTrace::Mark(VideoCore::FrameTrace::Event::GpuListReset, tick,
+                                   VideoCore::Perf::ElapsedUs(reset_start));
+    }
     if (CloseProbeEnabled()) {
         ProbeResetState();
     }

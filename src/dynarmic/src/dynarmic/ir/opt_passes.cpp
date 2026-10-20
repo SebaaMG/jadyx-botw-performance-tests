@@ -7,6 +7,9 @@
  */
 
 #include <algorithm>
+#include <atomic>
+#include <optional>
+#include <vector>
 #include <cstdio>
 #include <map>
 #include <bit>
@@ -1443,6 +1446,9 @@ static void VerificationPass(const IR::Block& block) {
         ASSERT(pair.first->UseCount() == pair.second);
 }
 
+// SeriesX/ProsperoEden: additional checked page-lookup reuse.
+#include "seriesx_page_reuse.inc"
+
 void Optimize(IR::Block& block, const A32::UserConfig& conf, const Optimization::PolyfillOptions& polyfill_options) {
     Optimization::PolyfillPass(block, polyfill_options);
     Optimization::NamingPass(block);
@@ -1474,6 +1480,7 @@ void Optimize(IR::Block& block, const A64::UserConfig& conf, const Optimization:
         Optimization::DeadCodeElimination(block);
     }
     Optimization::IdentityRemovalPass(block);
+    SeriesXPageReusePass(block, conf);
     if (!conf.HasOptimization(OptimizationFlag::DisableVerification)) {
         Optimization::VerificationPass(block);
     }

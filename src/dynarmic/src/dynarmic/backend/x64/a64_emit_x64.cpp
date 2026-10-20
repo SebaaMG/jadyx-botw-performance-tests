@@ -13,6 +13,7 @@
 #include <fmt/ostream.h>
 #include "common/assert.h"
 #include "common/common_types.h"
+#include "common/jit_symbols.h"
 #include "dynarmic/ir/terminal.h"
 #include "dynarmic/mcl/integer_of_size.hpp"
 #include <boost/container/static_vector.hpp>
@@ -59,9 +60,27 @@ FP::FPCR A64EmitContext::FPCR(bool fpcr_controlled) const {
 
 A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_interface)
         : EmitX64(code), conf(conf), jit_interface{jit_interface} {
+    if (conf.profile_code) {
+        profile_owner = ::Common::JitSymbols::CreateOwner(conf.profile_process_id, conf.processor_id);
+        profile_prelude = code.getCode();
+    }
+    const auto prelude_section = [&](const u8* begin, const char* name) {
+        if (profile_owner && begin != code.getCurr()) {
+            profile_prelude_annotations.push_back(
+                {static_cast<u32>(begin - profile_prelude),
+                 static_cast<u32>(code.getCurr() - profile_prelude), name});
+        }
+    };
+    prelude_section(profile_prelude, "prelude_dispatch");
+    const auto* memory_begin = code.getCurr();
     GenMemory128Accessors();
+    prelude_section(memory_begin, "prelude_memory128");
+    const auto* fastmem_begin = code.getCurr();
     GenFastmemFallbacks();
+    prelude_section(fastmem_begin, "prelude_fastmem_fallbacks");
+    const auto* terminal_begin = code.getCurr();
     GenTerminalHandlers();
+    prelude_section(terminal_begin, "prelude_terminal_handlers");
     // Before PreludeComplete: the callback lives in the unwind data in code space, which the
     // paged W^X of the UWP build makes read-execute from then on.
     if (conf.fastmem_pointer.has_value()) {
@@ -71,9 +90,25 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
     }
     code.PreludeComplete();
     ClearFastDispatchTable();
+    PublishProfilePrelude();
 }
 
-A64EmitX64::~A64EmitX64() = default;
+void A64EmitX64::PublishProfilePrelude() {
+    u64 descriptor = ~u64{};
+    for (const auto& annotation : profile_prelude_annotations) {
+        const ::Common::JitSymbols::Annotation section{
+            0, annotation.end - annotation.begin, annotation.opcode};
+        ::Common::JitSymbols::Publish(profile_owner, descriptor--, 0, 0,
+                                     reinterpret_cast<std::uintptr_t>(profile_prelude + annotation.begin),
+                                     section.end, std::span{&section, 1});
+    }
+}
+
+A64EmitX64::~A64EmitX64() {
+    if (profile_owner) {
+        ::Common::JitSymbols::DestroyOwner(profile_owner);
+    }
+}
 
 A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
     if (conf.very_verbose_debugging_output) [[unlikely]] {
@@ -91,15 +126,30 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
         if (conf.page_table)
             gprs.reset(size_t(HostLoc::R14));
         return gprs;
-    }(), any_xmm};
+    }(), any_xmm, conf.zero_upper_tracking};
 
     A64EmitContext ctx{conf, reg_alloc, block, shared_labels};
 
     // Start emitting.
     code.align();
     const auto* const entrypoint = code.getCurr();
+    std::vector<::Common::JitSymbols::Annotation> annotations;
+    const auto annotate = [&](const u8* begin, const char* opcode) {
+        if (profile_owner && begin != code.getCurr()) {
+            annotations.push_back({static_cast<u32>(begin - entrypoint),
+                                   static_cast<u32>(code.getCurr() - entrypoint), opcode});
+        }
+    };
+#ifdef _WIN32
+    if (!conf.stable_jit_frame) {
+        code.mov(code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)], rbp);
+        code.lea(rbp, code.ptr[rsp]);
+    }
+#else
     code.mov(code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)], rbp);
     code.lea(rbp, code.ptr[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer) - 8]);
+#endif
+    annotate(entrypoint, "prologue");
 
     DEBUG_ASSERT(block.GetCondition() == IR::Cond::AL);
     typedef void (EmitX64::*EmitHandlerFn)(EmitContext& context, IR::Inst* inst);
@@ -127,6 +177,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
     setup.Stop();
     JitProfile::Timer instructions{JitProfile::Phase::Instructions};
     for (auto& inst : block.instructions) {
+        const auto* const instruction_begin = code.getCurr();
         auto const opcode = inst.GetOpcode();
         // Call the relevant Emit* member function.
         switch (opcode) {
@@ -147,6 +198,9 @@ a64_branch:
         (this->*a64_handlers[size_t(opcode) - std::size(opcode_handlers)])(ctx, &inst);
 finish_this_inst:
         ctx.reg_alloc.EndOfAllocScope();
+        if (profile_owner) {
+            annotate(instruction_begin, IR::GetNameOf(opcode).data());
+        }
 #ifndef NDEBUG
         if (conf.very_verbose_debugging_output)
             EmitVerboseDebuggingOutput(reg_alloc);
@@ -156,16 +210,26 @@ finish_this_inst:
     instructions.Stop();
     JitProfile::Timer terminal{JitProfile::Phase::Terminal};
     reg_alloc.AssertNoMoreUses();
+    const auto* const terminal_begin = code.getCurr();
     if (conf.enable_cycle_counting)
         EmitAddCycles(block.CycleCount());
+#ifdef _WIN32
+    if (!conf.stable_jit_frame) {
+        code.mov(rbp, code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)]);
+    }
+#else
     code.mov(rbp, code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)]);
+#endif
     EmitTerminal(block.terminal, ctx.Location().SetSingleStepping(false), ctx.IsSingleStep());
     code.int3();
+    annotate(terminal_begin, "terminal");
     terminal.Stop();
     JitProfile::Timer deferred{JitProfile::Phase::Deferred};
+    const auto* const deferred_begin = code.getCurr();
     for (auto& deferred_emit : ctx.deferred_emits)
         deferred_emit();
     code.int3();
+    annotate(deferred_begin, "deferred");
 
     const size_t size = size_t(code.getCurr() - entrypoint);
     deferred.Stop();
@@ -186,12 +250,21 @@ finish_this_inst:
     JitProfile::Timer write_close{JitProfile::Phase::WriteClose};
     code.DisableWriting();
     write_close.Stop();
+    if (profile_owner) {
+        ::Common::JitSymbols::Publish(profile_owner, descriptor.UniqueHash(), descriptor.PC(),
+                                     end_location.PC(), reinterpret_cast<std::uintptr_t>(entrypoint),
+                                     size, annotations);
+    }
     const JitProfile::Timer cleanup{JitProfile::Phase::EmitCleanup};
     shared_labels.clear();
     return bdesc;
 }
 
 void A64EmitX64::ClearCache() {
+    if (profile_owner) {
+        ::Common::JitSymbols::Clear(profile_owner);
+        PublishProfilePrelude();
+    }
     EmitX64::ClearCache();
     block_ranges.ClearCache();
     ClearFastDispatchTable();
@@ -347,6 +420,7 @@ void A64EmitX64::EmitA64GetW(A64EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg32 result = ctx.reg_alloc.ScratchGpr(code).cvt32();
 
     code.mov(result, dword[code.ABI_JIT_PTR + offsetof(A64JitState, reg) + sizeof(u64) * static_cast<size_t>(reg)]);
+    ctx.reg_alloc.MarkZeroUpper(result.cvt64());
     ctx.reg_alloc.DefineValue(code, inst, result);
 }
 
@@ -414,6 +488,8 @@ void A64EmitX64::EmitA64SetW(A64EmitContext& ctx, IR::Inst* inst) {
     const auto addr = qword[code.ABI_JIT_PTR + offsetof(A64JitState, reg) + sizeof(u64) * static_cast<size_t>(reg)];
     if (args[1].FitsInImmediateS32()) {
         code.mov(addr, args[1].GetImmediateS32());
+    } else if (ctx.reg_alloc.CanZeroExtendInPlace(args[1])) {
+        code.mov(addr, ctx.reg_alloc.UseZeroExtendedGpr(code, args[1]));
     } else {
         // TODO: zext tracking, xmm variant
         const Xbyak::Reg64 to_store = ctx.reg_alloc.UseScratchGpr(code, args[1]);
@@ -818,6 +894,9 @@ void A64EmitX64::EmitPatchMovRcx(CodePtr target_code_ptr) {
 }
 
 void A64EmitX64::Unpatch(const IR::LocationDescriptor& location) {
+    if (profile_owner) {
+        ::Common::JitSymbols::Invalidate(profile_owner, location.Value());
+    }
     EmitX64::Unpatch(location);
     if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
         // Match GenTerminalHandlers' CRC32 r64,r64: low 32 bits of the descriptor are

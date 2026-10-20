@@ -1,0 +1,827 @@
+{
+  "date": "2026-10-19",
+  "scope": "Native Jadyx UWP candidate with independent command batching, partial texture uploads and binding metadata reuse",
+  "source": {
+    "previous_tree": "2a1a8e694bb89445aa5a16833354fe8a7d2aa92e",
+    "tree": "19b18d9f01a76881c00b051d34b02b088dc80f5c",
+    "patch": "0012-packet-batching-partial-textures-and-bindings.patch",
+    "sha256": "25d13634b954ba2326ed062d5fb0666dd0bacd225237d830a4280dada6a394b6",
+    "source_paths": [
+      "src/jadyx/app/uwp_boot.cpp",
+      "src/video_core/CMakeLists.txt",
+      "src/video_core/dma_pusher.cpp",
+      "src/video_core/dma_pusher.h",
+      "src/video_core/dma_packet_decoder.h",
+      "src/video_core/memory_manager.cpp",
+      "src/video_core/memory_manager.h",
+      "src/video_core/buffer_cache/binding_dependency.cpp",
+      "src/video_core/buffer_cache/binding_dependency.h",
+      "src/video_core/buffer_cache/buffer_cache.h",
+      "src/video_core/buffer_cache/buffer_cache_base.h",
+      "src/video_core/texture_cache/descriptor_table.h",
+      "src/video_core/texture_cache/image_base.h",
+      "src/video_core/texture_cache/partial_upload.h",
+      "src/video_core/texture_cache/partial_rows.inc",
+      "src/video_core/texture_cache/texture_cache.h",
+      "src/video_core/texture_cache/texture_cache_base.h",
+      "src/video_core/texture_cache/util.cpp",
+      "src/video_core/texture_cache/util.h"
+    ],
+    "clean_twelve_patch_sequence": "pass",
+    "original_index_unchanged": true
+  },
+  "components": {
+    "dma": {
+      "status": "pass",
+      "production_decoder_against_independent_legacy_oracle": true,
+      "random_fragmented_streams": 6000,
+      "directed_all_splits": true,
+      "accepted_and_declined_constant_runs": true,
+      "shadow_engine_channel_and_side_effects": true,
+      "store_only_case": {
+        "words": 128000,
+        "scalar_dispatches": 128000,
+        "scalar_constant_probes": 127500,
+        "batched_dispatches": 0,
+        "batched_constant_probes": 0,
+        "state_batches": 500,
+        "single_sample_scalar_us": 1781,
+        "single_sample_batch_us": 625
+      },
+      "timing_is_not_a_game_fps_result": true
+    },
+    "texture_rows": {
+      "status": "pass",
+      "recording_modes": [
+        "inline",
+        "async"
+      ],
+      "layouts_per_mode": 64,
+      "row_full_decoder_comparisons_per_mode": 768,
+      "full_gpu_readback_cases_per_mode": 4,
+      "full_upload_checked_before_partial_update": true,
+      "cpu_composition_checked_before_gpu": true,
+      "gpu_resources_native_unconverted_and_over_one_mib": true,
+      "gpu_partial_bytes": 1441792,
+      "gpu_equivalent_full_bytes": 36675456,
+      "debug_errors": 0,
+      "page_accounting_repeated_and_edge_writes": "pass",
+      "ssbo_dependency_fields_tested": 7,
+      "cache_collision_test": "pass",
+      "descriptor_live_change_invalidate_refresh_address_limit_tests": "pass",
+      "initial_fixture_issue": "Odd BC extents require format conversion; fixed the fixture to use eligible native resources, preserving production exclusions"
+    }
+  },
+  "delivery": {
+    "zip_crc": "pass",
+    "block_hashes": "pass",
+    "layout_payload": "pass",
+    "files": 25,
+    "blocks": 715,
+    "version": "1.0.0.18",
+    "exe_sha256": "cd5d6aba1170782dde2b8988aedbb009d6fdba7379d66a2b33c95c6edc75e4aa",
+    "pdb_sha256": "1f2a5600c07908f3c1344527cc96f1b33cb3b112a80b97952e47938cdba950cb",
+    "appx_sha256": "0b2f6d048b390183f50ccb5c2efca9f8b654be162a438280d5b2ef6d8e037087",
+    "mesa_sha256": "71b99d96379f27010550642218f86497859736d9bf1c3a4493146a1b7a4353a3",
+    "host_lto": true,
+    "pgo_mode": "USE",
+    "training_runtime_import": false,
+    "canonical_memory_mib": 5120,
+    "incremental_uniform_bindings": false,
+    "source_tree": "19b18d9f01a76881c00b051d34b02b088dc80f5c",
+    "build_exit_code": 0,
+    "dma_packet_batch": true,
+    "partial_texture_uploads": true,
+    "binding_dependency_reuse": true
+  },
+  "runtime": {
+    "registered_on_ssd": true,
+    "activation_observed": true,
+    "local_state_files_preserved": 55,
+    "payload_files_verified": 25,
+    "controls_observed_on_in_runtime_diagnostic": true
+  },
+  "build_graph_no_work_after_final_build": true,
+  "package_signature": "pass against pinned development signer",
+  "gameplay": {
+    "status": "Comparisons complete; ON/OFF interpretation corrected after window review; .17 remains the measured reference",
+    "candidate": {
+      "frames": 1200,
+      "wall_ms": 50771.0,
+      "aggregate_fps": 23.63553997360698,
+      "mean_ms": 42.30916666666667,
+      "prefixes": {
+        "jadyx_log.txt": {
+          "bytes": 1075089,
+          "sha256": "2f110e4926614e8de011448386dbd56481c97bc7a1f56daaa1da7ea57cdbe42e"
+        },
+        "jadyx_diag.txt": {
+          "bytes": 1312160,
+          "sha256": "d62a7d97eda462270f74bdc32d2d79aaa0505601a8c02799cc27d9b38ee9363b"
+        }
+      },
+      "windows": [
+        {
+          "start_log_seconds": 109.394839,
+          "end_log_seconds": 122.313649,
+          "fps": 23.22,
+          "p50_ms": 39.67,
+          "p95_ms": 58.76,
+          "p99_ms": 66.77,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12919.0,
+            "gpu_thread_idle_ms": 4030.1,
+            "fence_waits": 270,
+            "fence_wait_ms": 996.7,
+            "pipeline_stalls": 1,
+            "pipeline_stall_ms": 0.4,
+            "resources_created": 1033,
+            "resource_creation_ms": 451.3,
+            "gpu_busy_ms": 4754.6,
+            "submits": 1114,
+            "draws": 835839,
+            "dispatches": 5427
+          }
+        },
+        {
+          "start_log_seconds": 122.313649,
+          "end_log_seconds": 135.236451,
+          "fps": 23.21,
+          "p50_ms": 39.46,
+          "p95_ms": 58.22,
+          "p99_ms": 68.01,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12923.0,
+            "gpu_thread_idle_ms": 4332.0,
+            "fence_waits": 227,
+            "fence_wait_ms": 709.2,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 929,
+            "resource_creation_ms": 424.5,
+            "gpu_busy_ms": 4768.2,
+            "submits": 1087,
+            "draws": 835799,
+            "dispatches": 5308
+          }
+        },
+        {
+          "start_log_seconds": 135.236451,
+          "end_log_seconds": 147.554468,
+          "fps": 24.35,
+          "p50_ms": 38.53,
+          "p95_ms": 56.7,
+          "p99_ms": 60.76,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12318.0,
+            "gpu_thread_idle_ms": 3903.1,
+            "fence_waits": 223,
+            "fence_wait_ms": 603.3,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 900,
+            "resource_creation_ms": 409.1,
+            "gpu_busy_ms": 4260.1,
+            "submits": 1084,
+            "draws": 835826,
+            "dispatches": 5622
+          }
+        },
+        {
+          "start_log_seconds": 147.554468,
+          "end_log_seconds": 160.165449,
+          "fps": 23.79,
+          "p50_ms": 39.12,
+          "p95_ms": 57.1,
+          "p99_ms": 61.92,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12611.0,
+            "gpu_thread_idle_ms": 4227.6,
+            "fence_waits": 222,
+            "fence_wait_ms": 635.2,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 896,
+            "resource_creation_ms": 417.4,
+            "gpu_busy_ms": 4593.3,
+            "submits": 1084,
+            "draws": 835734,
+            "dispatches": 5386
+          }
+        }
+      ],
+      "mark": {
+        "utc": "2026-10-19T03:09:47.5291277Z",
+        "process_started_utc": "2026-10-19T03:08:07.0423673Z",
+        "pid": 11284,
+        "version": "1.0.0.18",
+        "owner_confirmed_same_view": true,
+        "dma_packet_batch": true,
+        "partial_texture_uploads": true,
+        "binding_dependency_reuse": true
+      },
+      "render_error_count_in_prefix": 0,
+      "workload_totals": {
+        "frames": 1200,
+        "wall_ms": 50771.0,
+        "gpu_thread_idle_ms": 16492.800000000003,
+        "fence_waits": 942,
+        "fence_wait_ms": 2944.3999999999996,
+        "pipeline_stalls": 1,
+        "pipeline_stall_ms": 0.4,
+        "resources_created": 3758,
+        "resource_creation_ms": 1702.3000000000002,
+        "gpu_busy_ms": 18376.2,
+        "submits": 4369,
+        "draws": 3343198,
+        "dispatches": 21743
+      }
+    },
+    "inventory_return_and_scope_zoom": "owner confirmed pass",
+    "return_to_library_code": 10,
+    "dma_state_batches_process_total": 66357594,
+    "dma_state_words_process_total": 190905750,
+    "partial_texture_upload_summary_present": false,
+    "performance_conclusion": "The complete .18 ON mean was lower than OFF, but the difference is sensitive to one slow control window; the other 900 frames were nearly equal. No robust FPS benefit from the new flags, and no overall improvement over original .17, is established.",
+    "same_executable_control": {
+      "frames": 1200,
+      "wall_ms": 55509.0,
+      "aggregate_fps": 21.61811598119224,
+      "mean_ms": 46.2575,
+      "prefixes": {
+        "jadyx_log.txt": {
+          "bytes": 1096452,
+          "sha256": "e872d44826c8adeb7e8ce910eb6eeb5a74f1ab8333ab574e2040255b2163714e"
+        },
+        "jadyx_diag.txt": {
+          "bytes": 1337546,
+          "sha256": "a142c2deb62b3d61f6d3952661b43f9ef0aaaa5ae5cec2cdd635bb3a134257e3"
+        }
+      },
+      "windows": [
+        {
+          "start_log_seconds": 113.031693,
+          "end_log_seconds": 130.765194,
+          "fps": 16.92,
+          "p50_ms": 47.26,
+          "p95_ms": 68.66,
+          "p99_ms": 183.72,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 17734.0,
+            "gpu_thread_idle_ms": 8166.2,
+            "fence_waits": 261,
+            "fence_wait_ms": 1087.3,
+            "pipeline_stalls": 5,
+            "pipeline_stall_ms": 0.9,
+            "resources_created": 1008,
+            "resource_creation_ms": 483.6,
+            "gpu_busy_ms": 5937.4,
+            "submits": 1110,
+            "draws": 835431,
+            "dispatches": 5225
+          }
+        },
+        {
+          "start_log_seconds": 130.765194,
+          "end_log_seconds": 143.470293,
+          "fps": 23.61,
+          "p50_ms": 39.15,
+          "p95_ms": 57.46,
+          "p99_ms": 65.22,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12705.0,
+            "gpu_thread_idle_ms": 4195.1,
+            "fence_waits": 225,
+            "fence_wait_ms": 718.6,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 922,
+            "resource_creation_ms": 413.8,
+            "gpu_busy_ms": 4622.8,
+            "submits": 1084,
+            "draws": 835749,
+            "dispatches": 5236
+          }
+        },
+        {
+          "start_log_seconds": 143.470293,
+          "end_log_seconds": 155.675678,
+          "fps": 24.58,
+          "p50_ms": 38.23,
+          "p95_ms": 55.72,
+          "p99_ms": 60.46,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12205.0,
+            "gpu_thread_idle_ms": 3782.8,
+            "fence_waits": 224,
+            "fence_wait_ms": 564.3,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 904,
+            "resource_creation_ms": 404.1,
+            "gpu_busy_ms": 4072.7,
+            "submits": 1084,
+            "draws": 835928,
+            "dispatches": 5763
+          }
+        },
+        {
+          "start_log_seconds": 155.675678,
+          "end_log_seconds": 168.540225,
+          "fps": 23.32,
+          "p50_ms": 40.02,
+          "p95_ms": 58.54,
+          "p99_ms": 63.86,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12865.0,
+            "gpu_thread_idle_ms": 4400.5,
+            "fence_waits": 223,
+            "fence_wait_ms": 587.1,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 926,
+            "resource_creation_ms": 413.1,
+            "gpu_busy_ms": 4696.3,
+            "submits": 1084,
+            "draws": 836031,
+            "dispatches": 5640
+          }
+        }
+      ],
+      "mark": {
+        "utc": "2026-10-19T03:14:47.6027035Z",
+        "process_started_utc": "2026-10-19T03:13:03.7184733Z",
+        "pid": 16292,
+        "version": "1.0.0.18",
+        "owner_confirmed_same_view": true,
+        "dma_packet_batch": false,
+        "partial_texture_uploads": false,
+        "binding_dependency_reuse": false
+      },
+      "render_error_count_in_prefix": 0,
+      "workload_totals": {
+        "frames": 1200,
+        "wall_ms": 55509.0,
+        "gpu_thread_idle_ms": 20544.6,
+        "fence_waits": 933,
+        "fence_wait_ms": 2957.2999999999997,
+        "pipeline_stalls": 5,
+        "pipeline_stall_ms": 0.9,
+        "resources_created": 3760,
+        "resource_creation_ms": 1714.6,
+        "gpu_busy_ms": 19329.2,
+        "submits": 4362,
+        "draws": 3343139,
+        "dispatches": 21864
+      }
+    },
+    "original_17_repeat": {
+      "frames": 1200,
+      "wall_ms": 47821.0,
+      "aggregate_fps": 25.09357813512892,
+      "mean_ms": 39.850833333333334,
+      "prefixes": {
+        "jadyx_log.txt": {
+          "bytes": 1098334,
+          "sha256": "571e1a1b89cab4432c0dd127912bbbd6561bff314898474ba498cf345b0a6854"
+        },
+        "jadyx_diag.txt": {
+          "bytes": 1377476,
+          "sha256": "54927ea42656e3d1e79ea4e9cabe81b7b5b380fdbb6341919f929a37bd7ab26d"
+        }
+      },
+      "windows": [
+        {
+          "start_log_seconds": 110.397676,
+          "end_log_seconds": 123.600222,
+          "fps": 22.72,
+          "p50_ms": 40.22,
+          "p95_ms": 61.67,
+          "p99_ms": 69.65,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 13203.0,
+            "gpu_thread_idle_ms": 5892.9,
+            "fence_waits": 10,
+            "fence_wait_ms": 131.4,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 149,
+            "resource_creation_ms": 27.9,
+            "gpu_busy_ms": 5512.0,
+            "submits": 901,
+            "draws": 819419,
+            "dispatches": 5218
+          }
+        },
+        {
+          "start_log_seconds": 123.600222,
+          "end_log_seconds": 134.615857,
+          "fps": 27.23,
+          "p50_ms": 34.46,
+          "p95_ms": 51.31,
+          "p99_ms": 62.47,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 11016.0,
+            "gpu_thread_idle_ms": 4084.3,
+            "fence_waits": 10,
+            "fence_wait_ms": 120.4,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 147,
+            "resource_creation_ms": 27.7,
+            "gpu_busy_ms": 3917.6,
+            "submits": 901,
+            "draws": 820180,
+            "dispatches": 5389
+          }
+        },
+        {
+          "start_log_seconds": 134.615857,
+          "end_log_seconds": 146.561202,
+          "fps": 25.11,
+          "p50_ms": 36.3,
+          "p95_ms": 55.91,
+          "p99_ms": 61.62,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 11945.0,
+            "gpu_thread_idle_ms": 4812.5,
+            "fence_waits": 11,
+            "fence_wait_ms": 146.5,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 136,
+            "resource_creation_ms": 21.1,
+            "gpu_busy_ms": 4647.1,
+            "submits": 901,
+            "draws": 820110,
+            "dispatches": 5588
+          }
+        },
+        {
+          "start_log_seconds": 146.561202,
+          "end_log_seconds": 158.218669,
+          "fps": 25.73,
+          "p50_ms": 36.06,
+          "p95_ms": 53.23,
+          "p99_ms": 58.78,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 11657.0,
+            "gpu_thread_idle_ms": 4715.2,
+            "fence_waits": 10,
+            "fence_wait_ms": 108.1,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 139,
+            "resource_creation_ms": 22.3,
+            "gpu_busy_ms": 4526.4,
+            "submits": 901,
+            "draws": 820156,
+            "dispatches": 5412
+          }
+        }
+      ],
+      "mark": {
+        "utc": "2026-10-19T03:21:06.0875495Z",
+        "process_started_utc": "2026-10-19T03:19:25.2584231Z",
+        "pid": 22016,
+        "registered_manifest_version": "1.0.0.18",
+        "executable_variant": "original .17 PGO USE",
+        "owner_confirmed_same_view": true,
+        "exe_sha256": "98b7e1f4b1c39fffafa7869aa2b40aefa5438c75f28e41f1dc8b5483da9e1efb"
+      },
+      "render_error_count_in_prefix": 0,
+      "workload_totals": {
+        "frames": 1200,
+        "wall_ms": 47821.0,
+        "gpu_thread_idle_ms": 19504.9,
+        "fence_waits": 41,
+        "fence_wait_ms": 506.4,
+        "pipeline_stalls": 0,
+        "pipeline_stall_ms": 0.0,
+        "resources_created": 571,
+        "resource_creation_ms": 98.99999999999999,
+        "gpu_busy_ms": 18603.1,
+        "submits": 3604,
+        "draws": 3279865,
+        "dispatches": 21607
+      }
+    },
+    "observed_on_vs_off_ms_reduction": 3.9483333333333306,
+    "candidate_slowdown_vs_original_17_ms": 2.4583333333333357,
+    "first_window_sensitivity_review": {
+      "scope": "Post hoc sensitivity check; preserves all original windows and does not replace the complete measurements",
+      "on_window_wall_ms": [
+        12919.0,
+        12923.0,
+        12318.0,
+        12611.0
+      ],
+      "off_window_wall_ms": [
+        17734.0,
+        12705.0,
+        12205.0,
+        12865.0
+      ],
+      "first_window_off_minus_on_ms": 4815.0,
+      "complete_capture_off_minus_on_ms": 4738.0,
+      "remaining_frames": 900,
+      "remaining_on_mean_ms": 42.05777777777778,
+      "remaining_off_mean_ms": 41.97222222222222,
+      "first_window_slowdown_cause": "unknown",
+      "conclusion": "The complete ON/OFF difference is driven by one slower control window. No sustained or isolated FPS gain established for the new flags.",
+      "previous_interpretation": "Overstated the robustness of the complete-average improvement"
+    }
+  },
+  "remaining_research_candidates_not_implemented": [
+    "whole-stage dependency generations that avoid guest handle reads",
+    "deferred write-invalidation queues",
+    "shared guest JIT",
+    "additional native core/common PGO",
+    "native BC array sampling repair",
+    "capability-based UMA transfers"
+  ],
+  "pressure_regression": {
+    "status": "Components and gameplay complete; pool churn fixed; no meaningful frame-time gain measured",
+    "source": {
+      "previous_tree": "19b18d9f01a76881c00b051d34b02b088dc80f5c",
+      "tree": "f3df38ab9ac3173698dc2569304e8c30af158d2c",
+      "patch": "0013-preserve-hot-pool-before-budget-exhaustion.patch",
+      "sha256": "7054fed351d8e25dce45b35ac7cae42a7a0eddda18321ff3e590453b58d925ff",
+      "source_paths": [
+        "src/video_core/renderer_d3d12/d3d12_cache_policy.h",
+        "tools/xbox/tests/cache-pressure.cpp"
+      ],
+      "clean_patch_sequence": "pass",
+      "patch_count": 13,
+      "original_index_unchanged": true
+    },
+    "observed_logical_budget_mib": 5120,
+    "observed_app_used_mib_18_on_range": [
+      5062,
+      5064
+    ],
+    "observed_app_used_mib_17_range": [
+      5043,
+      5047
+    ],
+    "old_immediate_recovery_app_free_threshold_mib": 64,
+    "new_immediate_recovery": "actual app or GPU budget exhaustion; allocation-time headroom/OOM recovery unchanged",
+    "proactive_app_pressure_thresholds_mib_free_unchanged": [
+      768,
+      384,
+      192
+    ],
+    "old_behavior": "full copy-pool trims and unbounded second-pass texture GC while still below budget",
+    "new_behavior": "bounded proactive eviction and hot pool reserve until budget exhaustion",
+    "not_a_memory_limit_increase": true,
+    "extra_19_mib_attribution": "unproven; ON and OFF .18 both cross the threshold, so do not attribute the entire difference to the opt-in dense tables",
+    "delivery": {
+      "zip_crc": "pass",
+      "block_hashes": "pass",
+      "layout_payload": "pass",
+      "files": 25,
+      "blocks": 715,
+      "version": "1.0.0.19",
+      "exe_sha256": "c0d6709566ca571154ab83e6683cc47796c36539b93e0943946c9857ad4a3df5",
+      "pdb_sha256": "c3dcaf0244016a675e1d2b812c41719f8b08743f02e839847b28bca3a5f8bd65",
+      "appx_sha256": "c7acd90ee333cce5087f299dcba5e6f24b40f4505cf9942250bca9e6f1ff2da9",
+      "mesa_sha256": "71b99d96379f27010550642218f86497859736d9bf1c3a4493146a1b7a4353a3",
+      "host_lto": true,
+      "pgo_mode": "USE",
+      "training_runtime_import": false,
+      "canonical_memory_mib": 5120,
+      "incremental_uniform_bindings": false,
+      "source_tree": "f3df38ab9ac3173698dc2569304e8c30af158d2c",
+      "build_exit_code": 0,
+      "dma_packet_batch": true,
+      "partial_texture_uploads": true,
+      "binding_dependency_reuse": true
+    },
+    "runtime": {
+      "registered": true,
+      "version": "1.0.0.19",
+      "runtime_layout": "[local path or personal identifier omitted for public archive]",
+      "private_backup": "[local path or personal identifier omitted for public archive]",
+      "local_state_files_verified": 55,
+      "payload_files_verified": 25,
+      "activation_requested": false,
+      "pc_hard_cap_mib": 8192,
+      "logical_cache_budget_mib": 5120,
+      "persistent_resources": false,
+      "ordered_copy_reuse": true,
+      "copy_plan_cache": true,
+      "coherent_uniform_cache": true,
+      "incremental_uniform_bindings": false,
+      "dma_packet_batch": true,
+      "partial_texture_uploads": true,
+      "binding_dependency_reuse": true
+    },
+    "component_tests": {
+      "cache_pressure_policy": "pass",
+      "recording_modes": [
+        "inline",
+        "async"
+      ],
+      "queue_held_behind_fence": true,
+      "free_headroom_mib": 56,
+      "copy_count_per_case": 96,
+      "ordered_reuse_creations": 1,
+      "control_creations": 96,
+      "all_copied_bytes_compared": true,
+      "full_trim_at_exhaustion": "pass",
+      "explicit_full_trim_of_pending_resources": "pass",
+      "d3d12_debug_errors": 0
+    },
+    "build_graph_no_work": true,
+    "gameplay": {
+      "frames": 1200,
+      "wall_ms": 50448.0,
+      "aggregate_fps": 23.78686964795433,
+      "mean_ms": 42.04,
+      "prefixes": {
+        "jadyx_log.txt": {
+          "bytes": 1011724,
+          "sha256": "57804190cad50e4fcd0605cae3a8ee6da63bc0dcdb4ef5b7da7741224aff2fc5"
+        },
+        "jadyx_diag.txt": {
+          "bytes": 1400124,
+          "sha256": "b7192a17331ed2980984596df8d4ed53aa9239d23d1e01e103d8dbb1120234ce"
+        }
+      },
+      "windows": [
+        {
+          "start_log_seconds": 142.243801,
+          "end_log_seconds": 154.934564,
+          "fps": 23.64,
+          "p50_ms": 38.76,
+          "p95_ms": 57.91,
+          "p99_ms": 65.18,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12691.0,
+            "gpu_thread_idle_ms": 4911.2,
+            "fence_waits": 16,
+            "fence_wait_ms": 177.8,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 174,
+            "resource_creation_ms": 36.4,
+            "gpu_busy_ms": 4750.8,
+            "submits": 906,
+            "draws": 835824,
+            "dispatches": 5419
+          }
+        },
+        {
+          "start_log_seconds": 154.934564,
+          "end_log_seconds": 167.624285,
+          "fps": 23.64,
+          "p50_ms": 38.4,
+          "p95_ms": 57.13,
+          "p99_ms": 64.71,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12690.0,
+            "gpu_thread_idle_ms": 4926.9,
+            "fence_waits": 10,
+            "fence_wait_ms": 175.2,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 137,
+            "resource_creation_ms": 22.9,
+            "gpu_busy_ms": 4761.4,
+            "submits": 901,
+            "draws": 835781,
+            "dispatches": 5486
+          }
+        },
+        {
+          "start_log_seconds": 167.624285,
+          "end_log_seconds": 180.171237,
+          "fps": 23.91,
+          "p50_ms": 38.69,
+          "p95_ms": 56.73,
+          "p99_ms": 63.12,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12547.0,
+            "gpu_thread_idle_ms": 4875.2,
+            "fence_waits": 10,
+            "fence_wait_ms": 119.7,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 148,
+            "resource_creation_ms": 28.0,
+            "gpu_busy_ms": 4661.9,
+            "submits": 901,
+            "draws": 835797,
+            "dispatches": 5558
+          }
+        },
+        {
+          "start_log_seconds": 180.171237,
+          "end_log_seconds": 192.691525,
+          "fps": 23.96,
+          "p50_ms": 37.94,
+          "p95_ms": 55.0,
+          "p99_ms": 62.28,
+          "intervals": 300,
+          "workload": {
+            "frames": 300,
+            "wall_ms": 12520.0,
+            "gpu_thread_idle_ms": 4903.8,
+            "fence_waits": 11,
+            "fence_wait_ms": 153.6,
+            "pipeline_stalls": 0,
+            "pipeline_stall_ms": 0.0,
+            "resources_created": 139,
+            "resource_creation_ms": 23.0,
+            "gpu_busy_ms": 4717.6,
+            "submits": 901,
+            "draws": 835745,
+            "dispatches": 5495
+          }
+        }
+      ],
+      "mark": {
+        "utc": "2026-10-19T03:44:25.7399578Z",
+        "process_started_utc": "2026-10-19T03:42:15.3860198Z",
+        "pid": 14328,
+        "version": "1.0.0.19",
+        "owner_confirmed_same_view": true,
+        "exe_sha256": "c0d6709566ca571154ab83e6683cc47796c36539b93e0943946c9857ad4a3df5",
+        "dma_packet_batch": true,
+        "partial_texture_uploads": true,
+        "binding_dependency_reuse": true,
+        "pressure_recovery_patch": "0013"
+      },
+      "render_error_count_in_prefix": 0,
+      "workload_totals": {
+        "frames": 1200,
+        "wall_ms": 50448.0,
+        "gpu_thread_idle_ms": 19617.1,
+        "fence_waits": 47,
+        "fence_wait_ms": 626.3,
+        "pipeline_stalls": 0,
+        "pipeline_stall_ms": 0.0,
+        "resources_created": 598,
+        "resource_creation_ms": 110.3,
+        "gpu_busy_ms": 18891.7,
+        "submits": 3609,
+        "draws": 3343147,
+        "dispatches": 21958
+      },
+      "inventory_return_and_scope_zoom": "owner confirmed pass",
+      "return_to_library_code": 10
+    },
+    "pool_during_capture": {
+      "cumulative_copy_creations": 338,
+      "cumulative_full_trims": 160,
+      "cumulative_counters_unchanged_across_measured_windows": true,
+      "retained_pool_kib": 3072
+    },
+    "observed_app_memory_sample_mib": 5048,
+    "observed_18_on_minus_19_ms": 0.26916666666667055,
+    "observed_19_minus_17_repeat_ms": 2.189166666666665,
+    "conclusion": "The resource churn and fence-wait regression is corrected, but .19 averaged 42.04 ms, essentially unchanged from .18 ON at 42.3092 ms and slower than original .17 at 39.8508 ms. No overall FPS improvement claimed.",
+    "timing_interpretation": "Resource creation and fence waits fell while GPU-thread idle time rose by 3124.3 ms over 1200 frames. These scopes overlap; do not add them as exclusive costs or infer a unique cause for the idle increase.",
+    "final_runtime": {
+      "version": "1.0.0.17",
+      "reference_restored": true,
+      "app_closed": true,
+      "runtime_layout": "[local path or personal identifier omitted for public archive]",
+      "exe_sha256": "98b7e1f4b1c39fffafa7869aa2b40aefa5438c75f28e41f1dc8b5483da9e1efb",
+      "boot_sha256": "5adae9fd44022cfccf654806b6ddb99d0b54d146385b600cced35827851347b6",
+      "local_state_files_preserved": 55,
+      "candidate_19_preserved": true,
+      "canonical_appx_is_candidate_19": true
+    }
+  }
+}

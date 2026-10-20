@@ -121,6 +121,9 @@ void ServiceFrameworkBase::InvokeRequestTipc(HLERequestContext& ctx) {
 Result ServiceFrameworkBase::HandleSyncRequest(Kernel::KServerSession& session,
                                                HLERequestContext& ctx) {
     const u64 guest = ctx.GetThread().GetThreadId();
+    const VideoCore::FrameTrace::ScopedRequest trace_request{
+        VideoCore::FrameTrace::Event::IpcRequestBegin,
+        VideoCore::FrameTrace::Event::IpcRequestEnd, guest};
     const bool tracing = VideoCore::FrameTrace::TracksGuest(guest) &&
                          VideoCore::FrameTrace::Active();
     if (tracing) {

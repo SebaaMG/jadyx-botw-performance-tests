@@ -9,6 +9,7 @@
 #include <optional>
 #include <span>
 #include <boost/container/small_vector.hpp>
+#include <boost/version.hpp>
 
 #include "common/common_types.h"
 #include "common/scratch_buffer.h"

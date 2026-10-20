@@ -7,6 +7,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <vector>
 #include "common/common_types.h"
 #include "common/math_util.h"
@@ -38,20 +39,20 @@ public:
     void OnClose(DeviceFD fd) override;
 
     /// Performs a screen flip, compositing each buffer.
-    void Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers);
+    std::optional<NvFence> Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers);
 
     void WaitForComposite();
 
     Kernel::KEvent* QueryEvent(u32 event_id) override;
 
     // Pulse: the display device keeps no state of its own; composition belongs to vi.
-    bool PulseCapture(DeviceFD fd, Service::Pulse::StateWriter& out) const override {
-        return true;
-    }
+    bool PulseCapture(DeviceFD fd, Service::Pulse::StateWriter& out) const override;
+    void PulseRestore(DeviceFD fd, Service::Pulse::StateReader& in) override;
 
 private:
     NvCore::Container& container;
     NvCore::NvMap& nvmap;
+    u32 consumer_syncpoint{};
 };
 
 } // namespace Service::Nvidia::Devices
