@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <algorithm>
+#include <chrono>
 #include <limits>
 #include <stdexcept>
 
@@ -110,6 +111,16 @@ void StagingBufferPool::TickFrame() {
     current_delete_level = (current_delete_level + 1) % NUM_LEVELS;
     ReleaseLevel(upload_cache, current_delete_level);
     ReleaseLevel(download_cache, current_delete_level);
+    if (++wait_report_frames % 300 == 0) {
+        const auto& ring = wait_statistics[static_cast<std::size_t>(WaitReason::Ring)];
+        const auto& upload = wait_statistics[static_cast<std::size_t>(WaitReason::PressureUpload)];
+        const auto& readback = wait_statistics[static_cast<std::size_t>(WaitReason::PressureReadback)];
+        LOG_INFO(Render, "SeriesX staging wait calls: ring {} ({:.3f} ms), pressure upload {} "
+                 "({:.3f} ms), pressure readback {} ({:.3f} ms), allocation failures {} "
+                 "(subset of pressure calls; cumulative)",
+                 ring.calls, ring.elapsed_us / 1000.0, upload.calls, upload.elapsed_us / 1000.0,
+                 readback.calls, readback.elapsed_us / 1000.0, allocation_failure_waits);
+    }
 }
 
 bool StagingBufferPool::GuardMemory(const CacheMemorySnapshot& snapshot) {
@@ -199,8 +210,7 @@ StagingBufferRef StagingBufferPool::GetStreamBuffer(size_t size) {
             !scheduler.IsRecordingThread()) {
             return GetStagingBuffer(size, MemoryUsage::Upload);
         }
-        scheduler.Wait(busy_tick);
-        VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingStreamWaits, 1);
+        WaitForStaging(busy_tick, WaitReason::Ring);
     }
 
     std::fill(sync_ticks.begin() + first_region, sync_ticks.begin() + end_region,
@@ -364,8 +374,9 @@ std::optional<StagingBufferRef> StagingBufferPool::RelieveMemoryPressure(size_t 
     if (scheduler.IsRecordingThread() && (allocation_failed || submitted > pressure_wait_tick)) {
         pressure_wait_tick = submitted;
         if (allocation_failed || !scheduler.IsFree(submitted)) {
-            scheduler.Wait(submitted);
-            VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingStreamWaits, 1);
+            WaitForStaging(submitted, usage == MemoryUsage::Upload ? WaitReason::PressureUpload
+                                                                  : WaitReason::PressureReadback,
+                           allocation_failed);
         }
         // Deferred releases (textures, buffers) return their memory once their tick has passed.
         scheduler.CollectGarbage();
@@ -381,6 +392,18 @@ std::optional<StagingBufferRef> StagingBufferPool::RelieveMemoryPressure(size_t 
 void StagingBufferPool::MeasureHeadroom() {
     const CacheMemorySnapshot snapshot = device.QueryCacheMemoryPressure();
     headroom.Measured(snapshot.app_used, snapshot.app_limit);
+}
+
+void StagingBufferPool::WaitForStaging(u64 tick, WaitReason reason, bool allocation_failed) {
+    const auto started = std::chrono::steady_clock::now();
+    scheduler.Wait(tick);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - started).count();
+    auto& stats = wait_statistics[static_cast<std::size_t>(reason)];
+    ++stats.calls;
+    stats.elapsed_us += elapsed;
+    if (allocation_failed) ++allocation_failure_waits;
+    VideoCore::Perf::Add(VideoCore::Perf::Counter::StagingStreamWaits, 1);
 }
 
 u64 StagingBufferPool::PendingUploadBytes() const noexcept {

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "video_core/renderer_d3d12/d3d12_uniform_cache_policy.h"
+#include "video_core/renderer_d3d12/d3d12_cache_policy.h"
 
 #include <array>
 #include <optional>
@@ -120,6 +121,8 @@ public:
     void Finish();
     u64 GetDeviceLocalMemory() const;
     u64 GetDeviceMemoryUsage() const;
+    std::optional<VideoCommon::BufferGcPolicy> GetBufferGcPolicy();
+    void RecordBufferGc(const VideoCommon::BufferGcStatistics& stats);
     bool CanReportMemoryUsage() const { return true; }
     u32 GetUniformBufferAlignment() const { return D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT; }
     u32 GetStorageBufferAlignment() const { return 16; }
@@ -229,6 +232,11 @@ private:
     TextureResourceAllocator buffer_allocator;
     ComPtr<ID3D12Resource> zero_buffer;
     u64 stats_frame{};
+    CachePressureController buffer_pressure;
+    CacheMemorySnapshot buffer_pressure_snapshot;
+    CachePressure buffer_pressure_level{};
+    bool buffer_pressure_known{};
+    VideoCommon::BufferGcStatistics buffer_gc_stats;
     bool uniform_upload_copy{};
     bool coherent_uniform_cache{};
     bool incremental_uniform_bindings{};

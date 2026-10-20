@@ -7,6 +7,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <numeric>
 #include <stdexcept>
@@ -55,7 +56,23 @@ template <class P>
 BufferCache<P>::~BufferCache() = default;
 
 template <class P>
-void BufferCache<P>::RunGarbageCollector() {
+void BufferCache<P>::RunGarbageCollector(std::optional<BufferGcPolicy> policy) {
+    if (policy) {
+        const auto stats = CollectBufferGarbage(*policy, frame_tick,
+            [&](u64 cutoff, auto&& visitor) { lru_cache.ForEachItemBelow(cutoff, visitor); },
+            [&](BufferId buffer_id) {
+                const auto& buffer = slot_buffers[buffer_id];
+                return IsRegionGpuModified(buffer.CpuAddr(), buffer.SizeBytes());
+            },
+            [&](BufferId buffer_id) { return DownloadBufferMemory(slot_buffers[buffer_id]); },
+            [&](BufferId buffer_id) { DeleteBuffer(buffer_id); },
+            []() -> u64 {
+                return std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+            });
+        if constexpr (requires { runtime.RecordBufferGc(stats); }) runtime.RecordBufferGc(stats);
+        return;
+    }
     const bool aggressive_gc = total_used_memory >= critical_memory;
     const u64 ticks_to_destroy = aggressive_gc ? 60 : 120;
     int num_iterations = aggressive_gc ? 64 : 32;
@@ -97,12 +114,13 @@ void BufferCache<P>::TickFrame() {
     const bool skip_preferred = hits * 256 < shots * 251;
     channel_state->uniform_buffer_skip_cache_size = skip_preferred ? DEFAULT_SKIP_CACHE_SIZE : 0;
 
-    // If we can obtain the memory info, use it instead of the estimate.
-    if (runtime.CanReportMemoryUsage()) {
+    std::optional<BufferGcPolicy> gc_policy;
+    if constexpr (requires { runtime.GetBufferGcPolicy(); }) gc_policy = runtime.GetBufferGcPolicy();
+    if (!gc_policy && runtime.CanReportMemoryUsage()) {
         total_used_memory = runtime.GetDeviceMemoryUsage();
     }
-    if (total_used_memory >= minimum_memory) {
-        RunGarbageCollector();
+    if (gc_policy || total_used_memory >= minimum_memory) {
+        RunGarbageCollector(gc_policy);
     }
     ++frame_tick;
     delayed_destruction_ring.Tick();
@@ -1957,14 +1975,15 @@ void BufferCache<P>::InlineMemoryImplementation(DAddr dest_address, size_t copy_
 }
 
 template <class P>
-void BufferCache<P>::DownloadBufferMemory(Buffer& buffer) {
-    DownloadBufferMemory(buffer, buffer.CpuAddr(), buffer.SizeBytes());
+u64 BufferCache<P>::DownloadBufferMemory(Buffer& buffer) {
+    return DownloadBufferMemory(buffer, buffer.CpuAddr(), buffer.SizeBytes());
 }
 
 template <class P>
-void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64 size) {
+u64 BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64 size) {
     boost::container::small_vector<BufferCopy, 1> copies;
     u64 total_size_bytes = 0;
+    u64 downloaded_bytes = 0;
     u64 largest_copy = 0;
     memory_tracker.ForEachDownloadRangeAndClear(
         device_addr, size, [&](u64 device_addr_out, u64 range_size) {
@@ -1972,6 +1991,7 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
             const auto add_download = [&](DAddr start, DAddr end) {
                 const u64 new_offset = start - buffer_addr;
                 const u64 new_size = end - start;
+                downloaded_bytes += new_size;
                 copies.push_back(BufferCopy{
                     .src_offset = new_offset,
                     .dst_offset = total_size_bytes,
@@ -1989,7 +2009,7 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
             gpu_modified_ranges.Subtract(device_addr_out, range_size);
         });
     if (total_size_bytes == 0) {
-        return;
+        return 0;
     }
     largest_download = (std::max)(largest_download, total_size_bytes);
 
@@ -2019,6 +2039,7 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
             device_memory.WriteBlockUnsafe(copy_device_addr, immediate_buffer.data(), copy.size);
         }
     }
+    return downloaded_bytes;
 }
 
 template <class P>

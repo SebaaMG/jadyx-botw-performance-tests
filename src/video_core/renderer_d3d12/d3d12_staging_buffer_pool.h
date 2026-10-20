@@ -76,6 +76,12 @@ public:
     [[nodiscard]] u64 PendingUploadBytes() const noexcept;
 
 private:
+    enum class WaitReason : std::size_t { Ring, PressureUpload, PressureReadback, Count };
+    struct WaitStatistics {
+        u64 calls{};
+        u64 elapsed_us{};
+    };
+
     struct StagingBuffer {
         ComPtr<ID3D12Resource> buffer;
         std::span<u8> mapped_span;
@@ -125,6 +131,7 @@ private:
     void ReleaseLevel(StagingBuffersCache& cache, size_t log2, size_t max_checks = 16);
     void ReleaseAllRetired(StagingBuffersCache& cache);
     void MeasureHeadroom();
+    void WaitForStaging(u64 tick, WaitReason reason, bool allocation_failed = false);
 
     size_t Region(size_t iter) const noexcept {
         return iter / region_size;
@@ -147,6 +154,9 @@ private:
     StagingRingController ring_guard;
     HeadroomTracker headroom;
     u64 pressure_wait_tick{};
+    std::array<WaitStatistics, static_cast<std::size_t>(WaitReason::Count)> wait_statistics{};
+    u64 allocation_failure_waits{};
+    u64 wait_report_frames{};
     unsigned guard_trim_cursor{};
 
     StagingBuffersCache upload_cache;

@@ -44,11 +44,39 @@ int main() {
     const auto recovery = c.Policy(CachePressure::Emergency, true, true);
     assert(recovery.max_downloads == 40 && recovery.time_budget_us == 0);
     assert(!c.RequiresImmediateRecovery(sample(64*MiB)));
-    assert(c.RequiresImmediateRecovery(sample(64*MiB-1)));
+    assert(!c.RequiresImmediateRecovery(sample(64*MiB-1)));
+    for (const u64 free : {56*MiB, 1ULL}) {
+        const auto snapshot = sample(free);
+        const auto level = c.Update(snapshot);
+        const auto immediate = c.RequiresImmediateRecovery(snapshot);
+        const auto policy = c.Policy(level, true, immediate);
+        assert(level == CachePressure::Emergency && !immediate);
+        assert(policy.time_budget_us == 1000 && policy.max_downloads == 1);
+    }
+    assert(c.RequiresImmediateRecovery(sample(0)));
+    assert(c.RequiresImmediateRecovery(exhausted));
     assert(!c.RequiresImmediateRecovery({0, 0, 999*MiB, 1000*MiB}));
     assert(c.RequiresImmediateRecovery({0, 0, 1000*MiB, 1000*MiB}));
     assert(!c.RequiresImmediateRecovery({}));
     assert(!c.Policy(CachePressure::Critical,false).aggressive);
     assert(c.Policy(CachePressure::Normal,false).min_age >= critical.min_age);
+    CachePressureController buffers;
+    const auto low_pressure = CacheMemorySnapshot{1024*MiB, 5120*MiB, 1536*MiB, 7367*MiB};
+    assert(buffers.Update(low_pressure) == CachePressure::Normal);
+    auto buffer_policy = buffers.BufferPolicy(buffers.Update(low_pressure), false);
+    assert(buffer_policy.min_age == 120 && buffer_policy.iterations == 8);
+    assert(buffer_policy.max_downloads == 0 && buffer_policy.time_budget_us == 1000);
+    assert(buffers.Update(sample(384*MiB)) == CachePressure::Critical);
+    buffer_policy = buffers.BufferPolicy(buffers.Update(sample(384*MiB)), false);
+    assert(buffer_policy.min_age == 60 && buffer_policy.max_downloads == 1);
+    assert(buffers.Update(sample(192*MiB)) == CachePressure::Emergency);
+    buffer_policy = buffers.BufferPolicy(buffers.Update(sample(56*MiB)), false);
+    assert(buffer_policy.min_age == 10 && buffer_policy.time_budget_us == 1000);
+    assert(buffer_policy.max_downloads == 1);
+    buffer_policy = buffers.BufferPolicy(buffers.Update(sample(0)), true);
+    assert(buffer_policy.time_budget_us == 0 && buffer_policy.max_downloads == 64);
+    assert(buffers.Update({}) == CachePressure::Emergency);
+    assert(buffers.Update(low_pressure) == CachePressure::Normal);
+    assert(buffers.Update({1024*MiB, 5120*MiB, 1536*MiB, 1500*MiB}) == CachePressure::Emergency);
     std::cout << "PASS: independent domains, app/GPU budget exhaustion, hysteresis, query failure, overflow and emergency recovery policy\n";
 }

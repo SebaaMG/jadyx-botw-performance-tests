@@ -102,7 +102,7 @@ std::string DescribePerf(const VideoCore::Perf::Snapshot& d, double interval_ms)
         "guest flushes {} ({:.1f} ms), new resources {} ({:.1f} ms), CPU texture decode {:.1f} ms, "
         "residual estimate {:.1f} ms (scopes may overlap) | GPU busy {:.1f} ms, {} submits | {} draws, {} dispatches | "
         "uploads {} ({:.2f} MiB, {} GPU-decoded), downloads {} ({:.2f} MiB) | staging: {} "
-        "dedicated ({:.2f} MiB), {} ring waits",
+        "dedicated ({:.2f} MiB), {} staging waits",
         idle, get(Counter::FenceWaits), fence, get(Counter::PipelineStalls), pipelines,
         get(Counter::GpuThreadFlushes), flushes, get(Counter::ResourcesCreated), creates, decodes,
         work,
@@ -451,7 +451,8 @@ void RendererD3D12::ReportPerfWindow(u32 frames, double total_ms) {
     }
     const DXGI_QUERY_VIDEO_MEMORY_INFO video = device.QueryVideoMemory();
     LOG_INFO(Render,
-             "D3D12 memory: GPU {} MiB, DXGI budget {} MiB, cache budget {} MiB, caches see {} MiB used",
+             "D3D12 memory: GPU {} MiB, DXGI budget {} MiB, cache budget {} MiB, caches see {} MiB used "
+             "(legacy proxy; buffer GC uses independent app/GPU pressure)",
              video.CurrentUsage >> 20, video.Budget >> 20, device.CacheMemoryBudget() >> 20,
              device.CacheMemoryUsage() >> 20);
 }

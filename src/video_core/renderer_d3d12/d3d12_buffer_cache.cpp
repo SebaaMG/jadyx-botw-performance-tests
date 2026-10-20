@@ -324,6 +324,34 @@ u64 BufferCacheRuntime::GetDeviceLocalMemory() const {
 u64 BufferCacheRuntime::GetDeviceMemoryUsage() const {
     return device.CacheMemoryUsage();
 }
+std::optional<VideoCommon::BufferGcPolicy> BufferCacheRuntime::GetBufferGcPolicy() {
+    buffer_pressure_snapshot = device.QueryCacheMemoryPressure();
+    buffer_pressure_known |= buffer_pressure_snapshot.Known();
+    if (!buffer_pressure_known) return std::nullopt;
+    buffer_pressure_level = buffer_pressure.Update(buffer_pressure_snapshot);
+    return CachePressureController::BufferPolicy(buffer_pressure_level,
+        CachePressureController::RequiresImmediateRecovery(buffer_pressure_snapshot));
+}
+void BufferCacheRuntime::RecordBufferGc(const VideoCommon::BufferGcStatistics& stats) {
+    buffer_gc_stats.passes += stats.passes;
+    buffer_gc_stats.visits += stats.visits;
+    buffer_gc_stats.evictions += stats.evictions;
+    buffer_gc_stats.dirty_deferred += stats.dirty_deferred;
+    buffer_gc_stats.downloads += stats.downloads;
+    buffer_gc_stats.download_bytes += stats.download_bytes;
+    buffer_gc_stats.download_us += stats.download_us;
+    buffer_gc_stats.elapsed_us += stats.elapsed_us;
+    if (stats_frame % 300 != 0) return;
+    LOG_INFO(Render, "SeriesX buffer GC: passes {}, visits {}, evictions {}, dirty deferred {}, "
+             "downloads {} ({} KiB, {:.3f} ms), total {:.3f} ms; pressure {}, app free {} KiB "
+             "/ limit {} MiB, GPU {} / {} MiB (cumulative)",
+             buffer_gc_stats.passes, buffer_gc_stats.visits, buffer_gc_stats.evictions,
+             buffer_gc_stats.dirty_deferred, buffer_gc_stats.downloads,
+             buffer_gc_stats.download_bytes >> 10, buffer_gc_stats.download_us / 1000.0,
+             buffer_gc_stats.elapsed_us / 1000.0, static_cast<u32>(buffer_pressure_level),
+             buffer_pressure_snapshot.AppFree() >> 10, buffer_pressure_snapshot.app_limit >> 20,
+             buffer_pressure_snapshot.gpu_used >> 20, buffer_pressure_snapshot.gpu_budget >> 20);
+}
 StagingBufferRef BufferCacheRuntime::UploadStagingBuffer(size_t size) { return staging.Request(size, MemoryUsage::Upload); }
 StagingBufferRef BufferCacheRuntime::DownloadStagingBuffer(size_t size, bool deferred) { return staging.Request(size, MemoryUsage::Download, deferred); }
 void BufferCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) { staging.FreeDeferred(ref); }
