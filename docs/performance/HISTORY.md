@@ -1,4 +1,4 @@
-# Experiment history, from the initial baseline through .30
+# Experiment history, from the initial baseline through .34
 
 This archive includes **all 25 retained source patches**, reconstructed as Git
 commits, including the discarded .18–.21 experiments. The original upstream
@@ -53,6 +53,12 @@ and 0013 form a side experiment; 0014 and 0015 each branch directly from .17.
 Their tags keep them accessible without silently enabling them in .30.
 
 ## Original experiment commits
+
+The [.34 configuration follow-up](BOTW-RECORDER-34.md) reuses the exact tested
+.30 executable and its existing parallel recorder. It adds no source patch or
+reconstructed source tag. Its paired configurations and numeric evidence are
+published separately from the 33-file historical archive above. The unaccepted
+.31–.33 experiments are not included in this public source checkpoint.
 
 The [original commit timeline](history/COMMITS.md) keeps the SeriesX subjects,
 dates and hashes together, with links to the corresponding public source

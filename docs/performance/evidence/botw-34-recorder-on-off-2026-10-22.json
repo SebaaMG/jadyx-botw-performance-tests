@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-22",
+  "checkpoint": ".34 configuration follow-up on preserved .30 executable",
+  "same_exe_sha256": "ea05f8e531d47d60850c502218be64a4dba4811e6003686629d104430446910c",
+  "host": {"os": "Windows 10", "cpu": "Intel Xeon E5-2696 v3", "gpu": "Radeon RX 580"},
+  "game": {"name": "The Legend of Zelda: Breath of the Wild", "version": "1.9.0", "fps_mod": 60},
+  "order": ["on", "off"],
+  "changed_boot_options": [{"key": "async_record", "on": "1", "off": "0"}],
+  "shared_boot_options": {"image_table_reuse": 0, "memory_limit_mib": 8192, "pc_memory_budget_mib": 5120},
+  "on": {
+    "frames": 1200,
+    "wall_ms": 31083,
+    "mean_frame_ms": 25.9025,
+    "fps": 38.60631213203359,
+    "p99_window_ms": [39.83, 38.60, 38.22, 37.88],
+    "totals": {"draws": 3395589, "dispatches": 23254, "submits": 11230, "idle_ms": 7694.2, "fence_waits": 2, "fence_ms": 2.2, "pipeline_stalls": 4, "pipeline_ms": 0.8, "resources": 1280, "resource_ms": 232.3, "gpu_busy_ms": 17686.3, "staging_creates": 306, "staging_waits": 0},
+    "errors_in_selected_interval": 0,
+    "full_trim_delta_adjacent_periodic_samples": 0
+  },
+  "off": {
+    "frames": 1200,
+    "wall_ms": 35428,
+    "mean_frame_ms": 29.523333333333333,
+    "fps": 33.871514056678336,
+    "p99_window_ms": [40.76, 44.71, 41.55, 42.92],
+    "totals": {"draws": 3396679, "dispatches": 23950, "submits": 13637, "idle_ms": 5403.4, "fence_waits": 2, "fence_ms": 1.1, "pipeline_stalls": 2, "pipeline_ms": 0.7, "resources": 1385, "resource_ms": 341.7, "gpu_busy_ms": 18089.6, "staging_creates": 329, "staging_waits": 0},
+    "errors_in_selected_interval": 0,
+    "full_trim_delta_adjacent_periodic_samples": 0
+  },
+  "frame_ms_saved": 3.6208333333333336,
+  "frame_time_reduction_percent": 12.264310714688943,
+  "fps_increase_percent": 13.978702184473812,
+  "pooled_p99_available": false,
+  "transition_observations": {
+    "on": {"window_frames": 300, "window_p99_ms": 278.53, "pipeline_stalls": 1041, "pipeline_ms": 4414, "resource_creations": 3285, "sampled_peak_committed_mib": 5507, "owner_scope_recovered": true, "inventory_separately_confirmed": false},
+    "off": {"window_frames": 300, "window_p99_ms": 329.22, "pipeline_ms": 246.6, "resource_creations": 4519, "sampled_peak_committed_mib": 5430, "owner_inventory_and_scope_functional": true, "owner_inventory_opening_slow": true},
+    "both": {"subsequent_full_trims_per_300_frames": 300, "subsequent_pool_creations_per_300_frames": 600, "q_exit_code": 0},
+    "scope": "Separate later windows, not matched cold transitions or input-timestamped action measurements"
+  },
+  "limitations": [
+    "One owner-matched fixed-view ON/OFF pair; no interleaved repeat",
+    "Persistent caches not cleared; first ON scope visit populated caches before OFF",
+    "Startup staging ring128MiB ON and32MiB OFF; memory headroom differs",
+    "Original .30 image_table_reuse=1 configuration not compared in this pair",
+    "Window percentiles are not pooled P99; raw frame intervals unavailable",
+    "Foreground observed, not continuously monitored",
+    "Both runs have transition hitches; movement stability not established",
+    "Counter scopes overlap and are not exclusive time components"
+  ],
+  "decision": "Retain recorder ON provisionally for this workload; no claim of solved transition hitches or 60 FPS"
+}

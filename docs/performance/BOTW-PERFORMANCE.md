@@ -1,4 +1,15 @@
-# BOTW performance experiments: checkpoint .30
+# BOTW performance experiments: source checkpoint .30, configuration follow-up .34
+
+## Latest result: parallel recording .34
+
+The [22 October .34 follow-up](BOTW-RECORDER-34.md) uses the existing .30
+executable, not the later rejected renderer experiments. Enabling its existing
+parallel recorder reduced mean frame time from **29.5233 to 25.9025 ms** and
+increased FPS from **33.8715 to 38.6063** in a 1,200-frame fixed-view comparison.
+Paired configurations and aggregate evidence accompany that report. First-use
+transition hitches remain; this does not establish stable movement or 60 FPS.
+
+The remainder of this report preserves the earlier .30 source and measurements.
 
 This branch publishes the source and evidence from our Jadyx performance work so
 other developers can inspect and build on it. It is an experimental fork of
@@ -51,7 +62,7 @@ in the open world, ahead of the original PC capture. Missing a
 game pacing waits for a later interval; the exact timing chain matters alongside
 the amount of work saved. See the original project overview in the root README.
 
-## Latest measured increment: .30 synchronization
+## Earlier measured increment: .30 synchronization
 
 The following comparison isolates the three new .30 options, retaining all
 earlier optimizations in both variants. Its gain is additional to the earlier
